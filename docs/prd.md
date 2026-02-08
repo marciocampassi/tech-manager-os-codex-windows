@@ -4,25 +4,42 @@
 
 ### Goals
 
-- Create a local-first CLI tool that serves as an "Operating System" for high-performance Engineering Managers
-- Solve "Management Entropy" (lost context, recency bias, scattered notes) by treating management artifacts as code
-- Implement "Methodology-as-Code" where management logic (feedback loops, reviews) is defined in YAML "Packs", not hardcoded
-- Provide zero-latency context through terminal-based operation with structured local Markdown database
-- Enable "Agnostic Intelligence (BYOK)" where users bring their own API Keys (OpenAI, Claude, or Gemini)
-- Deliver an MVP focused on People Management & Context Lifecycle
-- Build an extensible system allowing community growth through shareable methodology packs
-- Establish a base pack that ships with the tool and support premium authoral packs as monetization strategy
+- Create a **local-first workspace system** that serves as an "Operating System" for Engineering Managers
+- Solve **"Management Entropy"** (lost context, scattered notes, recency bias) by treating management artifacts as organized, AI-enhanced context
+- Implement **"Agent-as-Intelligence"** where AI agents provide management assistance through specialized personas, not hardcoded features
+- Enable **"Transcript-to-Context"** workflow where meeting transcripts are automatically categorized and filed into the appropriate contexts
+- Provide **zero-latency insight** through CLI + IDE integration with structured local file system
+- Support **"Agnostic Intelligence (BYOK)"** where users bring their own API Keys (OpenAI, Claude, or Gemini)
+- Deliver an MVP focused on **People Management + Project Management + Manager's Career**
+- Build an **extensible system** with methodology packs allowing community-driven management styles
+- Enable **managers to manage themselves** with equal attention to their own career development
 
 ### Background Context
 
-Engineering managers face a chronic problem: management entropy. Critical context gets lost in scattered notes, recency bias drives decisions instead of data, and the cognitive load of tracking multiple direct reports across quarters becomes unsustainable. Unlike engineering work where version control and structured systems are standard, management work remains chaotic and ad-hoc.
+Engineering managers face chronic problems across multiple dimensions:
 
-Tech Manager OS treats this problem by applying software engineering principles to management: version-controlled artifacts, structured state transitions, and AI-assisted context preservation. By making the system local-first and provider-agnostic, it respects privacy while avoiding vendor lock-in. The "Prompt Pack" architecture ensures the tool isn't opinionated about methodology—managers can adopt existing frameworks or create their own, sharing proven approaches with the community.
+1. **Team Context Loss:** Critical information about team members gets scattered across notes, Slack, emails. When it's time for 1:1s or reviews, managers scramble to remember what happened weeks ago.
+
+2. **Project Status Amnesia:** Weekly status meetings require reconstructing what happened from fragmented notes, leading to inaccurate reporting and missed risks.
+
+3. **Manager's Own Career Neglect:** While tracking team development religiously, managers often neglect their own PDPs, brag documents, and career conversations with their leaders.
+
+4. **Transcript Overload:** Meeting recordings generate transcripts that sit unused because there's no system to extract value and file them appropriately.
+
+5. **Operational Context Sprawl:** Hiring pipelines, leadership meeting notes, company announcements, and incident post-mortems all live in different tools with no unified context.
+
+Tech Manager OS solves this by:
+- **Inbox-First Capture:** Drop any transcript or note into `inbox/`, run `tm cycle`, and AI categorizes everything
+- **Context Maintenance:** AI maintains running summaries for each person, project, and operational area
+- **Agent-Driven Intelligence:** Specialized agents (People Manager, Project Manager, Career Coach, Hiring Manager) provide domain expertise
+- **Local-First Privacy:** All data stays local, no vendor lock-in, full ownership
+- **IDE-Native Workflow:** Agents work naturally in Cursor, Claude Code, Gemini CLI
 
 ### Change Log
 
 | Date | Version | Description | Author |
 |------|---------|-------------|---------|
+| 2026-02-08 | 3.0 | Complete architecture redesign: Agent-based system, expanded to manager's career + operations | Mary (Analyst) + John (PM) |
 | 2026-01-29 | 2.0 | Initial PRD draft for "Methodology-as-Code" edition | John (PM) |
 
 ---
@@ -31,77 +48,205 @@ Tech Manager OS treats this problem by applying software engineering principles 
 
 ### Functional Requirements
 
-**FR1:** The system shall provide a `tm init` command that creates the complete directory structure (`.system/`, `00_Inbox/`, `10_Current_Context/`, `99_Archive/`) on first run.
+#### Core System (FR1-FR8)
 
-**FR2:** The system shall support interactive provider selection during `tm init`, allowing users to choose between OpenAI, Anthropic (Claude), and Google Gemini as their AI provider.
+**FR1:** The system shall provide a `tm init` command that:
+- Runs an interactive onboarding workflow to collect manager's profile, career goals, and leadership context
+- Creates complete directory structure (`inbox/`, `people/`, `projects/`, `my-career/`, `my-leadership/`, `operations/`, `knowledge-base/`, `tasks/`, `archive/`)
+- Generates IDE integration files (`.cursor/rules/tm/`, `.claude/agents/`, `.gemini/agents/`)
+- Creates initial profile and PDP templates for the manager
 
-**FR3:** The system shall securely store API keys for the selected AI provider using encrypted configuration management.
+**FR2:** The system shall support interactive AI provider selection during `tm init`, allowing users to choose between OpenAI, Anthropic (Claude), and Google Gemini as their AI provider.
 
-**FR4:** The system shall provide a `tm inbox <note>` command that creates timestamped files (format: `YYYY-MM-DD-HHmm.md`) in the `00_Inbox/` directory with the provided note content.
+**FR3:** The system shall securely store API keys for the selected AI provider using encrypted configuration management in OS-specific directories.
 
-**FR5:** The system shall provide a `tm cycle` command that processes all inbox notes, matches them to team members, updates context summaries using AI, and archives processed notes to `99_Archive/{Year}/{Quarter}/Team/{Member}/Raw_Notes/`.
+**FR4:** The system shall provide a `tm cycle` command that:
+- Scans `inbox/` for all text files (.txt, .md, .json)
+- Uses AI to categorize each file by type (1:1, feedback, project status, meeting notes, hiring, etc.)
+- Identifies which people and/or projects each file relates to
+- Updates context summaries for affected entities
+- Moves files to appropriate destination folders
+- Extracts actionable tasks and updates `tasks/today.md`, `tasks/this-week.md`, `tasks/this-month.md`, `tasks/this-quarter.md`
+- Provides summary of changes and suggested actions
 
-**FR6:** The system shall maintain a `_Context_Summary.md` file for each team member that serves as the AI-enhanced memory of all interactions and context.
+**FR5:** The system shall provide a `tm watch` command that monitors the `inbox/` directory and automatically runs `tm cycle` when new files are detected.
 
-**FR7:** The system shall provide a `tm feedback <member> --type=positive|constructive` command that generates feedback drafts categorized by type, stored in separate Active_Feedback_Positive.md and Active_Feedback_Constructive.md files.
+**FR6:** The system shall maintain AI-enhanced context summaries:
+- `people/active/{member}/context.md` - Running summary of all interactions with team member
+- `projects/active/{project}/context.md` - Running summary of all project activity
+- `my-career/profile.md` - Manager's own profile and development areas
+- `my-leadership/profile.md` - Manager's leader's expectations and style
 
-**FR8:** The system shall implement a Prompt Pack Engine that parses YAML files defining commands, inputs, and prompts, enabling community-driven methodology sharing.
+**FR7:** The system shall provide time-based task views:
+- `tm today` - Display urgent tasks, scheduled 1:1s, and attention items for today
+- `tm this-week` - Display weekly priorities, people check-ins, and project milestones
+- `tm this-month` - Display monthly objectives and key deadlines
+- `tm this-quarter` - Display quarterly goals and strategic initiatives
 
-**FR9:** The system shall validate all Prompt Pack YAML files against a defined schema including `meta`, `commands`, `inputs`, `prompt`, and `output` fields.
+**FR8:** The system shall implement an Agent System with specialized personas:
+- **cycle-agent**: Inbox processing and intelligent categorization
+- **pm-people**: People management (1:1s, feedback, PDI, PIP, reviews)
+- **pm-project**: Project management (status reports, risk assessments, health checks)
+- **pm-career**: Manager's own career development (PDP, brag document, self-reviews)
+- **pm-hiring**: Recruitment support (candidate reviews, job descriptions, interview guides)
+- **tm-master**: All-in-one agent for web platform usage
 
-**FR10:** The system shall support variable injection using handlebars-style syntax (e.g., `{{pdi}}`) in Prompt Pack templates, replacing variables with content from specified file paths.
+#### People Management (FR9-FR16)
 
-**FR11:** The system shall generate the default `base-pack.yaml` in `.system/packs/` during initialization, providing out-of-the-box management methodology.
+**FR9:** The system shall provide `tm people add <name>` to create team member structure including:
+- `profile.md` with frontmatter template (role, skills, current projects)
+- `context.md` for AI-maintained interaction summary
+- `pdi.md` for Personal Development & Improvement plan
+- Subdirectories: `1on1s/`, `feedback/`, `reviews/`
 
-**FR12:** The system shall implement state transitions for files moving between folders (Inbox → Current Context → Archive) based on temporal lifecycle rules.
+**FR10:** The system shall provide `tm people collect-profile <name>` to generate an interactive profile collection prompt that can be shared with team members to gather structured information about their background, skills, work style, and career goals.
 
-**FR13:** The system shall provide `tm member add <name>` to create member folder structure including Profile.md, Current_PDI.md, Active_Feedback_Positive.md, Active_Feedback_Constructive.md, 1on1_Sessions/ subdirectory, and Performance_Reviews/ subdirectory.
+**FR11:** The system shall provide `tm people archive <name>` to move a team member to `people/archived/{year}/` when they leave the company, preserving all historical context.
 
-**FR14:** The system shall provide `tm generate-pdi <member>` to create initial Personal Development & Improvement plan using AI analysis of context summary and profile.
+**FR12:** The system shall provide `tm people fire <name>` as a distinct operation from archive, marking the departure reason and handling PIP documentation.
 
-**FR15:** The system shall provide `tm update-pdi <member>` to generate AI-suggested PDI updates based on progress and recent context.
+**FR13:** The system shall provide agent commands for people management:
+- `*1on1-prepare <member>` - Generate 1:1 agenda from context, PDI, recent feedback, and tasks
+- `*feedback <member> --tone=positive|constructive` - Generate feedback draft based on context
+- `*pdi-generate <member>` - Create structured Personal Development & Improvement plan
+- `*pdi-update <member>` - Update PDI with progress and new goals
+- `*pip-create <member>` - Create Performance Improvement Plan
+- `*review-generate <member> --period=<quarter>` - Generate performance review draft
 
-**FR16:** The system shall provide `tm 1on1 create <member>` to scaffold a timestamped session file with template sections for preparation notes, discussion points, action items, and meeting notes.
+**FR14:** The system shall support a structured PDI format including:
+- Current role and aspirations
+- 3-5 development goals with success criteria
+- Action plans for each goal
+- Progress tracking
+- Support needed from manager and team
+- Timeline and check-in schedule
 
-**FR17:** The system shall provide `tm 1on1 prepare <member>` to generate a structured agenda by combining context summary, PDI, and session notes.
+**FR15:** The system shall track member-project relationships through frontmatter in both `people/active/{member}/profile.md` and `projects/active/{project}/brief.md`.
 
-**FR18:** The system shall provide `tm performance-review <member>` to generate performance review drafts from accumulated context, feedback, and PDI progress.
+**FR16:** The system shall provide `tm show <member>` to display current context summary, recent 1:1s, active PDI goals, and upcoming check-ins for a team member.
 
-**FR19:** The system shall support a layered pack system where base-pack.yaml provides core commands and optional extension packs can override or add commands.
+#### Project Management (FR17-FR22)
 
-**FR20:** The system shall provide `tm pack install <url>` to download and validate prompt packs from URLs.
+**FR17:** The system shall provide `tm project add <name>` to create project structure including:
+- `brief.md` with frontmatter template (team, timeline, status, priority)
+- `context.md` for AI-maintained project summary
+- Subdirectories: `status-reports/`, `risk-assessments/`, `meetings/`
 
-**FR21:** The system shall provide `tm packs list` to display all installed packs with their metadata and status.
+**FR18:** The system shall provide `tm project archive <name>` to move completed projects to `projects/archived/{year}/`.
 
-**FR22:** During `tm cycle`, unmatched notes shall be presented interactively for user assignment to members or archival as general notes.
+**FR19:** The system shall provide agent commands for project management:
+- `*status-report <project>` - Generate weekly status report from context and meetings
+- `*risk-assessment <project>` - Assess current project risks and mitigation strategies
+- `*health-check <project>` - Comprehensive project health analysis
 
-**FR23:** The system shall provide `tm context <member>` to display the current context summary for a team member.
+**FR20:** The system shall provide `tm show <project>` to display current context, recent status reports, risk assessments, and team allocation.
+
+**FR21:** Status reports shall include: progress this week, risks and blockers, team capacity, next week's plan, budget status (if applicable).
+
+**FR22:** Risk assessments shall include: identified risks with severity scoring, impact analysis, mitigation strategies, owner assignment.
+
+#### Manager's Career (FR23-FR27)
+
+**FR23:** The system shall create `my-career/` directory during initialization containing:
+- `profile.md` - Manager's own background, management style, strengths, development areas
+- `pdp.md` - Personal Development Plan aligned with manager's leader expectations
+- `brag-document.md` - Running log of achievements, wins, and impact for performance reviews
+
+**FR24:** The system shall provide agent commands for career management:
+- `*pdp-generate` - Create Personal Development Plan for the manager
+- `*pdp-update` - Update PDP with progress
+- `*brag-summarize` - Summarize achievements from brag document
+- `*self-review <period>` - Draft self-performance review
+
+**FR25:** The system shall provide CLI commands for brag document:
+- `tm my brag add <achievement>` - Quick log achievement
+- `tm my brag view` - Display brag document
+
+**FR26:** The system shall create `my-leadership/` directory containing:
+- `profile.md` - Manager's leader's expectations, communication style, priorities
+- `alignments/` - Transcripts and notes from 1:1s with manager
+
+**FR27:** The cycle agent shall recognize and categorize 1:1 transcripts with manager's leader, filing them in `my-leadership/alignments/` and updating both manager's context and PDP alignment.
+
+#### Operations (FR28-FR34)
+
+**FR28:** The system shall provide `tm hiring open <role-and-seniority>` to create hiring pipeline structure:
+- `operations/hiring/{role}/job-description.md`
+- `operations/hiring/{role}/candidates/` directory
+
+**FR29:** The system shall provide `tm hiring candidate add <role> <name>` to create candidate folder structure for tracking interviews and communications.
+
+**FR30:** The system shall provide agent command `*candidate-review <candidate> --approved=true|false` to generate comprehensive candidate assessment including technical evaluation, culture fit, recommendation, and onboarding notes.
+
+**FR31:** The system shall create `operations/rituals/` with subdirectories:
+- `leadership/` - Company leadership meetings, strategy sessions
+- `company/` - All-hands, townhalls, company-wide announcements
+
+**FR32:** The cycle agent shall categorize meeting transcripts into appropriate ritual folders based on content and participants.
+
+**FR33:** The system shall provide `operations/incidents/post-mortems/` for incident documentation and learnings.
+
+**FR34:** The system shall provide `operations/finance/` for budget-related notes and tracking.
+
+#### Knowledge Base (FR35-FR37)
+
+**FR35:** The system shall create `knowledge-base/` structure:
+- `people/` - Company culture, values, onboarding processes
+- `process/` - Performance review process, promotion criteria, incident response
+- `company/` - Strategy, org chart, department information
+- `methodology.md` - Manager's personal management philosophy and style
+
+**FR36:** The system shall provide `tm kb add <category> <title>` to create new knowledge base entries.
+
+**FR37:** The cycle agent may reference knowledge base entries when generating outputs (e.g., culture fit in candidate reviews, process adherence in performance reviews).
+
+#### Pack System & Extensibility (FR38-FR40)
+
+**FR38:** The system shall implement a Prompt Pack Engine that parses YAML files defining:
+- Agent commands with descriptions
+- Input variable definitions and sources
+- AI prompts (system, user, temperature, max_tokens)
+- Output specifications (file paths, formats, templates)
+
+**FR39:** The system shall validate all Prompt Pack YAML files against a defined schema using Zod, checking:
+- Schema compliance
+- Variable references match declared inputs
+- Output paths are valid
+- No command name conflicts
+
+**FR40:** The system shall generate `base-pack.yaml` during initialization providing core management methodology commands.
 
 ### Non-Functional Requirements
 
 **NFR1:** The system shall run as a local-first application without requiring external cloud services except for user-provided AI API endpoints.
 
-**NFR2:** The system shall be cross-platform compatible, supporting Mac, Linux, and Windows operating systems via Node.js runtime.
+**NFR2:** The system shall be cross-platform compatible, supporting Mac, Linux, and Windows operating systems.
 
 **NFR3:** The system shall implement the Adapter Pattern for AI providers, ensuring loose coupling and enabling addition of new providers without modifying core logic.
 
-**NFR4:** The system shall use `fs-extra` for all file operations to ensure safe move/copy operations and prevent data loss during state transitions.
+**NFR4:** The system shall use safe file operations to ensure atomic writes and prevent data loss during state transitions.
 
-**NFR5:** The system shall provide clear terminal UI feedback using spinners (ora), colored output (chalk), and interactive prompts (inquirer) for enhanced user experience.
+**NFR5:** The system shall provide clear terminal UI feedback using spinners (ora), colored output (chalk), and progress indicators for enhanced user experience.
 
-**NFR6:** The system shall store all management data as plain Markdown files in a human-readable, version-control-friendly format.
+**NFR6:** The system shall store all management data as plain Markdown files with YAML frontmatter in a human-readable, version-control-friendly format.
 
-**NFR7:** The system shall maintain zero external dependencies for data storage, ensuring users retain full ownership and portability of their management data.
+**NFR7:** The system shall maintain zero external dependencies for data storage, ensuring users retain full ownership and portability of their data.
 
-**NFR8:** The system shall complete the `tm cycle` command processing within reasonable time bounds, scaling to handle up to 15 team members without performance degradation (configurable for larger teams).
+**NFR8:** The system shall complete the `tm cycle` command processing within reasonable time bounds, scaling to handle up to 20 inbox files without performance degradation.
 
-**NFR9:** The system shall implement graceful error handling for AI API failures, providing clear error messages and allowing retry operations.
+**NFR9:** The system shall implement graceful error handling for AI API failures, providing clear error messages with recovery suggestions.
 
 **NFR10:** The system shall validate Prompt Pack YAML structure using Zod schema validation before execution to prevent runtime errors.
 
 **NFR11:** The system shall be distributed as `@marlonvidal/tech-manager-os` on npm with the binary command `tm`.
 
-**NFR12:** The system shall support pack layering with clear precedence rules where extension packs override base pack commands.
+**NFR12:** The system shall support IDE integration for Cursor (.cursor/rules/), Claude Code (.claude/agents/), and Gemini CLI (.gemini/agents/).
+
+**NFR13:** CLI commands should respond in <100ms (excluding AI calls). AI operations should show progress indicators after 500ms.
+
+**NFR14:** The system shall use AES-256 encryption for API keys stored in OS-specific config directories.
+
+**NFR15:** The system shall support environment variable overrides (`TM_PROVIDER`, `TM_API_KEY`) for configuration.
 
 ---
 
@@ -109,185 +254,591 @@ Tech Manager OS treats this problem by applying software engineering principles 
 
 ### Overall UX Vision
 
-Tech Manager OS embraces the terminal-native workflow of engineering managers who live in the command line. The UX philosophy is "zero friction, maximum context" - every command should feel instant, every output should be scannable, and every interaction should respect the user's flow state. The tool should disappear into muscle memory, becoming an extension of thought rather than a barrier to action.
+Tech Manager OS embraces a **hybrid workflow**: lightweight CLI for data capture and organization, powerful IDE agents for intelligence and document generation. The philosophy is **"Capture anywhere, think everywhere"** - drop transcripts in inbox, run cycle, then leverage agents in your IDE when you need AI assistance.
+
+The system should feel like a **natural extension of how managers already work**: meetings generate transcripts, transcripts go into a folder, the system organizes everything and makes it retrievable when needed.
 
 ### Key Interaction Paradigms
 
-- **Command-first design:** All functionality accessible via explicit commands (no hidden menus or TUI navigation)
-- **Progressive disclosure:** Simple commands with sensible defaults; verbose output available via `--verbose` flag
-- **Interactive when needed:** Use `inquirer` prompts only for destructive operations or ambiguous inputs
-- **Readable output:** Use `chalk` for semantic coloring (green=success, yellow=warning, blue=info, red=error)
-- **Streaming feedback:** Long-running AI operations show progress with `ora` spinners and status updates
-- **Idempotent operations:** Commands can be safely re-run without side effects where applicable
+**CLI Commands (Data Operations):**
+- **Instant capture**: No friction between thought and storage
+- **Clear organization**: Predictable file structure, easy to navigate
+- **Informative feedback**: Show what happened, what changed, what needs attention
+- **Time-based views**: `today`, `this-week`, `this-month`, `this-quarter` for temporal context
 
-### Core Screens and Views
+**IDE Agents (Intelligence Operations):**
+- **Natural language**: Invoke agents like talking to a colleague (`@pm-people *1on1-prepare sarah`)
+- **Context-aware**: Agents automatically load relevant files
+- **Draft generation**: AI produces human-quality drafts for manager to review/edit
+- **Iterative refinement**: Agents can refine outputs based on feedback
 
-Since this is a CLI, "screens" are command outputs:
+### Core Workflows
 
-1. **Initialization Flow** (`tm init`) - Opens with branded welcome message "**Tech Manager OS by Marlon Vidal - Comunidade Tech Manager de Resultados**", followed by interactive setup wizard with provider selection and API key entry
-2. **Member Dashboard** (`tm member list`) - Table view of all team members with last interaction dates
-3. **Context View** (`tm context <member>`) - Formatted display of member's context summary with highlighted recent updates
-4. **1:1 Agenda Output** (`tm 1on1 prepare <member>`) - Structured agenda with sections, timestamps, and action items
-5. **Pack Management** (`tm packs list`) - Table showing installed packs, versions, active status
-6. **Cycle Results** (`tm cycle`) - Processing summary showing matched notes, updated members, errors
+#### Workflow 1: Manager Onboarding (First Run)
+
+```bash
+tm init
+
+# Interactive wizard:
+# - Welcome & AI provider setup
+# - Collect manager's profile (name, role, experience, management style)
+# - Define career goals and development areas
+# - Capture leadership context (who's your manager, their expectations)
+# - Create workspace structure
+# - Generate IDE integration files
+# - Display next steps
+```
+
+**Output:**
+- Complete folder structure created
+- Manager's profile and initial PDP drafted
+- Leader profile template created
+- All IDE integration files generated (`.cursor/`, `.claude/`, `.gemini/`)
+- Configuration saved and encrypted
+
+#### Workflow 2: Daily Routine - Inbox Processing
+
+```bash
+# User drops files in inbox/ throughout day/week:
+# - Meeting transcripts (txt, md, json)
+# - Quick notes
+# - Email copies
+# - Interview recordings (transcribed)
+
+tm cycle
+
+# AI processes each file:
+# - Categorizes by type (1:1, project meeting, leadership sync, hiring, etc.)
+# - Identifies people and projects mentioned
+# - Updates context summaries
+# - Extracts actionable tasks
+# - Moves files to appropriate folders
+# - Suggests follow-up actions
+```
+
+**Output:**
+- Summary of files processed and where they went
+- List of contexts updated (people, projects)
+- Urgent actions flagged
+- Task lists updated (today/week/month/quarter)
+
+#### Workflow 3: Preparing for 1:1 (IDE)
+
+```bash
+# In Cursor/Claude/Gemini
+@pm-people *1on1-prepare sarah-chen
+
+# Agent automatically reads:
+# - people/active/sarah-chen/context.md
+# - people/active/sarah-chen/pdi.md
+# - people/active/sarah-chen/1on1s/*.md (recent sessions)
+# - people/active/sarah-chen/feedback/*.md
+# - tasks/today.md and tasks/this-week.md
+# - Related project contexts
+
+# Generates comprehensive agenda:
+# - Check-in topics
+# - Follow-ups from last session
+# - Current challenges/support needs
+# - PDI progress review
+# - New discussion points
+# - Suggested action items
+```
+
+**Output:**
+- `people/active/sarah-chen/1on1s/2026-02-08.md` created
+- Structured agenda ready for meeting
+- Manager reviews/edits before meeting
+
+#### Workflow 4: Weekly Project Status (IDE)
+
+```bash
+@pm-project *status-report mobile-redesign
+
+# Agent reads:
+# - projects/active/mobile-redesign/context.md
+# - projects/active/mobile-redesign/meetings/*.md
+# - people/active/sarah-chen/context.md (project lead)
+# - tasks/this-week.md
+# - Previous status reports for comparison
+
+# Generates status report with:
+# - Progress this week
+# - Risks and blockers
+# - Team capacity
+# - Next week's plan
+```
+
+**Output:**
+- `projects/active/mobile-redesign/status-reports/2026-w06.md` created
+- Manager reviews/edits before sharing with stakeholders
+
+#### Workflow 5: Hiring - Candidate Review (IDE)
+
+```bash
+# Interview transcript dropped in inbox
+# Cycle automatically categorizes to:
+# operations/hiring/senior-frontend/candidates/john-doe/
+
+@pm-hiring *candidate-review john-doe --approved=true
+
+# Agent reads:
+# - Job description
+# - All interview transcripts
+# - Company culture/values (knowledge-base)
+
+# Generates comprehensive review:
+# - Technical assessment
+# - Culture fit analysis
+# - Recommendation (STRONG HIRE/HIRE/NO HIRE)
+# - Suggested compensation
+# - Onboarding notes
+```
+
+**Output:**
+- `operations/hiring/senior-frontend/candidates/john-doe/candidate-review.md`
+- Manager reviews before making hiring decision
+
+### CLI Terminal UX
+
+**Visual Design:**
+- Clean, scannable output with semantic colors (green=success, yellow=warning, blue=info, red=error)
+- Progress spinners for AI operations (ora)
+- Box drawing for structure and emphasis
+- Tables for list views (cli-table3)
+- Emoji support (optional, can disable with `TM_NO_EMOJI` env var)
+
+**Branding:**
+```
+┌─────────────────────────────────────────────┐
+│                                             │
+│  ████████╗███╗   ███╗                       │
+│  ╚══██╔══╝████╗ ████║                       │
+│     ██║   ██╔████╔██║  Tech Manager OS      │
+│     ██║   ██║╚██╔╝██║  by Marlon Vidal     │
+│     ██║   ██║ ╚═╝ ██║                       │
+│     ╚═╝   ╚═╝     ╚═╝  Comunidade Tech     │
+│                        Manager de Resultados│
+│                                             │
+└─────────────────────────────────────────────┘
+```
+
+Shown during `tm init` and with `tm --version`.
+
+### IDE Integration
+
+**Cursor Integration:**
+- Agents defined as `.cursor/rules/tm/*.mdc` files
+- Rules include agent definition and command reference
+- Agents auto-load relevant context files
+- Usage: `@pm-people *1on1-prepare sarah`
+
+**Claude Code Integration:**
+- Agents defined in `.claude/agents/*.md` files
+- Natural agent invocation
+- Usage: Similar to Cursor
+
+**Gemini CLI Integration:**
+- Agents defined in `.gemini/agents/*.md` files
+- CLI-based agent interaction
+- Usage: Similar to Cursor/Claude
 
 ### Accessibility
 
-**Terminal Accessibility:** The tool shall support screen readers through:
 - Plain text output mode (`--plain` flag) that strips ANSI colors
-- Descriptive status messages that don't rely solely on color
-- Structured output formats (JSON via `--json` flag) for programmatic consumption
+- JSON output mode (`--json` flag) for programmatic consumption
+- Screen reader friendly with descriptive messages
+- Keyboard-only navigation for interactive prompts
 
-### Branding
+### Target Platforms
 
-**Brand Identity:**
-- **Primary Message:** "Tech Manager OS by Marlon Vidal - Comunidade Tech Manager de Resultados"
-- **Display Context:** Shown prominently during `tm init` and optionally on first run of any command (with `--version` flag)
-- **Purpose:** Establish brand recognition and community connection
-
-**Terminal Aesthetic:** Modern CLI tool aesthetic inspired by tools like Vercel CLI, Stripe CLI, and GitHub CLI:
-- Monochrome branding with subtle color accents
-- Clean typography using box-drawing characters for structure
-- Emoji prefixes for command categories (optional, can be disabled with `TM_NO_EMOJI` env var)
-- Brand message displayed with visual separator (e.g., bordered box or accent lines)
-
-### Target Device and Platforms
-
-**Cross-Platform Terminal:** Support all major terminal emulators:
-- macOS: Terminal.app, iTerm2, Warp, Kitty
+**CLI:**
+- macOS: Terminal.app, iTerm2, Warp
 - Windows: PowerShell, Windows Terminal, WSL
 - Linux: gnome-terminal, Konsole, Alacritty
 
-Minimum terminal width: 80 columns (graceful degradation on smaller terminals)
+**IDE:**
+- Cursor (primary)
+- Claude Code (primary)
+- Gemini CLI (primary)
+- Future: Windsurf, other AI-powered IDEs
 
 ---
 
 ## Technical Assumptions
 
-### Repository Structure: Monorepo
+### Repository Structure
 
-**Decision:** Single repository containing all Tech Manager OS code.
-
-**Rationale:** 
-- The tool is a single CLI package with clear boundaries
-- No need for separate deployments or independent versioning of components
-- Simplifies development workflow and dependency management
-- All code ships together as `@marlonvidal/tech-manager-os`
-
-### Service Architecture
-
-**Architecture:** Modular Monolith with Plugin System
-
-**Core Components:**
-1. **CLI Layer** - Command parsing and routing (Commander.js)
-2. **Core Services** - FileSystemService, TemplateEngine, CycleEngine
-3. **AI Adapter Layer** - Provider interface with OpenAI/Claude/Gemini implementations
-4. **Pack Engine** - YAML parser, validator, and command executor
+**Decision:** Monorepo with CLI + Agent System
 
 **Rationale:**
-- Not microservices - it's a local CLI tool with no network boundaries to exploit
-- Not pure monolith - the Pack system requires extensibility
-- Modular design allows clean separation of concerns while maintaining simplicity
-- Plugin pattern for Packs enables community extensions without core modifications
+- Single package deployment
+- Unified versioning
+- Clear separation: CLI (data) vs Agents (intelligence)
+- Agent files are data/configuration, not separate services
+
+### Architecture
+
+**Hybrid Architecture: Lean CLI + Agent Ecosystem**
+
+**Components:**
+
+1. **CLI Layer (TypeScript/Node.js)**
+   - Command parsing (Commander.js)
+   - File system operations (fs-extra)
+   - Configuration management (conf)
+   - Inbox monitoring (chokidar)
+   - Agent invocation bridge
+
+2. **Agent System (YAML Packs + Markdown)**
+   - Agent definitions (personas, commands, dependencies)
+   - Task definitions (workflows)
+   - Template definitions (output formats)
+   - Pack system (YAML configuration)
+
+3. **AI Adapter Layer**
+   - Provider interface (OpenAI, Claude, Gemini)
+   - Retry logic and rate limiting
+   - Error normalization
+   - Response streaming
+
+4. **Template Engine**
+   - Handlebars for variable injection
+   - Frontmatter parsing (gray-matter)
+   - File path resolution
+   - Context aggregation
+
+**Key Architectural Decisions:**
+
+- **No database**: File system IS the database
+- **Agent-as-configuration**: Agents are data, not code
+- **Local-first**: No cloud dependencies except AI APIs
+- **IDE-agnostic**: Agent system works across IDEs
+- **Pack-based extensibility**: Community can create packs
 
 ### Testing Requirements
 
-**Testing Strategy:** Unit + Integration + Manual Testing Helpers
+**Testing Strategy:**
 
-**Specific Requirements:**
-1. **Unit Tests** (Jest)
-   - All core services (FileSystemService, AIAdapter, PackEngine)
-   - Business logic (cycle matching, context merging)
-   - Target: 80%+ coverage of core modules
+1. **Unit Tests (Jest)**
+   - File system service
+   - Configuration service
+   - AI adapters (mocked)
+   - Template engine
+   - Pack validation
+   - Target: 80%+ coverage
 
 2. **Integration Tests**
-   - Command execution flows (init → member add → inbox → cycle)
-   - Pack loading and execution
-   - AI provider integration (mocked responses)
+   - `tm cycle` end-to-end
+   - Agent command execution
+   - Pack loading and validation
+   - File organization workflows
 
 3. **Manual Testing Helpers**
-   - `tm --dev-mode` flag to use fixture data
-   - Mock AI responses for testing without API keys
-   - Test data generator: `npm run generate-test-data`
+   - Sample transcripts for cycle testing
+   - Mock AI responses (no API key needed)
+   - Test workspace generator
 
-**Rationale:**
-- E2E tests are expensive for CLI tools (shell execution overhead)
-- Integration tests at the command level provide good ROI
-- Manual testing helpers critical for developer experience
-- No need for browser-based testing (Playwright, Cypress)
-
-### Additional Technical Assumptions and Requests
+### Technology Stack
 
 **Language & Runtime:**
-- **TypeScript 5.x** with strict mode enabled
-- **Node.js 18+** (LTS version with fetch API built-in)
-- **ES Modules** (ESM) for modern module system
+- **TypeScript 5.x** with strict mode
+- **Node.js 18+** (LTS)
+- **ES Modules** (ESM)
 
 **Key Libraries:**
-- **CLI Framework:** `commander` for command parsing
-- **Prompts:** `inquirer` for interactive questions
-- **UI:** `chalk` (colors), `ora` (spinners), `cli-table3` (tables)
-- **File System:** `fs-extra` for safe file operations
-- **Configuration:** `conf` for encrypted config storage
-- **Validation:** `zod` for Prompt Pack schema validation
-- **Templating:** `handlebars` for variable injection in packs
-- **AI SDKs:** `openai`, `@anthropic-ai/sdk`, `@google/generative-ai`
+
+**CLI:**
+- `commander` - Command parsing
+- `inquirer` - Interactive prompts
+- `chalk` - Terminal colors
+- `ora` - Spinners
+- `cli-table3` - Tables
+- `boxen` - Boxes for branding
+
+**File System:**
+- `fs-extra` - Safe file operations
+- `chokidar` - File watching
+- `gray-matter` - Frontmatter parsing
+- `glob` - File pattern matching
+
+**Configuration:**
+- `conf` - Encrypted config storage
+- `dotenv` - Environment variables
+
+**Templating:**
+- `handlebars` - Template rendering
+- `yaml` - YAML parsing
+- `zod` - Schema validation
+
+**AI SDKs:**
+- `openai` - OpenAI API
+- `@anthropic-ai/sdk` - Claude API
+- `@google/generative-ai` - Gemini API
 
 **Build & Distribution:**
-- **Build Tool:** `tsup` for fast TypeScript bundling
-- **Package Manager:** npm (package published to npm registry)
-- **Binary:** Single `tm` executable via package.json bin field
-- **Versioning:** Semantic versioning (SemVer)
+- `tsup` - Fast TypeScript bundling
+- Package manager: npm
+- Binary: `tm` via package.json bin field
+- Versioning: SemVer
 
-**Security & Configuration:**
-- API keys stored encrypted in OS-specific config directories (not in workspace)
-- Config location: `~/.config/@marlonvidal-tech-manager-os/config.json` (Linux), `~/Library/Application Support/...` (macOS), `%APPDATA%\...` (Windows)
-- AES-256 encryption for API keys using `conf` library
-- Support environment variable overrides (`TM_PROVIDER`, `TM_API_KEY`)
-- No telemetry or data collection by default
-- All user data stays local (privacy-first)
+### Security & Configuration
 
-**Performance Constraints:**
-- CLI commands should respond in <100ms (excluding AI calls)
-- AI operations should show progress indicators after 500ms
-- File operations should be atomic (no partial writes)
-- Retry logic with exponential backoff for AI API rate limits
+- API keys stored encrypted in OS-specific directories:
+  - macOS: `~/Library/Application Support/@marlonvidal-tech-manager-os/`
+  - Linux: `~/.config/@marlonvidal-tech-manager-os/`
+  - Windows: `%APPDATA%\@marlonvidal-tech-manager-os\`
+- AES-256 encryption using `conf` library
+- Environment variable overrides: `TM_PROVIDER`, `TM_API_KEY`
+- No telemetry or data collection
+- All user data stays local
 
-**Development Workflow:**
-- **Linting:** ESLint with TypeScript rules
-- **Formatting:** Prettier
-- **Pre-commit Hooks:** Husky + lint-staged
-- **CI/CD:** GitHub Actions for automated testing and npm publishing
+### Performance Constraints
+
+- CLI commands: <100ms response time (excluding AI)
+- AI operations: Show progress after 500ms
+- File operations: Atomic writes (no partial writes)
+- Cycle processing: Handle 20+ inbox files efficiently
+- Retry logic: Exponential backoff for AI rate limits
+
+---
+
+## Data Architecture
+
+### Complete Folder Structure
+
+```
+tech-manager-workspace/
+├── .tm-core/                           # Core agent system
+│   ├── agents/                         # Agent definitions
+│   │   ├── cycle-agent.md
+│   │   ├── pm-people.md
+│   │   ├── pm-project.md
+│   │   ├── pm-career.md
+│   │   ├── pm-hiring.md
+│   │   └── tm-master.md
+│   ├── skills/                         # Workflow definitions
+│   │   ├── cycle-workflow.md
+│   │   ├── collect-profile.md
+│   │   ├── onboarding-manager.md
+│   │   └── archive-workflow.md
+│   ├── tasks/                          # Task definitions
+│   │   ├── prepare-1on1.md
+│   │   ├── generate-feedback.md
+│   │   ├── create-pip.md
+│   │   ├── generate-pdi.md
+│   │   ├── project-status-report.md
+│   │   ├── project-risk-assessment.md
+│   │   ├── candidate-review.md
+│   │   ├── update-tasks-context.md
+│   │   └── categorize-note.md
+│   ├── templates/                      # Output templates
+│   │   ├── manager-profile-tmpl.yaml
+│   │   ├── manager-pdp-tmpl.yaml
+│   │   ├── brag-entry-tmpl.yaml
+│   │   ├── leader-profile-tmpl.yaml
+│   │   ├── member-profile-tmpl.yaml
+│   │   ├── member-pdi-tmpl.yaml
+│   │   ├── project-brief-tmpl.yaml
+│   │   ├── job-description-tmpl.yaml
+│   │   ├── candidate-review-tmpl.yaml
+│   │   ├── 1on1-session-tmpl.yaml
+│   │   ├── feedback-tmpl.yaml
+│   │   ├── pip-tmpl.yaml
+│   │   ├── status-report-tmpl.yaml
+│   │   └── risk-assessment-tmpl.yaml
+│   ├── packs/
+│   │   └── base-pack.yaml              # Core methodology pack
+│   └── core-config.yaml                # System configuration
+├── .cursor/                            # Cursor IDE integration
+│   └── rules/
+│       └── tm/
+│           ├── pm-people.mdc
+│           ├── pm-project.mdc
+│           ├── pm-career.mdc
+│           ├── pm-hiring.mdc
+│           └── cycle-agent.mdc
+├── .claude/                            # Claude Code integration
+│   └── agents/
+│       ├── pm-people.md
+│       ├── pm-project.md
+│       ├── pm-career.md
+│       ├── pm-hiring.md
+│       └── cycle-agent.md
+├── .gemini/                            # Gemini CLI integration
+│   └── agents/
+│       ├── pm-people.md
+│       ├── pm-project.md
+│       ├── pm-career.md
+│       ├── pm-hiring.md
+│       └── cycle-agent.md
+├── .system/                            # Runtime system
+│   ├── config.json                     # Encrypted configuration
+│   └── watch.pid                       # Watch process tracking
+├── inbox/                              # Universal drop zone
+│   └── [transcripts and notes]
+├── my-career/                          # Manager's career
+│   ├── profile.md
+│   ├── pdp.md
+│   └── brag-document.md
+├── my-leadership/                      # Manager's leader
+│   ├── profile.md
+│   └── alignments/
+│       └── [1on1 transcripts with manager]
+├── people/                             # Team members
+│   ├── active/
+│   │   └── {member-name}/
+│   │       ├── profile.md
+│   │       ├── context.md              # AI-maintained
+│   │       ├── pdi.md
+│   │       ├── 1on1s/
+│   │       ├── feedback/
+│   │       ├── pip.md (if needed)
+│   │       └── reviews/
+│   └── archived/
+│       └── {year}/
+│           └── {member-name}/
+├── projects/                           # Projects
+│   ├── active/
+│   │   └── {project-name}/
+│   │       ├── brief.md
+│   │       ├── context.md              # AI-maintained
+│   │       ├── status-reports/
+│   │       ├── risk-assessments/
+│   │       └── meetings/
+│   └── archived/
+│       └── {year}/
+│           └── {project-name}/
+├── operations/                         # Operational areas
+│   ├── hiring/
+│   │   └── {role-and-seniority}/
+│   │       ├── job-description.md
+│   │       └── candidates/
+│   │           └── {candidate-name}/
+│   │               ├── interview-{date}.md
+│   │               ├── candidate-review.md
+│   │               └── emails/
+│   ├── finance/
+│   │   └── budget-notes.md
+│   ├── rituals/
+│   │   ├── leadership/
+│   │   │   └── [leadership meeting notes]
+│   │   └── company/
+│   │       └── [all-hands, townhalls]
+│   └── incidents/
+│       └── post-mortems/
+│           └── [incident documentation]
+├── knowledge-base/                     # Organizational knowledge
+│   ├── people/
+│   │   ├── culture.md
+│   │   ├── values.md
+│   │   └── onboarding.md
+│   ├── process/
+│   │   ├── performance-review-process.md
+│   │   ├── promotion-process.md
+│   │   └── incident-response.md
+│   ├── company/
+│   │   ├── strategy.md
+│   │   ├── org-chart.md
+│   │   └── departments.md
+│   └── methodology.md
+├── tasks/                              # Task tracking (AI-maintained)
+│   ├── today.md
+│   ├── this-week.md
+│   ├── this-month.md
+│   └── this-quarter.md
+└── archive/
+    └── {year}/
+        └── {quarter}/
+            └── [unprocessed notes]
+```
+
+### Frontmatter Schema Examples
+
+**Member Profile:**
+```yaml
+---
+name: Sarah Chen
+role: Senior Frontend Engineer
+seniority: Senior
+team: Platform
+hire_date: 2023-06-15
+status: active
+current_projects:
+  - mobile-redesign (lead)
+  - api-performance (contributor)
+skills: [React, TypeScript, System Design]
+aspirations: Staff Engineer or Technical Lead
+last_1on1: 2026-02-08
+next_1on1: 2026-02-15
+---
+```
+
+**Project Brief:**
+```yaml
+---
+project: Mobile App Redesign
+status: active  # planning|active|paused|completed
+priority: high  # low|medium|high|critical
+team:
+  lead: sarah-chen
+  members: [mike-johnson, ana-rodriguez]
+timeline:
+  start: 2026-01-15
+  target: 2026-03-31
+  actual: null
+health: yellow  # green|yellow|red
+risks: 2
+last_status: 2026-02-08
+---
+```
+
+**Manager Profile:**
+```yaml
+---
+name: Marlon Vidal
+role: Engineering Manager
+experience_years: 8
+management_style: Servant leadership, data-driven
+team_size: 5
+reports_to: João Silva
+strengths: [Technical depth, Empathy, Strategic thinking]
+development_areas: [Executive communication, Scaling teams]
+---
+```
 
 ---
 
 ## Epic List
 
-### Epic 1: Foundation & Core CLI Infrastructure
-**Goal:** Establish project scaffolding, TypeScript/Node.js foundation, CLI framework with Commander.js, and implement `tm init` command that creates directory structure and validates basic file operations.
+### Epic 1: Foundation & CLI Infrastructure
+**Goal:** Establish TypeScript/Node.js foundation, build core CLI with Commander.js, implement configuration management with encrypted API key storage, and deliver `tm init` with interactive manager onboarding workflow.
 
-### Epic 2: Configuration & AI Provider System
-**Goal:** Implement secure configuration management with encrypted API key storage, build the AI provider adapter pattern with OpenAI/Claude/Gemini implementations, and deliver `tm config` commands for provider management.
+### Epic 2: Cycle Intelligence Engine
+**Goal:** Build the AI-powered inbox processing system that scans, categorizes, and files transcripts/notes into appropriate folders, updates context summaries, extracts tasks, and provides actionable insights.
 
-### Epic 3: Team Member & Context Management
-**Goal:** Enable team member lifecycle management (`tm member add/list`) and implement the inbox capture system (`tm inbox`), creating the foundational data structures for storing member profiles and context.
+### Epic 3: People Management System
+**Goal:** Implement team member lifecycle management, profile collection workflows, and deliver all people-focused agent commands (1:1 prep, feedback, PDI, PIP, reviews).
 
-### Epic 4: The Cycle Engine (Context Intelligence)
-**Goal:** Build the core cycle engine that processes inbox notes, matches them to team members using AI, updates context summaries, and archives processed notes - delivering the "zero-latency context" value proposition.
+### Epic 4: Manager's Career & Leadership Tracking
+**Goal:** Enable managers to track their own career development with PDP management, brag document logging, and leadership alignment tracking.
 
-### Epic 5: Prompt Pack Engine & Actionable Commands
-**Goal:** Implement the YAML-based Prompt Pack system with Handlebars templating, create the base-pack.yaml with management methodology, and deliver all actionable AI commands (1:1 prep, PDI generation, feedback, performance reviews).
+### Epic 5: Project Management & Operations
+**Goal:** Implement project lifecycle management, status reporting, risk assessment, and operational workflows for hiring, rituals, and knowledge base.
 
-### Epic 6: Pack Distribution & Polish
-**Goal:** Enable pack installation from URLs, implement pack validation and listing commands, add comprehensive error handling, progress indicators, and finalize terminal UX with branding.
+### Epic 6: Agent System & Pack Engine
+**Goal:** Build the YAML-based pack system, implement all agent definitions, create IDE integration files, and deliver base-pack.yaml with core methodology.
+
+### Epic 7: Polish, Testing & Distribution
+**Goal:** Comprehensive testing, documentation, IDE integration validation, and npm packaging for distribution.
 
 ---
 
 ## Epic Details
 
-### Epic 1: Foundation & Core CLI Infrastructure
+### Epic 1: Foundation & CLI Infrastructure
 
-**Expanded Goal:** Establish a professional-grade TypeScript project with Node.js runtime, implement the Commander.js CLI framework with proper argument parsing and help system, create the FileSystemService for safe directory operations, and deliver the `tm init` command that creates the complete Tech Manager OS directory structure with branded welcome message. This epic ensures all subsequent development has a solid foundation with proper tooling, testing infrastructure, and basic file operations validated.
+**Expanded Goal:** Establish a professional TypeScript/Node.js project with Commander.js CLI framework, implement secure configuration management using the `conf` library for encrypted API key storage, build the interactive onboarding workflow that collects manager profile and creates workspace structure, and deliver AI provider adapters for OpenAI, Claude, and Gemini. This epic ensures all subsequent development has a solid foundation.
 
 #### Story 1.1: Project Scaffolding and TypeScript Configuration
 
@@ -297,1276 +848,1350 @@ Minimum terminal width: 80 columns (graceful degradation on smaller terminals)
 
 **Acceptance Criteria:**
 
-1. Project initialized with `package.json` containing: Name: `@marlonvidal/tech-manager-os`, Version: `1.0.0`, Binary configuration: `"bin": { "tm": "./dist/cli.js" }`, Scripts for `build`, `dev`, `test`, `lint`
-2. TypeScript configured with `tsconfig.json`: Target: ES2022, Module: ESNext, Strict mode enabled, Output directory: `dist/`, Source maps enabled
-3. Development tooling installed: ESLint with TypeScript rules, Prettier, Husky for git hooks, Jest for testing with TypeScript support
-4. Project structure created: `/src` with `/commands`, `/services`, `/types`, `/utils`, `cli.ts`; `/tests`, `/dist`
-5. Can run `npm run build` successfully and produce `dist/cli.js`
-6. Can run `npm test` and see example test pass
-7. README.md created with project description and setup instructions
+1. Project initialized with `package.json`:
+   - Name: `@marlonvidal/tech-manager-os`
+   - Version: `1.0.0`
+   - Binary: `"bin": { "tm": "./dist/cli.js" }`
+   - Scripts: `build`, `dev`, `test`, `lint`, `format`
+2. TypeScript configured with strict mode, ES2022 target, ESNext modules
+3. ESLint + Prettier configured
+4. Jest configured for testing with TypeScript support
+5. Husky + lint-staged for pre-commit hooks
+6. Project structure: `/src`, `/tests`, `/dist`
+7. README.md with project description
+8. `.gitignore` properly configured
 
 #### Story 1.2: CLI Framework with Commander.js
 
 **As a** user,  
-**I want** a CLI tool that displays help information and handles commands properly,  
-**so that** I can discover available commands and understand how to use the tool.
+**I want** a CLI that displays help and handles commands properly,  
+**so that** I can discover available commands and understand usage.
 
 **Acceptance Criteria:**
 
-1. Commander.js integrated and configured in `cli.ts`
-2. Running `tm --help` displays: Tool description, version number, list of available commands, usage examples
-3. Running `tm --version` displays current version from package.json
-4. Running `tm` with no arguments displays help information
-5. Running `tm unknown-command` shows error with suggestion to run `--help`
-6. Global options work: `--verbose`, `--plain`, `--json`
-7. Error handling catches exceptions and displays user-friendly messages (stack traces only with `--verbose`)
+1. Commander.js integrated in `cli.ts`
+2. `tm --help` displays tool description, version, command list
+3. `tm --version` displays current version
+4. `tm` with no args shows help
+5. Unknown commands show error with suggestion
+6. Global flags work: `--verbose`, `--plain`, `--json`
+7. Error handling with user-friendly messages
 
-#### Story 1.3: FileSystemService for Safe Operations
-
-**As a** developer,  
-**I want** a centralized service for all file system operations,  
-**so that** file operations are safe, testable, and handle errors gracefully.
-
-**Acceptance Criteria:**
-
-1. `FileSystemService` class created with methods: `createDirectory`, `writeFile`, `readFile`, `moveFile`, `listFiles`, `exists`, `deleteFile`
-2. Uses `fs-extra` library for all operations
-3. All operations are atomic and safe: write uses temp+rename, move verifies destination, delete requires confirmation
-4. Comprehensive error handling: permission errors, path not found, disk full all handled gracefully
-5. Unit tests cover all methods: happy path, error scenarios, edge cases
-6. Service is injectable/mockable for testing
-
-#### Story 1.4: `tm init` Command Implementation
-
-**As a** new user,  
-**I want** to run `tm init` and have the complete directory structure created with branding,  
-**so that** I can start using Tech Manager OS immediately.
-
-**Acceptance Criteria:**
-
-1. Displays branded welcome message with "Tech Manager OS by Marlon Vidal - Comunidade Tech Manager de Resultados"
-2. Creates complete directory structure: `.system/packs/`, `00_Inbox/`, `10_Current_Context/Team_Active/`, `10_Current_Context/Projects_Active/`, `99_Archive/`
-3. Each directory contains `.gitkeep` file
-4. Displays progress with spinners for each directory created
-5. If already initialized: warns user and asks to confirm reinitialize
-6. Final success message with next steps
-7. Creates `.tmignore` file in root
-8. Integration test validates full command execution
-
----
-
-### Epic 2: Configuration & AI Provider System
-
-**Expanded Goal:** Build the secure configuration management system using the `conf` library to store encrypted API keys in OS-specific directories outside the workspace, implement the AI provider adapter pattern with concrete implementations for OpenAI, Anthropic Claude, and Google Gemini, and deliver the `tm config` command that enables users to select their provider, securely store API keys, and switch providers without data loss. This epic delivers the "Agnostic Intelligence (BYOK)" core principle.
-
-#### Story 2.1: Configuration Service with Encrypted Storage
+#### Story 1.3: Configuration Service with Encrypted Storage
 
 **As a** user,  
-**I want** my API keys stored securely and encrypted on my machine,  
-**so that** my credentials are protected and never exposed in plaintext.
+**I want** my API keys stored securely and encrypted,  
+**so that** my credentials are protected.
 
 **Acceptance Criteria:**
 
-1. `ConfigService` class created with methods: `initialize`, `set`, `get`, `has`, `delete`, `getAll`
-2. Uses `conf` library with encryption enabled in OS-specific locations
-3. Config schema defined with TypeScript interface for TMConfig
-4. API keys never logged or displayed: logger redacts patterns, `getAll()` masks keys, error messages exclude keys
-5. Environment variable support: `TM_PROVIDER` and `TM_API_KEY` override config
-6. Unit tests cover storage/retrieval, environment precedence, key masking, error handling
+1. `ConfigService` class with methods: `initialize`, `set`, `get`, `has`, `delete`
+2. Uses `conf` library with encryption in OS-specific locations
+3. Config schema defined with TypeScript interface
+4. API keys never logged (redaction in place)
+5. Environment variable support: `TM_PROVIDER`, `TM_API_KEY`
+6. Unit tests cover storage/retrieval, environment precedence
 
-#### Story 2.2: AI Provider Interface and Adapter Pattern
+#### Story 1.4: AI Provider Interface and Adapters
 
 **As a** developer,  
 **I want** a provider-agnostic AI interface,  
-**so that** adding new AI providers doesn't require changing business logic.
+**so that** adding new providers doesn't require changing business logic.
 
 **Acceptance Criteria:**
 
-1. `AIProvider` interface defined with `name`, `testConnection()`, `generateText()`, `streamText()`
-2. `AIProviderFactory` class with `create()` method
-3. `BaseAIProvider` implements common functionality: retry logic, rate limit handling, error normalization
-4. All three providers follow same pattern and are unit testable
-5. Mock provider for testing returns predictable responses
-6. Integration tests validate factory pattern
+1. `AIProvider` interface defined: `name`, `testConnection()`, `generateText()`, `streamText()`
+2. `AIProviderFactory` with `create()` method
+3. `BaseAIProvider` with common functionality: retry logic, rate limiting
+4. `OpenAIProvider` implementation using `openai` SDK
+5. `AnthropicProvider` implementation using `@anthropic-ai/sdk`
+6. `GeminiProvider` implementation using `@google/generative-ai`
+7. Mock provider for testing
+8. Unit tests with mocked SDK calls
 
-#### Story 2.3: OpenAI Provider Implementation
+#### Story 1.5: File System Service
 
-**As a** user with an OpenAI API key,  
-**I want** to use GPT-4 or GPT-3.5 for AI operations,  
-**so that** I can leverage OpenAI's language models for management tasks.
-
-**Acceptance Criteria:**
-
-1. `OpenAIProvider` class implements `AIProvider` interface
-2. Uses official `openai` npm package
-3. `testConnection()` validates key with minimal API call
-4. `generateText()` uses `gpt-4-turbo-preview`, handles system/user prompts, respects temperature/maxTokens
-5. `streamText()` uses streaming API, yields chunks, handles errors
-6. Error handling: 401/403 → user-friendly message, 429 → retry with backoff, 500 → clear error, network errors → retry suggestion
-7. Unit tests with mocked OpenAI client cover all scenarios
-8. Can be manually tested with real API key
-
-#### Story 2.4: Anthropic Claude Provider Implementation
-
-**As a** user with an Anthropic API key,  
-**I want** to use Claude for AI operations,  
-**so that** I can leverage Anthropic's language models for management tasks.
+**As a** developer,  
+**I want** a centralized service for file operations,  
+**so that** operations are safe, testable, and handle errors gracefully.
 
 **Acceptance Criteria:**
 
-1. `AnthropicProvider` class implements `AIProvider` interface
-2. Uses official `@anthropic-ai/sdk` package
-3. Uses `claude-3-opus-20240229` as default model
-4. Properly formats messages for Claude API
-5. Implements streaming support
-6. Error handling specific to Anthropic API
-7. Unit tests with mocked client cover all scenarios
+1. `FileSystemService` class with methods: `createDirectory`, `writeFile`, `readFile`, `moveFile`, `exists`
+2. Uses `fs-extra` for all operations
+3. Atomic write operations (temp + rename)
+4. Comprehensive error handling
+5. Unit tests cover happy path and error scenarios
+6. Service is mockable for testing
 
-#### Story 2.5: Google Gemini Provider Implementation
-
-**As a** user with a Google AI API key,  
-**I want** to use Gemini for AI operations,  
-**so that** I can leverage Google's language models for management tasks.
-
-**Acceptance Criteria:**
-
-1. `GeminiProvider` class implements `AIProvider` interface
-2. Uses official `@google/generative-ai` package
-3. Uses `gemini-pro` as default model
-4. Formats prompts correctly for Gemini API
-5. Implements streaming support
-6. Error handling for Gemini-specific scenarios including safety filters
-7. Unit tests with mocked client
-
-#### Story 2.6: `tm config setup` Interactive Configuration
+#### Story 1.6: Interactive Onboarding Workflow (`tm init`)
 
 **As a** new user,  
-**I want** an interactive wizard to configure my AI provider,  
-**so that** I can easily set up the tool without reading documentation.
+**I want** an interactive setup wizard that guides me through configuration,  
+**so that** I can start using the system immediately.
 
 **Acceptance Criteria:**
 
-1. `tm config setup` starts interactive flow with inquirer
-2. Provider selection prompt with arrow keys
-3. After selection, displays information about provider and API key setup instructions
-4. API key input prompt (password-style, hidden)
-5. Key validation: shows spinner, validates connection, reports success or failure
-6. On failure, asks to try again
-7. After success: saves provider and encrypted key, displays success message
-8. Handles edge cases: user cancels, network error, already configured
-
-#### Story 2.7: `tm config` Command Suite
-
-**As a** user,  
-**I want** to view and modify my configuration,  
-**so that** I can switch providers or update API keys as needed.
-
-**Acceptance Criteria:**
-
-1. `tm config` (no args) displays current configuration with masked API key
-2. `tm config edit` launches interactive menu for changes
-3. `tm config provider` displays current provider
-4. `tm config reset` with confirmation deletes all configuration
-5. `tm config path` displays config file location
-6. `tm config validate` tests API key connection and validates structure
-7. All commands respect global flags (`--json`, `--plain`)
-8. Proper exit codes: 0=success, 1=error, 2=user cancellation
+1. Displays branded welcome message
+2. Interactive AI provider selection (inquirer)
+3. API key input (password-style, hidden)
+4. Connection validation with spinner
+5. Collects manager profile:
+   - Name, role, experience
+   - Management style
+   - Strengths and development areas
+6. Collects career goals
+7. Collects leadership context (manager's name, expectations)
+8. Creates complete directory structure
+9. Generates initial files: `my-career/profile.md`, `my-career/pdp.md`, `my-leadership/profile.md`
+10. Creates IDE integration files (`.cursor/`, `.claude/`, `.gemini/`)
+11. Displays next steps
+12. Integration test validates full workflow
 
 ---
 
-### Epic 3: Team Member & Context Management
+### Epic 2: Cycle Intelligence Engine
 
-**Expanded Goal:** Implement the team member lifecycle management system with `tm member add` creating complete folder structures including Profile.md, PDI files, feedback files, and session directories, build the member listing command with formatted table output, and deliver the zero-friction `tm inbox` command for rapid note capture with timestamped markdown files. This epic establishes the data foundation that subsequent AI operations will populate and enrich, enabling managers to begin organizing their team context immediately.
+**Expanded Goal:** Build the AI-powered cycle agent that processes inbox files, categorizes them by type and entity, updates context summaries using intelligent merging, extracts actionable tasks with urgency classification, and moves files to appropriate destinations. This epic delivers the core "transcript-to-context" value proposition.
 
-#### Story 3.1: Team Member Data Structure & Profile System
+#### Story 2.1: Inbox Scanner and File Parser
 
 **As a** developer,  
-**I want** a well-defined data structure for team members,  
-**so that** all team data is consistently organized and discoverable.
+**I want** to scan and parse inbox files efficiently,  
+**so that** the cycle engine can process them.
 
 **Acceptance Criteria:**
 
-1. `MemberService` class created with methods: `createMember`, `getMember`, `listMembers`, `archiveMember`, `memberExists`
-2. TypeScript interfaces defined for `Member` and `ProfileData`
-3. Member directory structure includes Profile.md, Current_PDI.md, feedback files, _Context_Summary.md, 1on1_Sessions/, Performance_Reviews/
-4. `Profile.md` template contains structured sections: Basic Information, Skills & Expertise, Communication Preferences, Career Goals, Notes
-5. Initial files created with helpful placeholder content
-6. Member names sanitized for file system: spaces to underscores, special chars removed
-7. Unit tests cover all service methods and edge cases
+1. `InboxService` class with methods: `scanInbox()`, `parseFile()`
+2. Supports file types: `.txt`, `.md`, `.json`
+3. Returns array of `InboxFile` objects with: filepath, content, timestamp
+4. Handles edge cases: empty inbox, large files, malformed files
+5. Sorted by timestamp (oldest first)
+6. Unit tests cover various file types and scenarios
 
-#### Story 3.2: `tm member add` Command Implementation
+#### Story 2.2: AI-Powered Categorization Logic
 
 **As a** manager,  
-**I want** to add a team member with a single command,  
-**so that** I can quickly set up tracking for new direct reports.
+**I want** notes automatically categorized and filed,  
+**so that** I don't have to manually organize everything.
 
 **Acceptance Criteria:**
 
-1. `tm member add <name>` creates complete member structure
-2. Command flow with progress indicators for each step
-3. Success message with next steps
-4. Optional `--interactive` flag for guided setup with role, team, skills, etc.
-5. Validation: member already exists, invalid name, workspace not initialized
-6. Name normalization shown to user
-7. Supports both quoted and unquoted names
-8. Integration test validates full member creation
+1. `CategorizationService` class with method: `categorize(file, context)`
+2. AI prompt analyzes file and returns structured JSON:
+   - Type: `1on1_session`, `feedback_positive`, `feedback_constructive`, `pip_concern`, `project_status`, `project_risk`, `team_meeting`, `leadership_meeting`, `candidate_interview`, `general_note`
+   - Members: Array of member names mentioned
+   - Projects: Array of project names mentioned
+   - Insights: Key points for each entity
+   - Destinations: Array of file paths
+   - Suggested actions: Follow-up items
+3. Handles ambiguous cases (low confidence triggers review)
+4. Unit tests with mocked AI responses
+5. Integration test with real file samples
 
-#### Story 3.3: `tm member list` Command Implementation
+#### Story 2.3: Context Summary Merging
 
 **As a** manager,  
-**I want** to see a list of all my team members with key information,  
-**so that** I can quickly understand my team's current state.
+**I want** context summaries intelligently updated with new information,  
+**so that** I have current, accurate context for each person/project.
 
 **Acceptance Criteria:**
 
-1. `tm member list` displays formatted table with cli-table3 showing Name, Role, Last Updated, Sessions
-2. Empty state message when no members exist
-3. Columns display proper data with relative times
-4. Optional filters: `--recent`, `--stale`
-5. Output format options: default table, `--plain`, `--json`
-6. Sort options: alphabetical (default), `--sort recent`, `--sort sessions`
-7. Integration test validates table generation
+1. `ContextService` class with method: `updateContext(entityPath, existingContext, newInsights)`
+2. AI prompt merges new insights with existing context:
+   - Preserves important historical information
+   - Updates with new information
+   - Maintains chronological awareness
+   - Highlights changes in behavior/status
+3. Handles first-time context creation
+4. Prevents context from growing unbounded (summarization strategy)
+5. Unit tests with various merge scenarios
 
-#### Story 3.4: `tm inbox` Quick Capture Command
+#### Story 2.4: Task Extraction and Timeline Classification
 
 **As a** manager,  
-**I want** to instantly capture thoughts and observations,  
-**so that** I don't lose context while in meetings or during my day.
+**I want** actionable tasks extracted and classified by urgency,  
+**so that** I know what needs attention today vs. this week vs. later.
 
 **Acceptance Criteria:**
 
-1. `tm inbox <note>` creates timestamped file in `00_Inbox/` with format `YYYY-MM-DD-HHmm.md`
-2. File content properly formatted with markdown header
-3. Command supports simple notes, multi-line notes, and piped input
-4. Optional `--member` flag adds metadata header for matching hint
-5. Validation: empty note, workspace not initialized
-6. Edge cases: multiple notes same minute (suffix), very long notes (warn), special characters (escaped)
-7. Success message includes inbox count and suggestion to run cycle
-8. Unit tests cover all input scenarios
+1. `TaskService` class with method: `extractTasks(files, existingTasks)`
+2. AI identifies tasks and classifies:
+   - TODAY: Urgent, "ASAP", explicit today deadline
+   - THIS WEEK: "This week", "by Friday", week deadlines
+   - THIS MONTH: Monthly goals, month deadlines
+   - THIS QUARTER: Quarterly objectives
+3. Each task includes: description, owner, urgency reason, status
+4. Updates existing task files (merges with current tasks)
+5. Marks completed tasks based on mentions
+6. Unit tests with task extraction scenarios
 
-#### Story 3.5: `tm context` View Member Context
+#### Story 2.5: File Organization and Movement
+
+**As a** developer,  
+**I want** files moved to correct destinations after categorization,  
+**so that** the workspace stays organized.
+
+**Acceptance Criteria:**
+
+1. `FileOrganizationService` with method: `organizeFile(file, destinations)`
+2. Moves files from inbox to destination(s)
+3. Creates destination directories if needed
+4. Handles multi-destination cases (copy to multiple locations)
+5. Archives unprocessable files to `archive/`
+6. Atomic operations (no data loss)
+7. Unit tests cover various organization scenarios
+
+#### Story 2.6: `tm cycle` Command Implementation
 
 **As a** manager,  
-**I want** to view a team member's current context summary,  
-**so that** I can refresh my memory before a 1:1 or when making decisions.
+**I want** one command to process all inbox files,  
+**so that** my workspace stays current with minimal effort.
 
 **Acceptance Criteria:**
 
-1. `tm context <member>` displays formatted context summary with chalk colors
-2. Shows _Context_Summary.md contents with metadata: last updated, notes in inbox, next 1:1
-3. Lists related file paths
-4. If context empty: shows helpful message about running cycle
-5. Member name matching: fuzzy matching, case insensitive, handles multiple matches
-6. Optional flags: `--edit` (opens in editor), `--json`, `--with-sessions`
-7. Integration test validates context display
+1. `tm cycle` orchestrates: Scan → Categorize → Update Contexts → Extract Tasks → Organize Files
+2. Progress indicators for each phase
+3. Summary output:
+   - Files processed
+   - Contexts updated (people, projects)
+   - Tasks extracted
+   - Suggested actions
+4. Handles errors gracefully (partial progress saved)
+5. Optional flags: `--dry-run`, `--verbose`
+6. Integration test validates full cycle
+
+#### Story 2.7: `tm watch` Command for Auto-Processing
+
+**As a** manager,  
+**I want** inbox to be processed automatically when files are added,  
+**so that** I don't have to remember to run cycle.
+
+**Acceptance Criteria:**
+
+1. `tm watch` monitors `inbox/` directory
+2. Uses `chokidar` for file watching
+3. Debounces multiple file additions (waits 5 seconds)
+4. Runs `tm cycle` automatically
+5. Displays activity log
+6. Can be stopped with Ctrl+C
+7. Stores PID in `.system/watch.pid`
+8. Integration test validates file watching
 
 ---
 
-### Epic 4: The Cycle Engine (Context Intelligence)
+### Epic 3: People Management System
 
-**Expanded Goal:** Build the core cycle engine that scans the inbox directory for unprocessed notes, uses AI-powered matching to associate notes with team members (handling fuzzy name matching and context clues), sends matched notes plus existing context summaries to the AI provider for intelligent summarization that preserves history while incorporating new information, writes updated summaries back to member _Context_Summary.md files, and archives processed notes to the appropriate quarterly archive directory. This epic delivers the "zero-latency context" value proposition that is central to Tech Manager OS.
+**Expanded Goal:** Implement complete people management lifecycle including member addition/archival, profile collection workflows, and all agent commands for 1:1 preparation, feedback generation, PDI creation/updates, PIP management, and performance reviews. This epic enables managers to effectively support their team's growth.
 
-#### Story 4.1: Inbox Scanner and Note Parser
-
-**As a** developer,  
-**I want** to scan and parse all inbox notes efficiently,  
-**so that** the cycle engine can process them for member matching.
-
-**Acceptance Criteria:**
-
-1. `InboxService` class created with methods: `scanInbox()`, `parseNote()`, `getNoteMetadata()`
-2. `scanInbox()` returns array of `Note` objects with: filename, filepath, content, timestamp, suggestedMember (if metadata present)
-3. Handles all edge cases: empty inbox, malformed files, very large notes
-4. Parses markdown frontmatter for metadata (suggested_member hint)
-5. Notes sorted by timestamp (oldest first for chronological processing)
-6. Validates note format and warns about issues (non-markdown files ignored)
-7. Unit tests cover scanning empty/full inbox, parsing various formats, metadata extraction
-
-#### Story 4.2: AI-Powered Member Matching
+#### Story 3.1: Team Member Lifecycle Commands
 
 **As a** manager,  
-**I want** notes automatically matched to the correct team members,  
-**so that** I don't have to manually tag every note.
+**I want** to manage my team member roster,  
+**so that** I can track active and past team members.
 
 **Acceptance Criteria:**
 
-1. `MatchingService` class created with methods: `matchNoteToMember()`, `interactiveMatch()`
-2. Matching algorithm:
-   - **Priority 1:** Explicit member hint in metadata (`--member` flag)
-   - **Priority 2:** Exact name match in note content (case insensitive)
-   - **Priority 3:** Fuzzy name match (handles "Sarah" → "Sarah Chen", "Mike" → "Michael Johnson")
-   - **Priority 4:** AI-powered contextual matching (sends note + member list to AI, asks: "Which team member is this about?")
-   - **Fallback:** Mark as unmatched for interactive resolution
-3. Returns `MatchResult` object: `{ member: string | null, confidence: 'high' | 'medium' | 'low', reason: string }`
-4. For low confidence matches, flags for user review
-5. Batch processing: can match multiple notes efficiently
-6. Unit tests cover all matching strategies with mocked AI responses
-7. Integration test validates end-to-end matching with real member data
+1. `tm people add <name>` creates structure:
+   - `people/active/{name}/profile.md` (with frontmatter template)
+   - `people/active/{name}/context.md` (empty, will be AI-maintained)
+   - `people/active/{name}/pdi.md` (template)
+   - Subdirectories: `1on1s/`, `feedback/`, `reviews/`
+2. `tm people list` displays table with: name, role, last 1:1, status
+3. `tm people archive <name>` moves to `people/archived/{year}/`
+4. `tm people fire <name>` archives with termination marker
+5. `tm show <name>` displays context summary
+6. Unit tests for all commands
 
-#### Story 4.3: Context Summarization with AI
-
-**As a** developer,  
-**I want** AI to intelligently merge new notes with existing context,  
-**so that** context summaries stay current and coherent.
-
-**Acceptance Criteria:**
-
-1. `ContextSummarizationService` class with method: `updateContext(member, existingContext, newNotes)`
-2. Summarization prompt template:
-   ```
-   You are maintaining a context summary for a team member.
-   
-   Current Summary:
-   {existingContext}
-   
-   New Notes (chronological):
-   {newNotes}
-   
-   Task: Update the summary to incorporate new information while preserving important historical context.
-   
-   Rules:
-   - Newer information supersedes older information
-   - Keep the summary concise but comprehensive
-   - Highlight changes in behavior, goals, or concerns
-   - Maintain chronological awareness
-   - Preserve important milestones
-   ```
-3. Handles empty existing context (first summary generation)
-4. Chunks large contexts if they exceed token limits
-5. Returns updated summary with metadata: `{ summary: string, notesProcessed: number, updatedAt: Date }`
-6. Error handling: AI failure doesn't lose data (keeps old summary + appends raw notes)
-7. Unit tests with mocked AI responses validate summarization logic
-
-#### Story 4.4: Archival System
-
-**As a** developer,  
-**I want** processed notes archived in a structured year/quarter format,  
-**so that** historical data is preserved and inbox stays clean.
-
-**Acceptance Criteria:**
-
-1. `ArchiveService` class with methods: `archiveNote()`, `getArchivePath()`, `listArchived()`
-2. Archive path format: `99_Archive/{Year}/{Quarter}/Team/{Member_Name}/Raw_Notes/`
-3. Quarter calculation: Q1 (Jan-Mar), Q2 (Apr-Jun), Q3 (Jul-Sep), Q4 (Oct-Dec)
-4. Creates archive directories as needed
-5. Moves (not copies) notes from inbox to archive, preserving original filename
-6. Generates archive index file: `99_Archive/{Year}/{Quarter}/_index.md` with summary of archived notes
-7. Handles edge cases: member archived/deleted, duplicate filenames in archive
-8. Unit tests cover path generation, quarter calculation, file operations
-
-#### Story 4.5: Interactive Unmatched Note Resolution
+#### Story 3.2: Profile Collection Workflow
 
 **As a** manager,  
-**I want** to manually assign unmatched notes during cycle,  
-**so that** no context is lost even when AI can't determine the correct member.
+**I want** an easy way to collect structured profile information from team members,  
+**so that** I have rich context about their background and goals.
 
 **Acceptance Criteria:**
 
-1. During `tm cycle`, unmatched notes trigger interactive prompt:
-   ```
-   Unmatched Note (2026-01-29-1430.md):
-   "Discussed performance review timeline and format preferences."
-   
-   ? Assign to:
-     ❯ Sarah Chen
-       Mike Johnson
-       Ana Rodriguez
-       [Archive as General Note]
-       [Skip this note]
-   ```
-2. User can select member with arrow keys
-3. "[Archive as General Note]" option moves to `99_Archive/{Year}/{Quarter}/General/`
-4. "[Skip this note]" leaves note in inbox for next cycle
-5. Displays count: "3 unmatched notes remaining" after each assignment
-6. Can handle batch operations: "Assign next 5 notes to Sarah Chen?"
-7. Integration test simulates interactive flow with inquirer mocks
+1. `tm people collect-profile <name>` generates shareable prompt file
+2. Prompt includes questions about:
+   - Background and experience
+   - Skills and expertise
+   - Communication preferences
+   - Career goals
+   - Support needs
+3. Generated file is AI-friendly (can be used in ChatGPT/Claude)
+4. Manager can also run interactive session in IDE
+5. Output is structured markdown with frontmatter
+6. Integration test validates workflow
 
-#### Story 4.6: `tm cycle` Command Implementation
+#### Story 3.3: pm-people Agent - 1:1 Preparation
 
 **As a** manager,  
-**I want** to run one command that processes all my notes and updates context,  
-**so that** my team context stays current with minimal effort.
+**I want** AI to generate 1:1 agendas based on context,  
+**so that** my meetings are productive and well-prepared.
 
 **Acceptance Criteria:**
 
-1. `tm cycle` orchestrates the full pipeline: Scan → Match → Summarize → Archive
-2. Command flow with progress tracking:
-   ```bash
-   $ tm cycle
-   
-   Processing inbox...
-   
-   ✓ Scanned 7 notes
-   ✓ Matched 5 notes automatically
-   ⚠ 2 notes need manual assignment
-   
-   [Interactive prompts for unmatched notes]
-   
-   Updating context summaries...
-   ⠹ Sarah Chen (3 notes)...
-   ✓ Sarah Chen context updated
-   ⠹ Mike Johnson (2 notes)...
-   ✓ Mike Johnson context updated
-   
-   Archiving processed notes...
-   ✓ Moved 7 notes to 99_Archive/2026/Q1/
-   
-   ✓ Cycle complete!
-   
-   Summary:
-   - Notes processed: 7
-   - Members updated: 2
-   - Time: 8.3s
-   
-   Run 'tm context <member>' to view updated summaries.
-   ```
-3. Handles edge cases: empty inbox, all notes unmatched, AI failure mid-process
-4. Atomic operations: if cycle fails, inbox is preserved (no data loss)
-5. Optional flags:
-   - `--dry-run`: Show what would happen without making changes
-   - `--auto-archive-unmatched`: Skip interactive prompts, auto-archive unmatched notes
-   - `--verbose`: Show detailed AI prompts and responses
-6. Error recovery: on AI failure, saves partial progress and allows resume
-7. Integration test validates full cycle with multiple notes and members
+1. Agent command: `*1on1-prepare <member>`
+2. Reads: context.md, pdi.md, recent 1on1s, recent feedback, tasks/today.md, related project contexts
+3. Generates agenda with sections:
+   - Check-in
+   - Follow-ups from last session
+   - Current challenges/support needed
+   - PDI progress
+   - New discussion topics
+   - Action items
+4. Outputs to: `people/active/{member}/1on1s/{date}.md`
+5. Uses template: `1on1-session-tmpl.yaml`
+6. Integration test with sample context
 
----
-
-### Epic 5: Prompt Pack Engine & Actionable Commands
-
-**Expanded Goal:** Implement the YAML-based Prompt Pack system with Zod schema validation, create the Handlebars templating engine for variable injection, design and implement the base-pack.yaml containing sophisticated prompts for all management commands, and deliver all actionable AI commands including 1:1 preparation, PDI generation and updates, positive/constructive feedback generation, and performance review drafting. This epic transforms Tech Manager OS from a note-taking system into a proactive management assistant.
-
-#### Story 5.1: Prompt Pack Schema and Validation
-
-**As a** developer,  
-**I want** a strict schema for prompt packs,  
-**so that** community-created packs are validated before execution.
-
-**Acceptance Criteria:**
-
-1. Zod schema defined in `src/types/PackSchema.ts`:
-   ```typescript
-   const PackSchema = z.object({
-     meta: z.object({
-       name: z.string(),
-       version: z.string(),
-       author: z.string(),
-       description: z.string().optional(),
-       extends: z.string().optional(), // For extension packs
-     }),
-     commands: z.array(z.object({
-       name: z.string(),
-       description: z.string(),
-       inputs: z.array(z.object({
-         variable: z.string(),
-         source: z.string(), // file path or keyword
-         required: z.boolean().default(true),
-       })),
-       prompt: z.object({
-         system: z.string().optional(),
-         user: z.string(),
-         temperature: z.number().optional(),
-         maxTokens: z.number().optional(),
-       }),
-       output: z.object({
-         type: z.enum(['file', 'console']),
-         path: z.string().optional(),
-         append: z.boolean().default(false),
-       }),
-     })),
-   });
-   ```
-2. `PackValidationService` with method: `validate(packYaml: string): ValidationResult`
-3. Validation checks:
-   - Schema compliance
-   - Variable references in prompts match declared inputs
-   - Output paths are valid
-   - Command names don't conflict with built-in commands
-   - Extends field references existing pack
-4. Clear error messages: "Line 15: Variable {{pdi}} used but not declared in inputs"
-5. Unit tests cover valid packs, various invalid scenarios
-
-#### Story 5.2: Pack Loading and Extension System
-
-**As a** developer,  
-**I want** packs loaded with proper extension/override behavior,  
-**so that** extension packs can customize base commands.
-
-**Acceptance Criteria:**
-
-1. `PackLoaderService` with methods: `loadPack()`, `loadExtensions()`, `resolvePack()`
-2. Loading order:
-   - Load base-pack.yaml (always)
-   - Load extension packs from config
-   - Apply overrides (extensions override base)
-3. Command resolution: If extension defines same command name, it overrides base
-4. Extension packs can: Override existing commands, Add new commands, Inherit from base
-5. Validation ensures circular dependencies don't exist (A extends B extends A)
-6. Caching: Packs loaded once per session, reloaded only if file changes detected
-7. Unit tests cover loading, overrides, circular dependency detection
-
-#### Story 5.3: Template Engine with Handlebars
-
-**As a** developer,  
-**I want** to inject variables into prompt templates,  
-**so that** packs can reference member data dynamically.
-
-**Acceptance Criteria:**
-
-1. `TemplateService` class with method: `render(template: string, variables: Record<string, string>)`
-2. Uses Handlebars library for templating
-3. Variable resolution:
-   - File paths: Reads content from specified file (e.g., `source: "Current_PDI.md"` → reads member's PDI)
-   - Keywords: Special sources like `context_summary`, `recent_feedback`, `profile`
-   - Computed: `recent_notes_count`, `days_since_last_1on1`, etc.
-4. Handles missing variables: If variable required and missing, throw clear error
-5. Supports Handlebars helpers:
-   - `{{#if variable}}...{{/if}}`
-   - `{{#each items}}...{{/each}}`
-   - Custom helper: `{{truncate text 500}}`
-6. Security: Sandboxed execution (no code evaluation, only template interpolation)
-7. Unit tests cover variable injection, missing variables, helpers
-
-#### Story 5.4: Base Pack YAML Design
-
-**As a** product manager and author,  
-**I want** a high-quality base pack with sophisticated management prompts,  
-**so that** users get immediate value and see the potential for custom packs.
-
-**Acceptance Criteria:**
-
-1. `base-pack.yaml` created in `.system/packs/` with meta section:
-   ```yaml
-   meta:
-     name: "Tech Manager OS Base Pack"
-     version: "1.0.0"
-     author: "Marlon Vidal - Comunidade Tech Manager de Resultados"
-     description: "Official base pack with core management commands"
-   ```
-2. Contains commands for: `1on1-prepare`, `generate-pdi`, `update-pdi`, `feedback-positive`, `feedback-constructive`, `performance-review`
-3. Each prompt is thoughtfully crafted with:
-   - Clear system instruction defining AI role
-   - Structured user prompt with context injection
-   - Appropriate temperature settings (lower for factual, higher for creative)
-   - Output formatting instructions
-4. Example quality (1on1-prepare command):
-   ```yaml
-   - name: 1on1-prepare
-     description: Generate structured 1:1 agenda
-     inputs:
-       - variable: context_summary
-         source: "_Context_Summary.md"
-       - variable: pdi
-         source: "Current_PDI.md"
-       - variable: session_notes
-         source: "1on1_Sessions/[latest]"
-     prompt:
-       system: |
-         You are an executive coach helping a manager prepare for a 1:1 meeting.
-         Generate a thoughtful agenda that balances the team member's growth goals,
-         recent context, and any concerns that need addressing.
-       user: |
-         Team Member Context:
-         {{context_summary}}
-         
-         Current PDI Goals:
-         {{pdi}}
-         
-         Notes for This Session:
-         {{session_notes}}
-         
-         Create a structured 1:1 agenda with:
-         1. Check-in (how are things going?)
-         2. Progress on PDI goals
-         3. Recent highlights and concerns
-         4. Discussion topics from session notes
-         5. Action items
-         6. Next steps
-       temperature: 0.7
-     output:
-       type: file
-       path: "1on1_Sessions/[latest]"
-       append: true
-   ```
-5. All prompts reviewed for clarity, professionalism, and effectiveness
-6. Validation: base-pack.yaml passes schema validation
-
-#### Story 5.5: Pack Command Executor
-
-**As a** developer,  
-**I want** to execute pack commands dynamically,  
-**so that** user commands trigger the appropriate AI operations.
-
-**Acceptance Criteria:**
-
-1. `PackExecutorService` with method: `executeCommand(commandName, member, options)`
-2. Execution flow:
-   - Resolve pack command definition
-   - Gather input variables (read files, compute values)
-   - Render template with variables
-   - Send prompt to AI provider
-   - Handle response (write to file or console)
-   - Return execution result
-3. Progress indicators during execution:
-   ```
-   Preparing 1:1 agenda for Sarah Chen...
-   ⠹ Loading context...
-   ⠹ Generating agenda with AI...
-   ✓ Agenda written to 1on1_Sessions/2026-01-29-session.md
-   ```
-4. Error handling: missing inputs, AI failure, file write errors
-5. Dry-run mode: Shows what would be executed without calling AI
-6. Unit tests with mocked file reads and AI responses
-
-#### Story 5.6: `tm 1on1 create` and `tm 1on1 prepare` Commands
+#### Story 3.4: pm-people Agent - Feedback Generation
 
 **As a** manager,  
-**I want** to scaffold 1:1 sessions and generate AI-powered agendas,  
-**so that** my 1:1s are productive and well-structured.
+**I want** AI to draft feedback based on context,  
+**so that** I can deliver timely, specific feedback.
 
 **Acceptance Criteria:**
 
-1. `tm 1on1 create <member>` scaffolds session file:
-   - Creates `1on1_Sessions/YYYY-MM-DD-session.md`
-   - Template includes sections: Notes Before Meeting, Discussion Points, Action Items, Notes During Meeting
-   - Success message shows file path
-2. `tm 1on1 prepare <member>` generates agenda:
-   - Reads session file, context summary, PDI
-   - Calls pack executor with `1on1-prepare` command
-   - Appends AI-generated agenda to session file
-   - Success message: "Agenda added to session file"
-3. Optional flags:
-   - `--date YYYY-MM-DD`: Create/prepare for specific date (default: today)
-   - `--edit`: Open session file in editor after creation
-4. Validation: member exists, session file exists (for prepare)
-5. Integration test validates full workflow: create → add notes → prepare
-
-#### Story 5.7: `tm generate-pdi` and `tm update-pdi` Commands
-
-**As a** manager,  
-**I want** AI to help create and maintain PDIs for my team,  
-**so that** career development conversations are data-driven.
-
-**Acceptance Criteria:**
-
-1. `tm generate-pdi <member>` creates initial PDI:
-   - Reads profile and context summary
-   - Uses AI to suggest 3-5 development goals based on context
-   - Writes to `Current_PDI.md` with structured format
-   - Success message with file path
-2. `tm update-pdi <member>` suggests PDI updates:
-   - Reads current PDI and recent context
-   - AI suggests: progress on existing goals, new goals, goals to archive
-   - Interactive confirmation before updating
-   - Preserves PDI history (appends to end)
-3. PDI format (structured markdown):
-   ```markdown
-   # Personal Development & Improvement Plan: {Name}
-   
-   ## Active Goals
-   ### Goal 1: {Title}
-   - **Description:** ...
-   - **Timeline:** ...
-   - **Success Criteria:** ...
-   - **Progress:** ...
-   
-   ## Completed Goals
-   [Archived goals]
-   
-   ## Notes
-   [Additional context]
-   ```
-4. Optional flags: `--interactive` (review/edit goals before saving)
-5. Integration test validates PDI generation from context
-
-#### Story 5.8: `tm feedback` Command for Positive and Constructive Feedback
-
-**As a** manager,  
-**I want** AI to draft feedback based on recent context,  
-**so that** I can deliver timely, specific feedback to my team.
-
-**Acceptance Criteria:**
-
-1. `tm feedback <member> --type=positive` generates positive feedback:
-   - Reads context summary and recent notes
-   - Identifies specific positive behaviors and outcomes
-   - Drafts 2-3 paragraphs of actionable positive feedback
-   - Writes to `Active_Feedback_Positive.md` (appends with date header)
-2. `tm feedback <member> --type=constructive` generates constructive feedback:
-   - Identifies areas for improvement from context
-   - Frames feedback constructively (SBI model: Situation-Behavior-Impact)
-   - Suggests specific improvement actions
-   - Writes to `Active_Feedback_Constructive.md`
-3. Feedback format includes:
-   - Date generated
+1. Agent command: `*feedback <member> --tone=positive|constructive`
+2. Reads: context.md, recent notes mentioning member
+3. Generates feedback draft:
    - Specific examples from context
    - Clear, actionable language
    - Professional tone
-4. Optional flags:
-   - `--review`: Show draft before saving (interactive)
-   - `--topic <topic>`: Focus feedback on specific topic
-5. Integration test validates feedback generation
+   - SBI model for constructive (Situation-Behavior-Impact)
+4. Outputs to: `people/active/{member}/feedback/{date}-{tone}.md`
+5. Manager reviews before delivery
+6. Integration test validates generation
 
-#### Story 5.9: `tm performance-review` Command
+#### Story 3.5: pm-people Agent - PDI Management
 
 **As a** manager,  
-**I want** AI to draft comprehensive performance reviews,  
-**so that** review cycles are less time-consuming and more thorough.
+**I want** AI to help create and maintain PDIs,  
+**so that** career development is data-driven.
 
 **Acceptance Criteria:**
 
-1. `tm performance-review <member>` generates review draft:
-   - Reads: context summary, PDI, all feedback files, recent 1:1 notes
-   - Generates comprehensive review with sections:
-     - Summary
-     - Key Accomplishments
-     - Areas of Growth
-     - PDI Progress
-     - Goals for Next Period
-     - Overall Assessment
-   - Writes to `Performance_Reviews/YYYY-QX-review.md`
-2. Review includes specific examples and timestamps
-3. Professional tone, balanced perspective
-4. Optional flags:
-   - `--period Q1|Q2|Q3|Q4|annual`: Specify review period
-   - `--template <path>`: Use custom review template
-5. Success message includes review location and reminder to personalize
-6. Integration test validates review generation with full member data
+1. Agent command: `*pdi-generate <member>`
+2. Reads: profile.md, context.md
+3. Generates structured PDI:
+   - Current role and aspirations
+   - 3-5 development goals with success criteria
+   - Action plans
+   - Support needed
+   - Timeline
+4. Agent command: `*pdi-update <member>` suggests updates based on progress
+5. Outputs to: `people/active/{member}/pdi.md`
+6. Uses template: `member-pdi-tmpl.yaml`
+7. Integration test validates PDI structure
+
+#### Story 3.6: pm-people Agent - PIP and Performance Reviews
+
+**As a** manager,  
+**I want** AI assistance with PIPs and performance reviews,  
+**so that** these critical documents are thorough and fair.
+
+**Acceptance Criteria:**
+
+1. Agent command: `*pip-create <member>`
+2. Generates PIP with: issues, improvement plan, timeline, consequences
+3. Agent command: `*review-generate <member> --period=<quarter>`
+4. Generates review with: summary, accomplishments, growth areas, PDI progress, goals
+5. Both use comprehensive context analysis
+6. Manager reviews/edits before finalizing
+7. Integration test validates document quality
 
 ---
 
-### Epic 6: Pack Distribution & Polish
+### Epic 4: Manager's Career & Leadership Tracking
 
-**Expanded Goal:** Enable pack installation from URLs with automatic download and validation, implement comprehensive pack management commands for listing installed packs with metadata and validation status, add robust error handling across all commands with helpful error messages and recovery suggestions, implement polished progress indicators and spinners for long-running operations, finalize the terminal UX with consistent branding and color schemes, and prepare the tool for distribution with comprehensive documentation and README. This epic delivers the final polish needed to create the WOW effect.
+**Expanded Goal:** Enable managers to track their own career development with equal rigor as team management. Implement PDP creation/updates, brag document logging, self-review generation, and leadership alignment tracking. This epic ensures managers don't neglect their own growth.
 
-#### Story 6.1: Pack Installation from URLs
+#### Story 4.1: Manager Career Commands
 
-**As a** user,  
-**I want** to install prompt packs from URLs,  
-**so that** I can easily adopt community or premium packs.
-
-**Acceptance Criteria:**
-
-1. `tm pack install <url>` downloads and installs pack:
-   ```bash
-   $ tm pack install https://example.com/packs/engineering-manager.yaml
-   
-   Downloading pack...
-   ✓ Downloaded engineering-manager.yaml (3.2 KB)
-   
-   Validating pack...
-   ✓ Pack schema valid
-   ✓ No command conflicts
-   
-   Pack Details:
-   - Name: Engineering Manager Pack
-   - Author: Tech Manager Community
-   - Version: 1.2.0
-   - Commands: 5 new, 2 overrides
-   
-   ? Install this pack? (Y/n)
-   
-   ✓ Pack installed to .system/packs/engineering-manager.yaml
-   
-   To activate: tm config edit → Add to extensions
-   ```
-2. Supports multiple URL formats: direct .yaml, GitHub raw, gist
-3. Validation before installation: schema check, malware scan (basic), command conflict detection
-4. Handles errors: invalid URL, network error, invalid pack format
-5. Optional flags:
-   - `--activate`: Automatically add to active extensions
-   - `--force`: Skip confirmation prompt
-6. Unit tests with mocked HTTP requests
-
-#### Story 6.2: Pack Management Commands
-
-**As a** user,  
-**I want** to manage my installed packs,  
-**so that** I can activate, deactivate, or remove packs as needed.
+**As a** manager,  
+**I want** to manage my own career development,  
+**so that** I'm intentional about my growth.
 
 **Acceptance Criteria:**
 
-1. `tm packs list` displays all installed packs:
-   ```
-   Installed Prompt Packs
-   
-   ┌─────────────────────────┬─────────┬──────────┬────────────────┐
-   │ Name                    │ Version │ Status   │ Commands       │
-   ├─────────────────────────┼─────────┼──────────┼────────────────┤
-   │ Base Pack               │ 1.0.0   │ Active   │ 9 (base)       │
-   │ Engineering Manager     │ 1.2.0   │ Active   │ +5, ~2         │
-   │ Leadership Essentials   │ 2.0.1   │ Inactive │ +8             │
-   └─────────────────────────┴─────────┴──────────┴────────────────┘
-   
-   Legend: +X = new commands, ~X = overrides
-   
-   Commands:
-     tm pack activate <name>     - Activate pack
-     tm pack deactivate <name>   - Deactivate pack
-     tm pack remove <name>       - Uninstall pack
-     tm pack update <name>       - Update to latest version
-   ```
-2. `tm packs validate <pack-name>` validates pack integrity
-3. `tm pack activate <name>` adds to config extensions list
-4. `tm pack deactivate <name>` removes from extensions
-5. `tm pack remove <name>` deletes pack file after confirmation
-6. `tm pack update <name>` re-downloads if URL is stored in pack metadata
-7. All commands handle errors gracefully
+1. `tm my profile` opens profile in editor
+2. `tm my pdp` opens PDP in editor
+3. `tm my brag add <achievement>` logs achievement with timestamp
+4. `tm my brag view` displays brag document
+5. Files created during `tm init`
+6. Unit tests for all commands
 
-#### Story 6.3: Comprehensive Error Handling and Recovery
+#### Story 4.2: pm-career Agent - PDP Management
 
-**As a** user,  
-**I want** clear error messages with recovery suggestions,  
-**so that** I can quickly resolve issues without frustration.
+**As a** manager,  
+**I want** AI to help with my own PDP,  
+**so that** I have a clear development plan.
 
 **Acceptance Criteria:**
 
-1. `ErrorHandlerService` centralizes error handling:
-   - Maps error types to user-friendly messages
-   - Provides recovery suggestions
-   - Includes relevant context
-2. Error message format:
-   ```
-   ✗ Error: Failed to update context for Sarah Chen
-   
-   Reason: OpenAI API rate limit exceeded
-   
-   What you can do:
-   1. Wait 30 seconds and try again: tm cycle --resume
-   2. Switch to a different AI provider: tm config edit
-   3. Process fewer notes at once: tm cycle --batch-size 3
-   
-   Technical details (for support):
-   Error Code: RATE_LIMIT_429
-   Timestamp: 2026-01-29T15:30:00Z
-   ```
-3. Error categories covered:
-   - File system errors (permissions, disk full, path not found)
-   - Network errors (API timeouts, connection failed)
-   - AI provider errors (rate limits, invalid responses, token limits)
-   - Configuration errors (missing API key, invalid config)
-   - User input errors (invalid member name, missing required args)
-4. Retry mechanisms with exponential backoff for transient errors
-5. Partial success handling: Save progress before failing
-6. Unit tests cover all error scenarios
+1. Agent command: `*pdp-generate`
+2. Reads: my-career/profile.md, my-leadership/profile.md
+3. Generates PDP aligned with leader's expectations
+4. Agent command: `*pdp-update` suggests updates
+5. Outputs to: `my-career/pdp.md`
+6. Uses template: `manager-pdp-tmpl.yaml`
+7. Integration test validates alignment
 
-#### Story 6.4: Progress Indicators and UX Polish
+#### Story 4.3: pm-career Agent - Brag Document and Self-Review
 
-**As a** user,  
-**I want** clear visual feedback during long operations,  
-**so that** I know the tool is working and not frozen.
+**As a** manager,  
+**I want** AI to help summarize my achievements,  
+**so that** I'm prepared for performance reviews.
 
 **Acceptance Criteria:**
 
-1. All AI operations show progress with `ora` spinners:
-   - Text updates during different stages
-   - Success/failure symbols (✓/✗)
-   - Elapsed time for operations > 5 seconds
-2. Batch operations show item-by-item progress:
-   ```
-   Processing 5 team members...
-   ✓ Sarah Chen (3.2s)
-   ✓ Mike Johnson (2.8s)
-   ⠹ Ana Rodriguez...
-   ```
-3. Progress bars for multi-step operations (using cli-progress)
-4. Consistent color scheme:
-   - Green: Success, completion
-   - Yellow: Warnings, attention needed
-   - Blue: Information, tips
-   - Red: Errors
-   - Cyan: Interactive prompts
-5. Box drawings and separators for visual structure
-6. Tip messages at appropriate times: "💡 Tip: Run 'tm cycle' regularly to keep context current"
-7. Emoji support (with TM_NO_EMOJI env var to disable)
+1. Agent command: `*brag-summarize`
+2. Analyzes brag document entries
+3. Generates summary by category: impact, leadership, technical
+4. Agent command: `*self-review <period>`
+5. Generates self-review draft from brag document and PDP
+6. Integration test validates quality
 
-#### Story 6.5: Branding Integration Throughout
+#### Story 4.4: Leadership Alignment Tracking
 
-**As a** user,  
-**I want** consistent branding across all commands,  
-**so that** the tool feels polished and professional.
+**As a** manager,  
+**I want** my 1:1s with my leader tracked,  
+**so that** I maintain alignment.
 
 **Acceptance Criteria:**
 
-1. Welcome banner shown on first run and with `--version`:
-   ```
-   ┌─────────────────────────────────────────────────────┐
-   │                                                     │
-   │  ████████╗███╗   ███╗                               │
-   │  ╚══██╔══╝████╗ ████║                               │
-   │     ██║   ██╔████╔██║  Tech Manager OS              │
-   │     ██║   ██║╚██╔╝██║  by Marlon Vidal             │
-   │     ██║   ██║ ╚═╝ ██║                               │
-   │     ╚═╝   ╚═╝     ╚═╝  Comunidade Tech Manager     │
-   │                        de Resultados                │
-   │                                                     │
-   │  Version 1.0.0                                      │
-   └─────────────────────────────────────────────────────┘
-   ```
-2. Footer on significant operations:
-   ```
-   ────────────────────────────────────────────────
-   Tech Manager OS - Manage with Intelligence
-   ────────────────────────────────────────────────
-   ```
-3. Consistent command output formatting across all commands
-4. Help text includes branding tagline
-5. ASCII art optional (can be disabled for plain terminals)
+1. Cycle agent recognizes transcripts with leader (based on my-leadership/profile.md)
+2. Files them in: `my-leadership/alignments/{date}.md`
+3. Updates manager's context with alignment notes
+4. Flags misalignment with PDP
+5. Integration test validates categorization
 
-#### Story 6.6: Comprehensive Documentation and README
+---
 
-**As a** new user,  
-**I want** clear documentation,  
-**so that** I can quickly understand and start using Tech Manager OS.
+### Epic 5: Project Management & Operations
+
+**Expanded Goal:** Implement project lifecycle management, status reporting, risk assessment, and operational workflows for hiring, rituals, and knowledge base management. This epic extends beyond people management to cover the full scope of a manager's responsibilities.
+
+#### Story 5.1: Project Lifecycle Commands
+
+**As a** manager,  
+**I want** to manage my project portfolio,  
+**so that** I can track active and completed projects.
 
 **Acceptance Criteria:**
 
-1. README.md includes:
-   - Hero section with branding and value proposition
-   - Quick start guide (install → init → first member → first note → cycle)
-   - Command reference with examples
-   - Architecture overview
-   - Pack system explanation
-   - API key security section (from earlier discussion)
-   - FAQ
-   - Contributing guidelines
-   - License (MIT or chosen license)
-2. SECURITY.md with API key best practices
-3. PACK_DEVELOPMENT.md guide for creating custom packs
-4. CHANGELOG.md with version history
-5. Examples directory with sample packs and workflows
-6. In-app help improved: `tm --help`, `tm <command> --help` all comprehensive
+1. `tm project add <name>` creates structure with brief.md template
+2. `tm project list` displays table
+3. `tm project archive <name>` moves to archived
+4. `tm show <project>` displays context
+5. Unit tests for all commands
 
-#### Story 6.7: Final Testing, Bug Fixes, and Release Preparation
+#### Story 5.2: pm-project Agent - Status Reports
+
+**As a** manager,  
+**I want** AI to generate weekly status reports,  
+**so that** I can quickly communicate project health.
+
+**Acceptance Criteria:**
+
+1. Agent command: `*status-report <project>`
+2. Reads: context.md, meetings, related member contexts
+3. Generates report: progress, risks, team capacity, next steps
+4. Outputs to: `projects/active/{project}/status-reports/{date}.md`
+5. Uses template: `status-report-tmpl.yaml`
+6. Integration test validates report quality
+
+#### Story 5.3: pm-project Agent - Risk Assessment
+
+**As a** manager,  
+**I want** AI to assess project risks,  
+**so that** I can proactively mitigate issues.
+
+**Acceptance Criteria:**
+
+1. Agent command: `*risk-assessment <project>`
+2. Analyzes recent context and identifies risks
+3. Generates assessment: risk list, severity, mitigation strategies
+4. Outputs to: `projects/active/{project}/risk-assessments/{date}.md`
+5. Integration test validates risk identification
+
+#### Story 5.4: Hiring Workflow
+
+**As a** manager,  
+**I want** to manage hiring pipelines,  
+**so that** I can track candidates systematically.
+
+**Acceptance Criteria:**
+
+1. `tm hiring open <role>` creates job description template
+2. `tm hiring candidate add <role> <name>` creates candidate folder
+3. `tm hiring list` displays open positions
+4. Cycle agent categorizes interview transcripts
+5. Unit tests for all commands
+
+#### Story 5.5: pm-hiring Agent - Candidate Reviews
+
+**As a** manager,  
+**I want** AI to help review candidates,  
+**so that** I make informed hiring decisions.
+
+**Acceptance Criteria:**
+
+1. Agent command: `*candidate-review <candidate> --approved=true|false`
+2. Reads: interview transcripts, job description, culture values
+3. Generates review: technical assessment, culture fit, recommendation
+4. Outputs to: `operations/hiring/{role}/candidates/{name}/candidate-review.md`
+5. Integration test validates review quality
+
+#### Story 5.6: Operations and Knowledge Base
+
+**As a** manager,  
+**I want** structured places for operational information,  
+**so that** everything has a home.
+
+**Acceptance Criteria:**
+
+1. Cycle agent categorizes: leadership meetings, company meetings, post-mortems
+2. `tm kb add <category> <title>` creates knowledge base entry
+3. `tm kb list` displays entries
+4. Knowledge base consulted by agents when relevant
+5. Integration test validates categorization
+
+---
+
+### Epic 6: Agent System & Pack Engine
+
+**Expanded Goal:** Build the complete agent system with YAML-based pack configuration, implement all agent definitions with proper persona and command structures, create IDE integration files for Cursor/Claude/Gemini, and deliver base-pack.yaml containing all core management methodology commands. This epic enables extensibility and community contributions.
+
+#### Story 6.1: Pack Schema and Validation
 
 **As a** developer,  
-**I want** comprehensive testing before release,  
-**so that** users have a stable, bug-free experience.
+**I want** strict schema validation for packs,  
+**so that** invalid configurations are caught early.
 
 **Acceptance Criteria:**
 
-1. All unit tests passing with 80%+ coverage
-2. All integration tests passing
-3. Manual testing checklist completed:
-   - Fresh install on macOS, Linux, Windows
-   - All commands tested end-to-end
-   - Error scenarios validated
-   - Performance benchmarks met
-4. Code quality checks:
-   - ESLint passing with zero warnings
-   - Prettier formatting applied
-   - No console.log statements in production code
-   - TypeScript strict mode violations resolved
-5. Package.json finalized:
-   - All dependencies up-to-date
-   - Peer dependencies documented
-   - Scripts tested
-6. Build validated:
-   - `npm run build` produces clean dist/
-   - Binary executable works
-   - Package size reasonable (<5MB)
-7. npm publishing preparation:
-   - Package name @marlonvidal/tech-manager-os reserved
-   - npm account configured
-   - .npmignore configured
-8. GitHub repository ready:
-   - CI/CD pipeline configured
-   - Issue templates created
-   - PR template created
-9. Launch checklist:
-   - Beta testing with 3-5 community members
-   - Feedback incorporated
-   - Release notes drafted
-   - Social media announcement prepared
+1. Zod schema defined for pack structure
+2. `PackValidationService` with `validate()` method
+3. Validates: schema compliance, variable references, output paths, command conflicts
+4. Clear error messages with line numbers
+5. Unit tests cover valid and invalid scenarios
+
+#### Story 6.2: Pack Loader and Command Resolution
+
+**As a** developer,  
+**I want** packs loaded efficiently,  
+**so that** agents have access to commands.
+
+**Acceptance Criteria:**
+
+1. `PackLoaderService` with methods: `loadPack()`, `loadExtensions()`, `resolveCommand()`
+2. Loads base-pack.yaml during initialization
+3. Supports extension packs (community packs)
+4. Command override logic (extensions override base)
+5. Caching for performance
+6. Unit tests cover loading and resolution
+
+#### Story 6.3: Template Engine with Variable Injection
+
+**As a** developer,  
+**I want** to inject variables into prompts,  
+**so that** commands are context-aware.
+
+**Acceptance Criteria:**
+
+1. `TemplateService` with method: `render(template, variables)`
+2. Uses Handlebars for templating
+3. Variable sources: file paths, keywords, computed values
+4. Handles missing variables gracefully
+5. Security: sandboxed execution
+6. Unit tests cover injection scenarios
+
+#### Story 6.4: Agent Definitions
+
+**As a** manager using an IDE,  
+**I want** to invoke specialized agents,  
+**so that** I get domain-specific assistance.
+
+**Acceptance Criteria:**
+
+1. All agents defined in `.tm-core/agents/`:
+   - cycle-agent.md
+   - pm-people.md
+   - pm-project.md
+   - pm-career.md
+   - pm-hiring.md
+   - tm-master.md
+2. Each agent has: persona, commands, dependencies
+3. Documentation includes usage examples
+4. Agent files created during `tm init`
+
+#### Story 6.5: IDE Integration Files
+
+**As a** manager,  
+**I want** agents available in my IDE,  
+**so that** I can use them naturally in my workflow.
+
+**Acceptance Criteria:**
+
+1. `.cursor/rules/tm/*.mdc` files generated
+2. `.claude/agents/*.md` files generated
+3. `.gemini/agents/*.md` files generated
+4. Files include agent definition and command reference
+5. Files created during `tm init`
+6. Integration test validates file structure
+
+#### Story 6.6: base-pack.yaml Design and Implementation
+
+**As a** product manager,  
+**I want** a comprehensive base pack,  
+**so that** users get immediate value.
+
+**Acceptance Criteria:**
+
+1. `base-pack.yaml` created with all commands:
+   - Cycle commands (categorize, process-inbox, update-tasks)
+   - People commands (1on1-prepare, feedback, pdi-generate, pdi-update, pip-create, review-generate)
+   - Project commands (status-report, risk-assessment, health-check)
+   - Career commands (pdp-generate, pdp-update, brag-summarize, self-review)
+   - Hiring commands (candidate-review, job-description)
+2. Each command has: well-crafted prompts, appropriate temperature, clear outputs
+3. Validation passes
+4. Generated during `tm init`
 
 ---
 
-## Checklist Results Report
+### Epic 7: Polish, Testing & Distribution
 
-### Executive Summary
+**Expanded Goal:** Comprehensive testing across all layers, complete documentation with user guide and examples, IDE integration validation, performance optimization, and npm packaging for distribution. This epic ensures the system is production-ready.
 
-**PRD Completeness: 94%**
+#### Story 7.1: Comprehensive Test Suite
 
-**MVP Scope Assessment:** Just Right - The 6 epic structure delivers a complete, polished product focused on people management without scope creep.
+**As a** developer,  
+**I want** thorough test coverage,  
+**so that** the system is reliable.
 
-**Readiness for Architecture Phase:** READY - This PRD provides comprehensive guidance for the architect with clear technical constraints, detailed functional requirements, and well-defined epic structure.
+**Acceptance Criteria:**
 
-**Key Strengths:**
-- Exceptional detail in epic breakdown (38 stories with comprehensive acceptance criteria)
-- Clear technical decisions (layered pack system, AI provider adapter pattern, API key security)
-- Strong UX vision for terminal-native experience
-- Well-sequenced implementation plan with clear dependencies
+1. Unit tests: 80%+ coverage
+2. Integration tests for all workflows
+3. Mock AI responses for deterministic testing
+4. Sample transcripts for cycle testing
+5. All tests passing
+6. CI/CD pipeline configured (GitHub Actions)
 
-**Critical Gaps Identified:**
-1. Missing explicit success metrics/KPIs for MVP validation
-2. Beta testing plan mentioned but not detailed
-3. Future roadmap (v2+) not explicitly documented
+#### Story 7.2: Documentation
 
----
+**As a** new user,  
+**I want** comprehensive documentation,  
+**so that** I can learn and use the system effectively.
 
-### Category Analysis
+**Acceptance Criteria:**
 
-| Category                         | Status  | Critical Issues |
-| -------------------------------- | ------- | --------------- |
-| 1. Problem Definition & Context  | PASS    | None - Clear problem statement and target audience |
-| 2. MVP Scope Definition          | PASS    | Minor: Success metrics could be more explicit |
-| 3. User Experience Requirements  | PASS    | None - Excellent CLI UX design |
-| 4. Functional Requirements       | PASS    | None - 27 FRs covering all features comprehensively |
-| 5. Non-Functional Requirements   | PASS    | None - 15 NFRs with specific targets |
-| 6. Epic & Story Structure        | PASS    | None - Exemplary: 6 epics, 38 stories, all well-defined |
-| 7. Technical Guidance            | PASS    | None - Clear tech stack, architecture patterns, security model |
-| 8. Cross-Functional Requirements | PARTIAL | Minor: Operational monitoring details light |
-| 9. Clarity & Communication       | PASS    | None - Well-structured, consistent terminology |
+1. README.md with: quick start, command reference, architecture overview
+2. User guide with workflow examples
+3. Agent development guide
+4. Pack development guide
+5. SECURITY.md with API key best practices
+6. CHANGELOG.md
+7. Examples directory with sample workflows
 
-**Overall Assessment: 8.5/9 Categories PASS**
+#### Story 7.3: Performance Optimization
 
----
+**As a** user,  
+**I want** fast response times,  
+**so that** the tool doesn't slow me down.
 
-### Top Issues by Priority
+**Acceptance Criteria:**
 
-#### BLOCKERS: None
-All critical requirements are documented and ready for implementation.
+1. CLI commands <100ms (excluding AI)
+2. Cycle processes 20+ files efficiently
+3. Progress indicators for operations >500ms
+4. File operations are atomic
+5. Retry logic with exponential backoff
+6. Performance benchmarks documented
 
-#### HIGH PRIORITY
-None identified. The PRD is comprehensive.
+#### Story 7.4: Error Handling and UX Polish
 
-#### MEDIUM PRIORITY
+**As a** user,  
+**I want** clear error messages and polished UI,  
+**so that** I can recover from issues easily.
 
-1. **Success Metrics Specification**
-   - **Issue:** While goals are clear, measurable success metrics for MVP validation are implicit rather than explicit
-   - **Impact:** May lack clear criteria for "MVP success" post-launch
-   - **Recommendation:** Add "Success Metrics" section with:
-     - User adoption target (e.g., "50 active users in first month")
-     - Usage metrics (e.g., "Average 20 notes/cycle per user")
-     - Retention metric (e.g., "60% of users active after 30 days")
-     - Feedback score target (e.g., "NPS > 40")
+**Acceptance Criteria:**
 
-2. **Operational Monitoring Details**
-   - **Issue:** NFR9 mentions error handling but operational monitoring (telemetry, crash reporting) is underspecified
-   - **Impact:** May lack visibility into production issues
-   - **Recommendation:** Add story in Epic 6 for optional crash reporting (user opt-in, privacy-first)
+1. All errors have clear messages with recovery suggestions
+2. Consistent color scheme (green/yellow/blue/red)
+3. Progress spinners with elapsed time
+4. Branded welcome message
+5. Help text comprehensive
+6. Accessibility flags work (--plain, --json)
 
-3. **Future Roadmap**
-   - **Issue:** V2 features mentioned (project management, profiles) but not documented
-   - **Impact:** Unclear product vision beyond MVP
-   - **Recommendation:** Add "Future Enhancements" section listing deferred features
+#### Story 7.5: npm Packaging and Distribution
 
-#### LOW PRIORITY
+**As a** developer,  
+**I want** the package ready for npm,  
+**so that** users can install easily.
 
-1. **Competitive Analysis:** No explicit competitive landscape documented (acceptable for community-driven tool)
-2. **Pricing Strategy:** Premium pack monetization mentioned but pricing model not detailed (acceptable for MVP)
+**Acceptance Criteria:**
 
----
-
-### MVP Scope Assessment
-
-#### Scope Appropriateness: ✓ JUST RIGHT
-
-**Rationale:**
-- **Lean MVP:** 14 core commands focused solely on people management (projects explicitly deferred)
-- **Complete Value:** Delivers full "zero-latency context" promise from capture → cycle → actionable outputs
-- **Shippable:** 6 epics sized for ~6-8 weeks of development with AI agent assistance
-- **Extensible:** Pack system enables post-launch customization without core changes
-
-**Features That Could Be Cut (for ultra-lean MVP):**
-- Epic 6 pack installation from URLs (manual copy is sufficient)
-- `tm update-pdi` command (users can manually edit)
-- Performance review generation (deferrable to v1.1)
-
-**Recommendation:** Keep full scope. Epic 6 polish is essential for "WOW effect" in community launch.
-
-**Missing Features That Are Essential:**
-None. All core workflows covered:
-- ✓ Capture (inbox)
-- ✓ Process (cycle)
-- ✓ Organize (members, context)
-- ✓ Generate value (1:1s, feedback, PDI, reviews)
-- ✓ Extend (packs)
+1. Package.json finalized
+2. Build produces clean dist/
+3. Binary executable works: `npx @marlonvidal/tech-manager-os init`
+4. .npmignore configured
+5. npm package tested locally
+6. Ready for publishing
 
 ---
 
-### Technical Readiness
+## Implementation Strategy
 
-#### Architecture Clarity: EXCELLENT
+### Development Phases
 
-**Well-Defined:**
-- ✓ Modular monolith with plugin pattern for packs
-- ✓ AI adapter pattern for provider agnosticism
-- ✓ File system as database with strict folder structure
-- ✓ Security model for API keys (conf library, AES-256, OS-specific storage)
-- ✓ Template engine (Handlebars) for pack prompts
+**Phase 1: Foundation (Weeks 1-2)**
+- Epic 1 complete
+- `tm init` working with manager onboarding
+- Configuration and AI providers functional
+- Basic file operations tested
 
-**Technical Risks Identified:**
-1. **AI Token Limits:** Large context summaries + new notes might exceed token limits
-   - **Mitigation:** Story 4.3 includes chunking logic
-2. **Pack Security:** User-created packs could contain malicious Handlebars templates
-   - **Mitigation:** Sandboxed execution mentioned, needs architect review
-3. **Cross-Platform File System:** Windows path handling differs from Unix
-   - **Mitigation:** Use path.join() throughout, test on all platforms (Epic 6.7)
+**Phase 2: Cycle Intelligence (Weeks 3-4)**
+- Epic 2 complete
+- `tm cycle` and `tm watch` working
+- Categorization logic validated with sample transcripts
+- Context updates and task extraction functional
 
-**Areas Needing Architect Investigation:**
-1. Pack command conflict resolution (when extension overrides base)
-2. Context summary merging strategy (append vs. replace vs. intelligent merge)
-3. Archive storage growth management (what happens after 5 years of notes?)
+**Phase 3: People Management (Weeks 5-6)**
+- Epic 3 complete
+- All people commands working
+- pm-people agent functional with all commands
+- Profile collection workflow tested
 
-**Recommendation:** Architect should review pack security sandboxing approach before Epic 5 implementation.
+**Phase 4: Career & Leadership (Week 7)**
+- Epic 4 complete
+- Manager's career tracking functional
+- pm-career agent working
+- Leadership alignment tracking tested
 
----
+**Phase 5: Projects & Operations (Week 8)**
+- Epic 5 Stories 5.1-5.3 complete
+- Project management functional
+- pm-project agent working
+- Status and risk reporting tested
 
-### Detailed Checklist Results
+**Phase 6: Hiring & Operations (Week 9)**
+- Epic 5 Stories 5.4-5.6 complete
+- Hiring workflow functional
+- pm-hiring agent working
+- Operations and knowledge base tested
 
-#### 1. Problem Definition & Context: 95%
+**Phase 7: Agent System (Week 10)**
+- Epic 6 complete
+- Pack engine functional
+- All agents defined
+- IDE integration files generated
+- base-pack.yaml validated
 
-✓ Clear problem: Management entropy, lost context, scattered notes  
-✓ Target audience: Engineering managers (specific and well-defined)  
-✓ Why it matters: Applies engineering principles (version control, structure) to management  
-⚠ Success metrics: Implicit (user adoption, retention) but not explicitly stated  
-✓ Differentiation: Local-first, BYOK, methodology-as-code (unique positioning)
+**Phase 8: Polish & Ship (Week 11-12)**
+- Epic 7 complete
+- Testing comprehensive
+- Documentation complete
+- Performance optimized
+- npm package ready
+- Beta testing with community
 
-**User Research:** Implicit from author's domain expertise (acceptable for author-driven product)
+### Success Metrics
 
-#### 2. MVP Scope Definition: 92%
+**MVP Success Criteria:**
 
-✓ Core functionality: 6 epics covering setup → capture → process → generate value  
-✓ Scope boundaries: Projects explicitly out of scope, people management only  
-✓ MVP rationale: Well-documented (focus on core value proposition)  
-⚠ MVP validation approach: Testing mentioned but success criteria could be more explicit  
-✓ Future enhancements: Implicitly deferred (projects, multiple profiles)
+1. **Functional Completeness:**
+   - All FR1-FR40 implemented and tested
+   - All agents functional in at least one IDE (Cursor)
+   - Cycle processes 10+ different transcript types accurately
 
-#### 3. User Experience Requirements: 98%
+2. **User Adoption:**
+   - 5 beta testers using system for 2+ weeks
+   - Positive feedback on core workflows (cycle, 1:1 prep, status reports)
+   - At least 100 transcripts processed across beta testers
 
-✓ User flows: Command-line workflow documented (init → member → inbox → cycle → outputs)  
-✓ Usability: Accessibility via flags (--plain, --json), cross-platform terminal support  
-✓ Performance: <100ms for CLI, progress indicators for AI operations  
-✓ Error handling: Comprehensive error handling with recovery suggestions (Story 6.3)  
-✓ UI requirements: Terminal UX vision, branding, color scheme all defined
+3. **Quality:**
+   - 80%+ test coverage
+   - Zero critical bugs
+   - AI categorization >85% accuracy on beta tester data
 
-#### 4. Functional Requirements: 100%
+4. **Performance:**
+   - CLI commands <100ms
+   - Cycle processes 20 files in <60 seconds
+   - No data loss incidents
 
-✓ 27 functional requirements covering all features  
-✓ Requirements focus on WHAT not HOW  
-✓ All requirements testable with clear acceptance criteria  
-✓ Dependencies explicit (e.g., FR5 depends on FR2 for AI)  
-✓ Consistent terminology throughout  
-✓ User stories: 38 stories with comprehensive, testable acceptance criteria
+5. **Documentation:**
+   - Complete user guide
+   - 5+ example workflows documented
+   - Video walkthrough created
 
-#### 5. Non-Functional Requirements: 95%
+### Risk Mitigation
 
-✓ Performance: CLI <100ms, AI with progress indicators, 15 team member target  
-✓ Security: API key encryption, AES-256, no telemetry, privacy-first  
-✓ Reliability: Atomic file operations, retry logic with exponential backoff  
-✓ Technical constraints: TypeScript 5.x, Node 18+, specific libraries mandated  
-⚠ Monitoring: Error handling defined but crash reporting/telemetry underspecified
+**Technical Risks:**
 
-#### 6. Epic & Story Structure: 100%
+1. **AI Categorization Accuracy:** Mitigate with extensive prompt engineering, sample transcript testing, and fallback to manual categorization for low-confidence cases
+2. **Context Summary Growth:** Implement summarization strategy to prevent unbounded growth, test with large context datasets
+3. **Cross-Platform Issues:** Test on Mac, Linux, Windows throughout development, use path.join() consistently
+4. **API Rate Limits:** Implement exponential backoff, batch operations where possible, provide clear error messages
 
-✓ 6 epics representing cohesive functionality units  
-✓ Epic goals clearly articulated with expanded descriptions  
-✓ Epic sequence: Foundation → Config → Members → Cycle → Packs → Polish (logical)  
-✓ 38 stories appropriately sized (2-4 hour sessions)  
-✓ Stories have independent value and comprehensive acceptance criteria  
-✓ First epic includes all setup: scaffolding, tooling, file system service, init command
+**Product Risks:**
 
-#### 7. Technical Guidance: 98%
-
-✓ Architecture: Modular monolith with plugin pattern  
-✓ Technical constraints: All libraries, versions, tools specified  
-✓ Integration points: AI provider adapters, pack system  
-✓ Security: API key storage approach fully documented  
-✓ Trade-offs: Documented (e.g., no database = human-readable files)  
-✓ Testing approach: Unit + Integration + Manual helpers  
-⚠ Technical debt: Not explicitly addressed (acceptable for greenfield MVP)
-
-#### 8. Cross-Functional Requirements: 88%
-
-✓ Data entities: Member, Note, Context, Session all identified  
-✓ Data storage: File system structure comprehensively documented  
-✓ Data retention: Archive structure (Year/Quarter) defined  
-✓ Integrations: AI providers only (OpenAI, Claude, Gemini)  
-⚠ Operational monitoring: Light on production telemetry approach  
-⚠ Support requirements: Not explicitly documented (acceptable for community tool)
-
-#### 9. Clarity & Communication: 96%
-
-✓ Clear, consistent language throughout  
-✓ Well-structured: Goals → Requirements → UI → Tech → Epics → Stories  
-✓ Technical terms defined: BYOK, Pack system, Cycle engine all explained  
-✓ Diagrams: Folder structure provided (helpful)  
-⚠ Stakeholder alignment: Community launch plan mentioned but light on details
+1. **Complexity Overload:** Start with core workflows, defer advanced features to v1.1
+2. **Learning Curve:** Invest in documentation and examples, create video walkthroughs
+3. **IDE Fragmentation:** Focus on Cursor first, add Claude/Gemini support after core is stable
 
 ---
 
-### Recommendations
+## Open Questions & Design Decisions
 
-#### For Immediate Action (Before Architecture Phase):
+### Questions Requiring User Input
 
-1. **Add Success Metrics Section** (5 minutes)
-   - Add measurable KPIs for MVP validation
-   - Suggested location: After Goals section
+**Q1: Time-Based Task View Details**
 
-2. **Clarify Monitoring Approach** (Optional)
-   - Decide: No telemetry (100% privacy) or opt-in crash reporting?
-   - Add to NFRs if opt-in chosen
+What exactly should each time view show?
 
-#### For Future Iteration (Can defer to v1.1):
+- **`tm today`:**
+  - Urgent tasks only? Or all tasks due today?
+  - Should it show scheduled 1:1s automatically by reading calendar files?
+  - Should it show "suggested actions" from last cycle?
+  - Format: Categorized list or priority-sorted?
 
-1. Document v2 roadmap (project management, advanced features)
-2. Create competitive analysis (optional for author-driven product)
-3. Define premium pack pricing strategy
+- **`tm this-week`:**
+  - Weekly objectives or daily task rollup?
+  - Should it predict capacity (days × hours)?
+  - Should it show project milestones due this week?
+
+- **`tm this-month` and `tm this-quarter`:**
+  - More strategic (goals/objectives) or tactical (task list)?
+  - Should these be manually curated or AI-generated?
+
+**Q2: PIP vs Feedback Escalation**
+
+When should the system suggest PIP initiation?
+
+- After N constructive feedback items (what's N: 2, 3, 5)?
+- Based on severity analysis by AI (flag "critical" issues)?
+- Never suggest automatically (always manager decision)?
+- Should there be a "concern" escalation level before PIP?
+
+**Q3: Context Summary Growth Management**
+
+How do we prevent context files from growing unbounded?
+
+- Maximum context size (tokens/characters)?
+- Summarization strategy: periodic compression, sliding window, hierarchical summaries?
+- Should we keep separate "recent" (detailed) and "historical" (summarized) sections?
+- Archival: Move old detailed context to archive after N months?
+
+**Q4: Profile Collection - Team Member Engagement**
+
+How do we encourage team members to complete profile collection?
+
+- Should managers be able to schedule "profile interview" in the agent?
+- Should the system send reminders (requires email integration)?
+- Should profiles be mandatory or optional?
+- What's the fallback if someone doesn't complete it?
+
+**Q5: IDE Integration Priority**
+
+Which IDE should we perfect first?
+
+- **Cursor** (most popular in community)
+- **Claude Code** (most natural for AI-native workflow)
+- **Gemini CLI** (unique CLI-based approach)
+- Or all three in parallel (slower but broader reach)?
+
+**Q6: Transcript Format Specifics**
+
+What transcript formats are most common for users?
+
+- Plain text with speaker labels: "Manager: ... Member: ..."
+- Markdown with headers: "## Manager\n...\n## Member\n..."
+- JSON from tools like Otter.ai, Fireflies.ai: `{"speaker": "Manager", "text": "..."}`
+- Should we support custom parsers per transcript source?
+
+**Q7: Community Pack System (Post-MVP)**
+
+For v1.1+ pack distribution:
+
+- Host packs on GitHub (user installs via URL)?
+- Create central registry/marketplace?
+- How do users discover packs?
+- Versioning strategy for packs?
+- Security: how to validate community packs aren't malicious?
 
 ---
 
-### Final Decision
+## Design Decisions Checklist
 
-**✓ READY FOR ARCHITECT**
+### Items Requiring Detailed Specification (Future Sessions)
 
-This PRD is exceptionally comprehensive and ready for architectural design. The level of detail in epic breakdown (38 stories with full acceptance criteria) is outstanding. Technical guidance is clear with specific technology choices, security model fully documented, and implementation approach well-defined.
+Use this checklist to track what needs to be defined before implementation. Each item should have its own design session/document.
 
-**The architect can proceed immediately with confidence.**
+#### 🎯 **CRITICAL PATH** (Required for MVP)
 
-**Recommended Next Steps:**
-1. Architect reviews PRD and creates architecture document
-2. UX Expert reviews terminal UX requirements (lightweight - CLI tool)
-3. Development begins with Epic 1 (Foundation)
+- [ ] **base-pack.yaml Complete Specification**
+  - [ ] All command definitions with full prompts
+  - [ ] System prompts for each agent persona
+  - [ ] User prompt templates with variable placeholders
+  - [ ] Temperature and max_tokens for each command
+  - [ ] Input source specifications (file paths, keywords)
+  - [ ] Output path specifications and templates
+  - [ ] Estimated: 8-10 hours of prompt engineering
+
+- [ ] **Cycle Agent Categorization Logic**
+  - [ ] Detailed categorization decision tree
+  - [ ] Confidence scoring algorithm
+  - [ ] Multi-entity handling (note mentions 3 people + 2 projects)
+  - [ ] Ambiguity resolution strategies
+  - [ ] Low-confidence fallback workflow
+  - [ ] Sample transcript test suite (20+ examples)
+
+- [ ] **Context Summary Merging Algorithm**
+  - [ ] Prompt template for merging new insights with existing context
+  - [ ] Summarization strategy for long contexts
+  - [ ] What to preserve vs. what to compress
+  - [ ] Handling conflicting information (new data contradicts old)
+  - [ ] Chronological markers and time-awareness
+
+- [ ] **Task Extraction Prompt Design**
+  - [ ] Urgency classification rules
+  - [ ] Task format specification
+  - [ ] Owner assignment logic (member/project/manager)
+  - [ ] Status tracking (new/in-progress/blocked/done)
+  - [ ] Task deduplication strategy
+
+- [ ] **Template YAML Specifications**
+  - [ ] All 15+ templates fully defined with structure
+  - [ ] Frontmatter schemas for each entity type
+  - [ ] Section headers and content guidelines
+  - [ ] Variable injection points
+  - [ ] Examples for each template
+
+- [ ] **Agent Persona Definitions**
+  - [ ] pm-people: Personality, communication style, expertise areas
+  - [ ] pm-project: Personality, communication style, expertise areas
+  - [ ] pm-career: Personality, communication style, expertise areas
+  - [ ] pm-hiring: Personality, communication style, expertise areas
+  - [ ] cycle-agent: Analytical approach, decision-making style
+  - [ ] Each agent needs: backstory, expertise, limitations, tone
+
+- [ ] **IDE Integration Specifications**
+  - [ ] Cursor: .mdc file format and structure (with examples)
+  - [ ] Claude Code: Agent file format and invocation patterns
+  - [ ] Gemini CLI: Agent file format and invocation patterns
+  - [ ] Agent loading mechanism for each IDE
+  - [ ] Context file auto-loading rules
+
+#### 📋 **HIGH PRIORITY** (Needed early in implementation)
+
+- [ ] **File System Service Error Handling**
+  - [ ] Error types and recovery strategies
+  - [ ] Permission errors (directory not writable)
+  - [ ] Disk space errors
+  - [ ] File locking conflicts
+  - [ ] Atomic operation failure recovery
+
+- [ ] **AI Provider Adapter Error Handling**
+  - [ ] Rate limit handling (429) with exponential backoff
+  - [ ] Token limit errors (how to handle, chunking strategy)
+  - [ ] Invalid API key (user-friendly message + recovery)
+  - [ ] Network errors (retry logic, timeout values)
+  - [ ] Provider-specific error codes
+
+- [ ] **Onboarding Workflow UX Flow**
+  - [ ] Question sequence and branching logic
+  - [ ] Skip options for optional questions
+  - [ ] Validation rules for inputs
+  - [ ] Progress indicators
+  - [ ] Error handling (API key validation fails, etc.)
+  - [ ] Success screen with next steps
+
+- [ ] **CLI Terminal Output Formatting**
+  - [ ] Color palette (exact hex/ANSI codes)
+  - [ ] Spinner styles and messages
+  - [ ] Table column widths and truncation rules
+  - [ ] Progress bar formats
+  - [ ] Error message structure
+  - [ ] Success message structure
+  - [ ] Box drawing patterns
+
+- [ ] **Frontmatter Validation Rules**
+  - [ ] Required fields per entity type
+  - [ ] Data type validation (dates, arrays, strings)
+  - [ ] Enum values (status, priority, etc.)
+  - [ ] Default values
+  - [ ] Migration strategy when schema changes
+
+#### 🔧 **MEDIUM PRIORITY** (Can be refined during development)
+
+- [ ] **Time-Based Task View Algorithms**
+  - [ ] Today: What qualifies as "urgent"?
+  - [ ] This week: How to prioritize weekly tasks
+  - [ ] This month: Milestone vs task distinction
+  - [ ] This quarter: Strategic objective identification
+  - [ ] Task rollup logic (daily → weekly → monthly)
+
+- [ ] **Profile Collection Workflow Details**
+  - [ ] Question set design (what to ask)
+  - [ ] Interactive mode flow (if run in IDE)
+  - [ ] Shareable prompt format
+  - [ ] Output parsing (if team member fills externally)
+  - [ ] Partial completion handling
+
+- [ ] **Archive Strategy and Timing**
+  - [ ] Member archival: What gets moved, what stays
+  - [ ] Project archival: What gets moved, what stays
+  - [ ] Archive folder organization (by year, quarter, type?)
+  - [ ] Retrieval mechanism (how to search archived data)
+  - [ ] Archival triggering (manual only or auto-suggest?)
+
+- [ ] **Knowledge Base Integration**
+  - [ ] When do agents consult knowledge base?
+  - [ ] How is KB content injected into prompts?
+  - [ ] KB search mechanism (semantic, keyword, both?)
+  - [ ] KB update workflow (how do entries get created/updated?)
+
+- [ ] **Multi-Entity Handling in Cycle**
+  - [ ] If note mentions 3 people, do we copy to all 3 contexts?
+  - [ ] If note mentions person + project, update both?
+  - [ ] Handling general notes (no clear entity match)
+  - [ ] Priority when destinations conflict
+
+- [ ] **Confidence Scoring and Manual Review**
+  - [ ] What confidence threshold triggers manual review?
+  - [ ] Manual review UI/UX (interactive prompt in terminal?)
+  - [ ] Can user teach the system (improve future categorization)?
+  - [ ] Feedback loop for improving categorization
+
+#### 🎨 **NICE TO HAVE** (Can defer to later iterations)
+
+- [ ] **Pack Extension System Design**
+  - [ ] How do extension packs override base pack?
+  - [ ] Conflict resolution (two packs define same command)
+  - [ ] Pack dependency management
+  - [ ] Pack installation workflow from URLs
+  - [ ] Pack validation and security scanning
+
+- [ ] **Watch Command Advanced Features**
+  - [ ] Debounce timing (how long to wait for multiple files?)
+  - [ ] Batch processing size limits
+  - [ ] Notification system (desktop notifications on completion?)
+  - [ ] Log file for watch activity
+
+- [ ] **Status Report Customization**
+  - [ ] Should reports support custom sections?
+  - [ ] Template override mechanism
+  - [ ] Stakeholder-specific formats (technical vs executive)
+
+- [ ] **Feedback Delivery Tracking**
+  - [ ] Should system track when feedback was delivered?
+  - [ ] "Draft" vs "Delivered" status?
+  - [ ] Recipient acknowledgment tracking?
+
+- [ ] **Career Ladder Integration**
+  - [ ] Should system understand company's career levels?
+  - [ ] Promotion readiness assessment?
+  - [ ] Gap analysis for next level?
+
+- [ ] **Team Capacity Planning**
+  - [ ] Calculate team capacity (people × availability)
+  - [ ] Project allocation optimization
+  - [ ] Overallocation warnings
+
+- [ ] **Calendar Integration** (v2.0)
+  - [ ] Import 1:1 schedules from Google/Outlook
+  - [ ] Auto-trigger 1:1 preparation day before
+  - [ ] Meeting conflict detection
+
+- [ ] **Email Integration** (v2.0)
+  - [ ] Forward transcripts via email to inbox
+  - [ ] Send generated documents via email
+  - [ ] Reminder emails for pending actions
+
+---
+
+## Detailed Specifications Needed Before Implementation
+
+### Specification 1: base-pack.yaml (Critical)
+
+**Owner:** Product Manager + Prompt Engineer  
+**Estimated Effort:** 8-10 hours  
+**Deliverable:** Complete base-pack.yaml file with all command definitions
+
+**Contents:**
+- Meta section (name, version, author)
+- 20+ command definitions including:
+  - cycle-agent: categorize, process-inbox, update-tasks
+  - pm-people: 1on1-prepare, feedback, pdi-generate, pdi-update, pip-create, review-generate
+  - pm-project: status-report, risk-assessment, health-check
+  - pm-career: pdp-generate, pdp-update, brag-summarize, self-review
+  - pm-hiring: candidate-review, job-description, interview-guide
+
+**Each Command Requires:**
+- Description (what it does)
+- Inputs (variables, sources, required/optional)
+- Prompt (system message, user template, temperature, max_tokens)
+- Output (type, path, template reference)
+
+**Prompt Engineering Focus:**
+- System prompts that establish agent persona
+- User prompts with clear instructions and examples
+- Variable injection points using Handlebars syntax
+- Appropriate temperature settings (0.3 for categorization, 0.7 for generation)
+
+### Specification 2: Cycle Categorization Algorithm (Critical)
+
+**Owner:** AI Engineer + Product Manager  
+**Estimated Effort:** 6-8 hours  
+**Deliverable:** Categorization prompt + decision logic + test suite
+
+**Algorithm Components:**
+
+1. **Type Classification:**
+   - Categories: 1on1_session, feedback_positive, feedback_constructive, pip_concern, project_status, project_risk, team_meeting, leadership_meeting, candidate_interview, general_note
+   - Classification prompt with clear examples
+   - Confidence scoring (0.0-1.0)
+
+2. **Entity Extraction:**
+   - People mentioned (fuzzy matching against active members)
+   - Projects mentioned (fuzzy matching against active projects)
+   - Handling nicknames and informal references
+
+3. **Insight Extraction:**
+   - Key points per entity
+   - Action items
+   - Sentiment analysis (positive/concern/neutral)
+
+4. **Destination Mapping:**
+   - File path determination based on type and entities
+   - Multi-destination handling
+   - Archive path for unmatched notes
+
+5. **Test Suite:**
+   - 20+ sample transcripts covering all types
+   - Expected categorization for each
+   - Edge cases (ambiguous, multi-entity, unclear type)
+
+### Specification 3: Template Definitions (Critical)
+
+**Owner:** Product Manager + UX  
+**Estimated Effort:** 4-6 hours  
+**Deliverable:** 15+ YAML template files
+
+**Templates Needed:**
+- manager-profile-tmpl.yaml
+- manager-pdp-tmpl.yaml
+- brag-entry-tmpl.yaml
+- leader-profile-tmpl.yaml
+- member-profile-tmpl.yaml
+- member-pdi-tmpl.yaml
+- project-brief-tmpl.yaml
+- job-description-tmpl.yaml
+- candidate-review-tmpl.yaml
+- 1on1-session-tmpl.yaml
+- feedback-tmpl.yaml
+- pip-tmpl.yaml
+- status-report-tmpl.yaml
+- risk-assessment-tmpl.yaml
+- post-mortem-tmpl.yaml
+
+**Each Template Includes:**
+- Frontmatter schema (YAML)
+- Section structure (Markdown headers)
+- Content guidelines (what goes in each section)
+- Variable injection points
+- Example filled template
+
+### Specification 4: Agent Persona Definitions (High Priority)
+
+**Owner:** Product Manager  
+**Estimated Effort:** 4 hours  
+**Deliverable:** Persona documents for 5 agents
+
+**For Each Agent:**
+- **Name and Role:** (e.g., "Alex - People Manager")
+- **Personality:** (e.g., "Empathetic, insightful, development-focused")
+- **Expertise:** (e.g., "Career development, feedback delivery, 1:1 facilitation")
+- **Communication Style:** (e.g., "Warm but professional, asks probing questions")
+- **Limitations:** (e.g., "Not a therapist, focuses on professional development")
+- **Sample Interactions:** (examples of agent responses)
+
+**Agents:**
+1. cycle-agent: Analytical, thorough, organized
+2. pm-people: Empathetic coach and development partner
+3. pm-project: Strategic project leader
+4. pm-career: Career counselor for the manager
+5. pm-hiring: Talent assessment specialist
+
+### Specification 5: IDE Integration Files (High Priority)
+
+**Owner:** Developer  
+**Estimated Effort:** 4 hours  
+**Deliverable:** Example integration files for each IDE + generation logic
+
+**Cursor (.cursor/rules/tm/*.mdc):**
+- File format specification
+- How to include agent definitions
+- Command reference format
+- Context loading rules
+
+**Claude Code (.claude/agents/*.md):**
+- Agent file format
+- Invocation patterns
+- Context loading
+
+**Gemini CLI (.gemini/agents/*.md):**
+- Agent file format
+- CLI invocation patterns
 
 ---
 
 ## Next Steps
 
-### UX Expert Prompt
+### Immediate Actions (Before Development)
 
-Review the Tech Manager OS PRD focusing on the terminal user experience design. This is a CLI tool, not a web application, so your focus should be on command-line interaction patterns, terminal output formatting, and the overall flow of the user's workflow from note capture to AI-generated outputs.
+1. **Schedule Design Sessions:**
+   - Session 1: base-pack.yaml prompt engineering (8 hours)
+   - Session 2: Cycle categorization algorithm (6 hours)
+   - Session 3: Template definitions (6 hours)
+   - Session 4: Agent persona definitions (4 hours)
+   - Session 5: IDE integration specs (4 hours)
 
-**Key areas to validate:**
-- Command naming and discoverability (are commands intuitive?)
-- Progress indicators and feedback for long-running AI operations
-- Error message clarity and recovery guidance
-- Branding integration (welcome messages, consistent visual language)
-- Accessibility via flags (--plain, --json modes)
+2. **Validate Architecture:**
+   - Review this PRD with development team
+   - Identify technical risks and unknowns
+   - Confirm feasibility of 12-week timeline
 
-**Deliverable:** Brief UX assessment (1-2 pages) confirming the terminal UX approach or suggesting refinements for command ergonomics and output formatting.
+3. **Set Up Development Environment:**
+   - Create GitHub repository
+   - Set up TypeScript project structure
+   - Configure CI/CD pipeline
+   - Set up testing framework
 
-### Architect Prompt
+4. **Recruit Beta Testers:**
+   - Identify 5 engineering managers willing to test
+   - Set expectations for beta program
+   - Prepare onboarding materials
 
-Create a comprehensive architecture document for Tech Manager OS based on this PRD. Focus on the technical implementation strategy, detailed service architecture, data flow through the system, and the prompt pack engine design.
+### Development Kickoff Checklist
 
-**Critical areas requiring architectural decisions:**
+Before starting Epic 1 implementation:
 
-1. **AI Provider Adapter Pattern:** Design the interface and base class that enables seamless provider switching while handling retries, rate limits, and error normalization.
+- [ ] All Critical Path specifications complete
+- [ ] Development environment ready
+- [ ] Team aligned on architecture
+- [ ] Beta tester pool identified
+- [ ] Success metrics defined and measurable
+- [ ] Risk mitigation strategies in place
 
-2. **Prompt Pack Engine:** Architecture for loading, validating, and executing YAML-based packs with Handlebars templating. Address security concerns around user-created packs.
+---
 
-3. **Context Summarization Strategy:** Design the algorithm for merging new notes with existing context summaries, including handling of token limits and chunking logic.
+## Conclusion
 
-4. **File System Service:** Atomic operations pattern for safe file moves/writes, ensuring no data loss during state transitions.
+### Product Vision
 
-5. **Archive Growth Management:** Strategy for handling years of accumulated notes without performance degradation.
+Tech Manager OS represents a fundamental shift in how engineering managers work: from scattered notes and manual organization to an AI-enhanced, context-preserving workspace. By treating management artifacts as organized, machine-readable context and providing specialized AI agents for common workflows, we enable managers to:
 
-6. **Testing Strategy:** Unit test architecture with mocking patterns for file system and AI providers.
+- **Never lose context** about their team, projects, or career
+- **Reduce cognitive load** of remembering everything across quarters
+- **Deliver better 1:1s** with AI-prepared agendas based on full history
+- **Make data-driven decisions** with complete context at their fingertips
+- **Invest in their own growth** with equal rigor as team development
 
-**Reference these PRD sections:**
-- Technical Assumptions (stack, libraries, constraints)
-- Functional Requirements FR1-FR27
-- Non-Functional Requirements NFR1-NFR15
-- Epic structure for implementation phasing
+The agent-based architecture ensures extensibility and community growth, while the local-first approach respects privacy and data ownership.
 
-**Deliverable:** Architecture document following the project's architecture template, ready for development team execution.
+### MVP Scope Validation
+
+This PRD defines a complete MVP covering:
+
+✅ **People Management:** Full lifecycle from onboarding to reviews  
+✅ **Project Management:** Status reporting and risk assessment  
+✅ **Manager's Career:** Self-development and leadership alignment  
+✅ **Operations:** Hiring, rituals, knowledge base  
+✅ **Core System:** Cycle intelligence, task tracking, IDE integration  
+✅ **Extensibility:** Pack system for methodology customization  
+
+The 12-week timeline is aggressive but achievable with focused execution and clear priorities.
+
+### Success Criteria
+
+The MVP will be considered successful if:
+
+1. **Functional:** All 40 functional requirements implemented and tested
+2. **Usable:** 5 beta testers successfully onboard and use daily for 2+ weeks
+3. **Reliable:** 80%+ test coverage, zero data loss, >85% categorization accuracy
+4. **Performant:** CLI <100ms, cycle processes 20 files in <60 seconds
+5. **Documented:** Complete user guide, video walkthrough, 5+ example workflows
+
+### Post-MVP Roadmap (v1.1+)
+
+**Deferred to Future Versions:**
+
+- Calendar integration (auto-schedule 1:1 prep)
+- Email integration (forward transcripts, send drafts)
+- Team capacity planning and optimization
+- Career ladder integration with promotion assessments
+- Pack marketplace and community distribution
+- Multi-manager collaboration (shared team members)
+- Mobile companion app (quick voice note capture)
+- Slack/Teams integration (capture channel context)
+- Analytics dashboard (team health trends, manager effectiveness metrics)
+
+### Final Recommendations
+
+**Before proceeding to architecture phase:**
+
+1. Complete the 5 critical design specifications (base-pack, cycle logic, templates, personas, IDE integration)
+2. Validate AI categorization accuracy with 20+ sample transcripts
+3. Conduct user research with 3-5 target managers (validate workflows and pain points)
+4. Review security model with security expert (API key encryption, data privacy)
+
+**Development approach:**
+
+- Start with Epic 1 (foundation) immediately after specs are complete
+- Run weekly demos with stakeholders to validate direction
+- Engage beta testers starting in Phase 3 (People Management functional)
+- Maintain strict scope discipline (defer v1.1 features aggressively)
+
+---
+
+## Appendix: Design Session Planning
+
+### Session Schedule (28 hours total)
+
+**Week 1:**
+- Session 1: base-pack.yaml (8h) - Prompt engineering intensive
+- Session 2: Cycle categorization (6h) - Algorithm design + test suite
+
+**Week 2:**
+- Session 3: Template definitions (6h) - All 15+ templates
+- Session 4: Agent personas (4h) - Character development
+- Session 5: IDE integration (4h) - Technical specs
+
+**Participants:**
+- Product Manager (all sessions)
+- Prompt Engineer (Sessions 1, 2)
+- UX Designer (Sessions 3, 4)
+- Developer (Sessions 2, 5)
+
+**Deliverables:**
+- base-pack.yaml (complete, validated)
+- categorization-algorithm.md (with test suite)
+- templates/ directory (15+ YAML files)
+- agent-personas.md (5 detailed personas)
+- ide-integration-spec.md (3 IDE formats)
+
+---
+
+**PRD Status:** ✅ COMPLETE - Ready for design specifications phase  
+**Next Milestone:** Complete 5 critical design specifications  
+**Development Start:** After design specs approved (estimated 2 weeks)  
+**Target MVP Delivery:** 12 weeks from development start
+
+---
+
+*This PRD represents the complete product vision for Tech Manager OS v1.0. All subsequent work should reference this document as the source of truth for MVP scope and requirements.*
+
