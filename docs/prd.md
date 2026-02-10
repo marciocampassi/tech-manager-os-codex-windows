@@ -1,44 +1,50 @@
-# Tech Manager OS Product Requirements Document (PRD)
+# Tech Leadership OS Product Requirements Document (PRD)
 
 ## Goals and Background Context
 
 ### Goals
 
-- Create a **local-first workspace system** that serves as an "Operating System" for Engineering Managers
+- Create a **local-first workspace system** that serves as an "Operating System" for Tech Leadership Roles (Engineering Managers, Data Managers, Group Product Managers, etc.)
 - Solve **"Management Entropy"** (lost context, scattered notes, recency bias) by treating management artifacts as organized, AI-enhanced context
 - Implement **"Agent-as-Intelligence"** where AI agents provide management assistance through specialized personas, not hardcoded features
 - Enable **"Transcript-to-Context"** workflow where meeting transcripts are automatically categorized and filed into the appropriate contexts
 - Provide **zero-latency insight** through CLI + IDE integration with structured local file system
 - Support **"Agnostic Intelligence (BYOK)"** where users bring their own API Keys (OpenAI, Claude, or Gemini)
-- Deliver an MVP focused on **People Management + Project Management + Manager's Career**
-- Build an **extensible system** with methodology packs allowing community-driven management styles
-- Enable **managers to manage themselves** with equal attention to their own career development
+- Deliver an MVP focused on **People Management + Project Management + Leader's Career**
+- Build an **extensible system** with SKILL.md-based extensibility allowing community-driven management approaches
+- Enable **leaders to manage themselves** with equal attention to their own career development
+- Align with **Tech Manager de Resultados (TMR)** community branding and values
 
 ### Background Context
 
-Engineering managers face chronic problems across multiple dimensions:
+Tech leaders in management roles face chronic problems across multiple dimensions:
 
-1. **Team Context Loss:** Critical information about team members gets scattered across notes, Slack, emails. When it's time for 1:1s or reviews, managers scramble to remember what happened weeks ago.
+1. **Team Context Loss:** Critical information about team members gets scattered across notes, Slack, emails. When it's time for 1:1s or reviews, leaders scramble to remember what happened weeks ago.
 
 2. **Project Status Amnesia:** Weekly status meetings require reconstructing what happened from fragmented notes, leading to inaccurate reporting and missed risks.
 
-3. **Manager's Own Career Neglect:** While tracking team development religiously, managers often neglect their own PDPs, brag documents, and career conversations with their leaders.
+3. **Leader's Own Career Neglect:** While tracking team development religiously, leaders often neglect their own PDPs, brag documents, and career conversations with their own managers.
 
 4. **Transcript Overload:** Meeting recordings generate transcripts that sit unused because there's no system to extract value and file them appropriately.
 
 5. **Operational Context Sprawl:** Hiring pipelines, leadership meeting notes, company announcements, and incident post-mortems all live in different tools with no unified context.
 
-Tech Manager OS solves this by:
-- **Inbox-First Capture:** Drop any transcript or note into `inbox/`, run `tm cycle`, and AI categorizes everything
+6. **Multi-Team Complexity:** Leaders managing multiple teams struggle to maintain context across different groups and their unique dynamics.
+
+Tech Leadership OS solves this by:
+- **Inbox-First Capture:** Drop any transcript or note into `inbox/`, run `tmr process`, and AI categorizes everything
 - **Context Maintenance:** AI maintains running summaries for each person, project, and operational area
-- **Agent-Driven Intelligence:** Specialized agents (People Manager, Project Manager, Career Coach, Hiring Manager) provide domain expertise
+- **Agent-Driven Intelligence:** Specialized TMR agents (People, Project, Career, Hiring) provide domain expertise
 - **Local-First Privacy:** All data stays local, no vendor lock-in, full ownership
-- **IDE-Native Workflow:** Agents work naturally in Cursor, Claude Code, Gemini CLI
+- **IDE-Native Workflow:** Agents work naturally in Cursor, Claude Code, Gemini CLI, and GitHub Copilot
+- **Multi-Team Support:** Manage multiple teams with separate contexts and relationships
+- **SKILL.md Extensibility:** Community-driven extensibility through standardized skill definitions
 
 ### Change Log
 
 | Date | Version | Description | Author |
 |------|---------|-------------|---------|
+| 2026-02-10 | 4.0 | Strategic refinement: Tech Leadership OS rebrand, tmr-* agents, multi-team support, enhanced extensibility | John (PM) + Marlon (Product Owner) |
 | 2026-02-08 | 3.0 | Complete architecture redesign: Agent-based system, expanded to manager's career + operations | Mary (Analyst) + John (PM) |
 | 2026-01-29 | 2.0 | Initial PRD draft for "Methodology-as-Code" edition | John (PM) |
 
@@ -50,96 +56,109 @@ Tech Manager OS solves this by:
 
 #### Core System (FR1-FR8)
 
-**FR1:** The system shall provide a `tm init` command that:
-- Runs an interactive onboarding workflow to collect manager's profile, career goals, and leadership context
-- Creates complete directory structure (`inbox/`, `people/`, `projects/`, `my-career/`, `my-leadership/`, `operations/`, `knowledge-base/`, `tasks/`, `archive/`)
-- Generates IDE integration files (`.cursor/rules/tm/`, `.claude/agents/`, `.gemini/agents/`)
-- Creates initial profile and PDP templates for the manager
+**FR1:** The system shall provide a `tmr init` command that:
+- Runs an interactive onboarding workflow to collect leader's profile, career goals, and leadership context
+- Creates complete directory structure (`inbox/`, `my-teams/`, `my-projects/`, `my-tasks/`, `my-career/`, `my-leadership/`, `my-company/`, `operations/`, `knowledge-base/`, `archive/`)
+- Generates IDE integration files (`.cursor/rules/tmr/`, `.claude/agents/`, `.gemini/agents/`, `.github/copilot/skills/`)
+- Creates initial profile and PDP templates for the leader
 
-**FR2:** The system shall support interactive AI provider selection during `tm init`, allowing users to choose between OpenAI, Anthropic (Claude), and Google Gemini as their AI provider.
+**FR2:** The system shall support interactive AI provider selection during `tmr init`, allowing users to choose between OpenAI, Anthropic (Claude), and Google Gemini as their AI provider.
 
 **FR3:** The system shall securely store API keys for the selected AI provider using encrypted configuration management in OS-specific directories.
 
-**FR4:** The system shall provide a `tm cycle` command that:
+**FR4:** The system shall provide a `tmr process` command that:
 - Scans `inbox/` for all text files (.txt, .md, .json)
-- Uses AI to categorize each file by type (1:1, feedback, project status, meeting notes, hiring, etc.)
-- Identifies which people and/or projects each file relates to
-- Updates context summaries for affected entities
-- Moves files to appropriate destination folders
-- Extracts actionable tasks and updates `tasks/today.md`, `tasks/this-week.md`, `tasks/this-month.md`, `tasks/this-quarter.md`
+- Uses AI to categorize each file by type (1:1, feedback, project status, meeting notes, hiring, company interactions, etc.)
+- Identifies which teams, people, projects, and/or leaders each file relates to
+- Updates context summaries for affected entities automatically
+- Moves files to appropriate destination folders (multi-level: team, project, or company)
+- Extracts actionable tasks and updates `my-tasks/today.md`, `my-tasks/this-week.md`, `my-tasks/this-month.md`, `my-tasks/this-quarter.md`
+- Handles binary files (PDF, PPTX, XLS) by moving to `knowledge-base/files/` without processing
 - Provides summary of changes and suggested actions
+- Encourages use of `[[ ]]` notation for relationship tracking (Obsidian compatibility)
 
-**FR5:** The system shall provide a `tm watch` command that monitors the `inbox/` directory and automatically runs `tm cycle` when new files are detected.
+**FR5:** The system shall provide a `tmr watch` command that monitors the `inbox/` directory and automatically runs `tmr process` when new files are detected.
 
 **FR6:** The system shall maintain AI-enhanced context summaries:
-- `people/active/{member}/context.md` - Running summary of all interactions with team member
-- `projects/active/{project}/context.md` - Running summary of all project activity
-- `my-career/profile.md` - Manager's own profile and development areas
-- `my-leadership/profile.md` - Manager's leader's expectations and style
+- `my-teams/{team}/{member-email}/context.md` - Running summary of all interactions with team member
+- `my-projects/{project}/context.md` - Running summary of all project activity
+- `my-career/profile.md` - Leader's own profile and development areas
+- `my-leadership/{leader-email}/profile.md` - Each leader's expectations and style
+- `my-company/relationships/{email}/context.md` - Running summary of company-wide relationships
+- Context updates triggered automatically by `tmr process` command after inbox processing
 
 **FR7:** The system shall provide time-based task views:
-- `tm today` - Display urgent tasks, scheduled 1:1s, and attention items for today
-- `tm this-week` - Display weekly priorities, people check-ins, and project milestones
-- `tm this-month` - Display monthly objectives and key deadlines
-- `tm this-quarter` - Display quarterly goals and strategic initiatives
+- `tmr today` - Display urgent tasks, scheduled 1:1s, and attention items for today
+- `tmr this-week` - Display weekly priorities, people check-ins, and project milestones
+- `tmr this-month` - Display monthly objectives and key deadlines
+- `tmr this-quarter` - Display quarterly goals and strategic initiatives
 
 **FR8:** The system shall implement an Agent System with specialized personas:
 - **cycle-agent**: Inbox processing and intelligent categorization
-- **pm-people**: People management (1:1s, feedback, PDI, PIP, reviews)
-- **pm-project**: Project management (status reports, risk assessments, health checks)
-- **pm-career**: Manager's own career development (PDP, brag document, self-reviews)
-- **pm-hiring**: Recruitment support (candidate reviews, job descriptions, interview guides)
-- **tm-master**: All-in-one agent for web platform usage
+- **tmr-people**: People management (1:1s, feedback, PDP, PIP, reviews)
+- **tmr-project**: Project management (status reports, risk assessments, health checks)
+- **tmr-career**: Leader's own career development (PDP, brag document, self-reviews)
+- **tmr-hiring**: Recruitment support (candidate reviews, job descriptions, interview guides)
+- **tmr-master**: All-in-one agent for web platform usage
 
 #### People Management (FR9-FR16)
 
-**FR9:** The system shall provide `tm people add <name>` to create team member structure including:
-- `profile.md` with frontmatter template (role, skills, current projects)
-- `context.md` for AI-maintained interaction summary
-- `pdi.md` for Personal Development & Improvement plan
+**FR9:** The system shall provide `tmr team add <team-name> <member-email>` to create team member structure including:
+- `my-teams/{team-name}/{member-email}/profile.md` with frontmatter template (role, skills, current projects, status)
+- `my-teams/{team-name}/{member-email}/context.md` for AI-maintained interaction summary (auto-updated by `tmr process`)
+- `my-teams/{team-name}/{member-email}/pdp.md` for Personal Development Plan
 - Subdirectories: `1on1s/`, `feedback/`, `reviews/`
+- Status field in profile.md (active/inactive) set during creation
 
-**FR10:** The system shall provide `tm people collect-profile <name>` to generate an interactive profile collection prompt that can be shared with team members to gather structured information about their background, skills, work style, and career goals.
+**FR10:** The system shall provide a `utils/` folder containing copy/paste prompts for profile collection that can be shared with team members to gather structured information about their background, skills, work style, and career goals. No command needed - leaders copy the prompt and share it directly with team members.
 
-**FR11:** The system shall provide `tm people archive <name>` to move a team member to `people/archived/{year}/` when they leave the company, preserving all historical context.
+**FR11:** The system shall provide `tmr team archive <team-name> <member-email> [--from DATE --to DATE]` to move a team member to `my-teams/archived/{year}/{team-name}/{member-email}/` when they leave the company, preserving all historical context. Optional date filters allow partial archive of specific time periods.
 
-**FR12:** The system shall provide `tm people fire <name>` as a distinct operation from archive, marking the departure reason and handling PIP documentation.
+**FR12:** The system shall provide `tmr team fire <team-name> <member-email>` as a distinct operation from archive that:
+- Moves member to `my-teams/archived/{year}/{team-name}/{member-email}/`
+- Adds frontmatter field: `departure_reason: terminated` and `departure_date: {date}`
+- Auto-finalizes any active PIP documentation
+- Preserves all historical context for legal/HR purposes
+- Marks as distinct from voluntary departures in archive metadata
 
 **FR13:** The system shall provide agent commands for people management:
-- `*1on1-prepare <member>` - Generate 1:1 agenda from context, PDI, recent feedback, and tasks
+- `*1on1-prepare <member>` - Generate 1:1 agenda from context, PDP, recent feedback, and tasks
 - `*feedback <member> --tone=positive|constructive` - Generate feedback draft based on context
-- `*pdi-generate <member>` - Create structured Personal Development & Improvement plan
-- `*pdi-update <member>` - Update PDI with progress and new goals
+- `*pdp-generate <member>` - Create structured Personal Development Plan using SKILL.md with role-specific references (PDP updates are manual)
 - `*pip-create <member>` - Create Performance Improvement Plan
-- `*review-generate <member> --period=<quarter>` - Generate performance review draft
+- `*review-generate <member> --period=<month|quarter|semester|year>` - Generate performance review draft for specified period
 
-**FR14:** The system shall support a structured PDI format including:
+**FR14:** The system shall support a structured PDP (Personal Development Plan) format including:
 - Current role and aspirations
 - 3-5 development goals with success criteria
 - Action plans for each goal
-- Progress tracking
+- Progress tracking (updated manually by leader)
 - Support needed from manager and team
 - Timeline and check-in schedule
+- PDP output format stored in separate template file for extensibility
 
-**FR15:** The system shall track member-project relationships through frontmatter in both `people/active/{member}/profile.md` and `projects/active/{project}/brief.md`.
+**FR15:** The system shall track member-project relationships through:
+- Frontmatter in both `my-teams/{team}/{member-email}/profile.md` and `my-projects/{project}/brief.md`
+- `[[ ]]` notation for Obsidian compatibility in all relationship references
+- Bidirectional linking support for visualizing relationships in Obsidian
 
-**FR16:** The system shall provide `tm show <member>` to display current context summary, recent 1:1s, active PDI goals, and upcoming check-ins for a team member.
+**FR16:** The system shall provide `tmr show <member>` to display current context summary, recent 1:1s, active PDP goals, and upcoming check-ins for a team member.
 
 #### Project Management (FR17-FR22)
 
-**FR17:** The system shall provide `tm project add <name>` to create project structure including:
-- `brief.md` with frontmatter template (team, timeline, status, priority)
-- `context.md` for AI-maintained project summary
-- Subdirectories: `status-reports/`, `risk-assessments/`, `meetings/`
+**FR17:** The system shall provide `tmr project add <name>` to create project structure including:
+- `my-projects/{name}/brief.md` with frontmatter template (team, timeline, status, priority)
+- `my-projects/{name}/context.md` for AI-maintained project summary
+- Subdirectories: `status-reports/`, `risk-assessments/`, `meetings/`, `incidents/`
 
-**FR18:** The system shall provide `tm project archive <name>` to move completed projects to `projects/archived/{year}/`.
+**FR18:** The system shall provide `tmr project archive <name> [--from DATE --to DATE]` to move completed projects to `my-projects/archived/{year}/`. Optional date filters allow partial archive of specific time periods.
 
 **FR19:** The system shall provide agent commands for project management:
 - `*status-report <project>` - Generate weekly status report from context and meetings
 - `*risk-assessment <project>` - Assess current project risks and mitigation strategies
 - `*health-check <project>` - Comprehensive project health analysis
 
-**FR20:** The system shall provide `tm show <project>` to display current context, recent status reports, risk assessments, and team allocation.
+**FR20:** The system shall provide `tmr show <project>` to display current context, recent status reports, risk assessments, and team allocation.
 
 **FR21:** Status reports shall include: progress this week, risks and blockers, team capacity, next week's plan, budget status (if applicable).
 
@@ -148,43 +167,51 @@ Tech Manager OS solves this by:
 #### Manager's Career (FR23-FR27)
 
 **FR23:** The system shall create `my-career/` directory during initialization containing:
-- `profile.md` - Manager's own background, management style, strengths, development areas
-- `pdp.md` - Personal Development Plan aligned with manager's leader expectations
-- `brag-document.md` - Running log of achievements, wins, and impact for performance reviews
+- `profile.md` - Leader's own background, management style, strengths, development areas (collection uses utils folder approach)
+- `pdp.md` - Personal Development Plan aligned with leader's expectations
+- `brag-document.md` - Running log of achievements, wins, and impact for performance reviews (manual updates, suggested structure provided)
 
 **FR24:** The system shall provide agent commands for career management:
-- `*pdp-generate` - Create Personal Development Plan for the manager
-- `*pdp-update` - Update PDP with progress
+- `*pdp-generate` - Create Personal Development Plan for the leader using SKILL.md with role-specific references (PDP updates are manual)
 - `*brag-summarize` - Summarize achievements from brag document
 - `*self-review <period>` - Draft self-performance review
 
-**FR25:** The system shall provide CLI commands for brag document:
-- `tm my brag add <achievement>` - Quick log achievement
-- `tm my brag view` - Display brag document
+**FR25:** *(Removed - brag document managed manually. System provides suggested default structure during initialization.)*
 
-**FR26:** The system shall create `my-leadership/` directory containing:
-- `profile.md` - Manager's leader's expectations, communication style, priorities
-- `alignments/` - Transcripts and notes from 1:1s with manager
+**FR26:** The system shall support multiple leadership relationships through `my-leadership/` directory with per-leader structure:
+- `my-leadership/{leader-email}/profile.md` - Each leader's expectations, communication style, priorities
+- `my-leadership/{leader-email}/alignments/` - Transcripts and notes from 1:1s with that leader
+- `my-leadership/{leader-email}/challenges/` - Harsh feedback or difficult conversations with that leader
+- `my-leadership/{leader-email}/pip.md` - Performance Improvement Plan if applicable
+- Command: `tmr leadership add <leader-email>` to create new leadership relationship structure
 
-**FR27:** The cycle agent shall recognize and categorize 1:1 transcripts with manager's leader, filing them in `my-leadership/alignments/` and updating both manager's context and PDP alignment.
+**FR27:** The process agent shall recognize and categorize 1:1 transcripts with leader's managers, filing them in appropriate `my-leadership/{leader-email}/alignments/` or `my-leadership/{leader-email}/challenges/` folders based on content, and updating both leader's context and PDP alignment.
 
 #### Operations (FR28-FR34)
 
-**FR28:** The system shall provide `tm hiring open <role-and-seniority>` to create hiring pipeline structure:
-- `operations/hiring/{role}/job-description.md`
+**FR28:** The system shall provide `tmr hiring open <role-and-seniority>` to create hiring pipeline structure:
+- `operations/hiring/{role}/job-description.md` (auto-generated based on role and seniority, customizable by leader)
 - `operations/hiring/{role}/candidates/` directory
+- Job description template selected based on role/seniority pattern
 
-**FR29:** The system shall provide `tm hiring candidate add <role> <name>` to create candidate folder structure for tracking interviews and communications.
+**FR29:** *(Removed - not necessary. Candidate folders created automatically by process agent when interview transcripts are categorized.)*
 
-**FR30:** The system shall provide agent command `*candidate-review <candidate> --approved=true|false` to generate comprehensive candidate assessment including technical evaluation, culture fit, recommendation, and onboarding notes.
+**FR30:** The system shall support interview tracking through:
+- `operations/hiring/{role}/candidates/{candidate-name}/` folder structure
+- Interview transcripts auto-categorized by process agent
+- Interview notes stored as `.md` files representing each meeting
+- Agent command `*candidate-review <candidate> --approved=true|false` to generate comprehensive candidate assessment including technical evaluation, culture fit, recommendation, and onboarding notes
 
-**FR31:** The system shall create `operations/rituals/` with subdirectories:
-- `leadership/` - Company leadership meetings, strategy sessions
-- `company/` - All-hands, townhalls, company-wide announcements
+**FR31:** The system shall organize meetings at multiple levels:
+- `my-projects/{project}/meetings/` - Project-specific meetings
+- `my-teams/{team}/meetings/` - Team-specific meetings  
+- `my-company/meetings/` - Company-wide meetings (all-hands, townhalls, strategy sessions)
+- `my-company/relationships/{email}/` - Interactions with company members not in direct team or project contexts
+- Process agent categorizes meeting transcripts to appropriate level based on participants and content
 
-**FR32:** The cycle agent shall categorize meeting transcripts into appropriate ritual folders based on content and participants.
+**FR32:** The process agent shall categorize meeting transcripts into appropriate folders (project/team/company level) based on content and participants, using email-based identification for company relationships.
 
-**FR33:** The system shall provide `operations/incidents/post-mortems/` for incident documentation and learnings.
+**FR33:** The system shall provide `my-projects/{project}/incidents/` for project-specific incident documentation and post-mortems, tying incidents directly to the projects they affect.
 
 **FR34:** The system shall provide `operations/finance/` for budget-related notes and tracking.
 
@@ -196,9 +223,14 @@ Tech Manager OS solves this by:
 - `company/` - Strategy, org chart, department information
 - `methodology.md` - Manager's personal management philosophy and style
 
-**FR36:** The system shall provide `tm kb add <category> <title>` to create new knowledge base entries.
+**FR36:** The system shall support knowledge base management through manual file placement:
+- Leaders place files directly in `knowledge-base/` subdirectories (people/, process/, company/)
+- Binary files (PDF, PPTX, XLS) placed in `knowledge-base/files/` subdirectory
+- Process agent moves binary files from inbox to `knowledge-base/files/` without processing
+- Process command optimized for .md, .txt, .json files
+- No command needed - simple file system operations
 
-**FR37:** The cycle agent may reference knowledge base entries when generating outputs (e.g., culture fit in candidate reviews, process adherence in performance reviews).
+**FR37:** The agents may reference knowledge base entries when generating outputs (e.g., culture fit in candidate reviews, process adherence in performance reviews, company values in feedback).
 
 #### Pack System & Extensibility (FR38-FR40)
 
@@ -232,17 +264,17 @@ Tech Manager OS solves this by:
 
 **NFR7:** The system shall maintain zero external dependencies for data storage, ensuring users retain full ownership and portability of their data.
 
-**NFR8:** The system shall complete the `tm cycle` command processing within reasonable time bounds, scaling to handle up to 20 inbox files without performance degradation.
+**NFR8:** The system shall complete the `tmr process` command processing within reasonable time bounds, scaling to handle up to 20 inbox files without performance degradation.
 
 **NFR9:** The system shall implement graceful error handling for AI API failures, providing clear error messages with recovery suggestions.
 
 **NFR10:** The system shall validate Prompt Pack YAML structure using Zod schema validation before execution to prevent runtime errors.
 
-**NFR11:** The system shall be distributed as `@marlonvidal/tech-manager-os` on npm with the binary command `tm`.
+**NFR11:** The system shall be distributed as `@marlonvidal/tech-leadership-os` on npm with the binary command `tmr`.
 
-**NFR12:** The system shall support IDE integration for Cursor (.cursor/rules/), Claude Code (.claude/agents/), and Gemini CLI (.gemini/agents/).
+**NFR12:** The system shall support IDE integration for Cursor (.cursor/rules/tmr/), Claude Code (.claude/agents/), Gemini CLI (.gemini/agents/), and GitHub Copilot (.github/copilot/skills/).
 
-**NFR13:** CLI commands should respond in <100ms (excluding AI calls). AI operations should show progress indicators after 500ms.
+**NFR13:** CLI commands should respond in <100ms (excluding AI calls). AI operations should show progress indicators after 500ms. Binary file moves complete quickly without processing overhead.
 
 **NFR14:** The system shall use AES-256 encryption for API keys stored in OS-specific config directories.
 
@@ -254,9 +286,9 @@ Tech Manager OS solves this by:
 
 ### Overall UX Vision
 
-Tech Manager OS embraces a **hybrid workflow**: lightweight CLI for data capture and organization, powerful IDE agents for intelligence and document generation. The philosophy is **"Capture anywhere, think everywhere"** - drop transcripts in inbox, run cycle, then leverage agents in your IDE when you need AI assistance.
+Tech Leadership OS embraces a **hybrid workflow**: lightweight CLI for data capture and organization, powerful IDE agents for intelligence and document generation. The philosophy is **"Capture anywhere, think everywhere"** - drop transcripts in inbox, run process, then leverage agents in your IDE when you need AI assistance.
 
-The system should feel like a **natural extension of how managers already work**: meetings generate transcripts, transcripts go into a folder, the system organizes everything and makes it retrievable when needed.
+The system should feel like a **natural extension of how leaders already work**: meetings generate transcripts, transcripts go into a folder, the system organizes everything and makes it retrievable when needed.
 
 ### Key Interaction Paradigms
 
@@ -267,23 +299,23 @@ The system should feel like a **natural extension of how managers already work**
 - **Time-based views**: `today`, `this-week`, `this-month`, `this-quarter` for temporal context
 
 **IDE Agents (Intelligence Operations):**
-- **Natural language**: Invoke agents like talking to a colleague (`@pm-people *1on1-prepare sarah`)
+- **Natural language**: Invoke agents like talking to a colleague (`@tmr-people *1on1-prepare sarah`)
 - **Context-aware**: Agents automatically load relevant files
 - **Draft generation**: AI produces human-quality drafts for manager to review/edit
 - **Iterative refinement**: Agents can refine outputs based on feedback
 
 ### Core Workflows
 
-#### Workflow 1: Manager Onboarding (First Run)
+#### Workflow 1: Leader Onboarding (First Run)
 
 ```bash
-tm init
+tmr init
 
 # Interactive wizard:
 # - Welcome & AI provider setup
-# - Collect manager's profile (name, role, experience, management style)
+# - Collect leader's profile (name, role, experience, leadership style)
 # - Define career goals and development areas
-# - Capture leadership context (who's your manager, their expectations)
+# - Capture leadership context (who are your managers, their expectations)
 # - Create workspace structure
 # - Generate IDE integration files
 # - Display next steps
@@ -291,9 +323,9 @@ tm init
 
 **Output:**
 - Complete folder structure created
-- Manager's profile and initial PDP drafted
-- Leader profile template created
-- All IDE integration files generated (`.cursor/`, `.claude/`, `.gemini/`)
+- Leader's profile and initial PDP drafted
+- Leadership profile template created
+- All IDE integration files generated (`.cursor/`, `.claude/`, `.gemini/`, `.github/copilot/`)
 - Configuration saved and encrypted
 
 #### Workflow 2: Daily Routine - Inbox Processing
@@ -304,62 +336,65 @@ tm init
 # - Quick notes
 # - Email copies
 # - Interview recordings (transcribed)
+# - Binary files (PDFs, PPTX, XLS)
 
-tm cycle
+tmr process
 
 # AI processes each file:
-# - Categorizes by type (1:1, project meeting, leadership sync, hiring, etc.)
-# - Identifies people and projects mentioned
-# - Updates context summaries
+# - Categorizes by type (1:1, project meeting, leadership sync, hiring, company, etc.)
+# - Identifies teams, people, projects, and leaders mentioned
+# - Updates context summaries automatically
 # - Extracts actionable tasks
-# - Moves files to appropriate folders
+# - Moves files to appropriate folders (multi-level: team/project/company)
+# - Handles binary files by moving to knowledge-base/files/
 # - Suggests follow-up actions
+# - Encourages [[relationship]] notation for Obsidian
 ```
 
 **Output:**
 - Summary of files processed and where they went
-- List of contexts updated (people, projects)
+- List of contexts updated (teams, people, projects, leaders, company relationships)
 - Urgent actions flagged
 - Task lists updated (today/week/month/quarter)
 
 #### Workflow 3: Preparing for 1:1 (IDE)
 
 ```bash
-# In Cursor/Claude/Gemini
-@pm-people *1on1-prepare sarah-chen
+# In Cursor/Claude/Gemini/GitHub Copilot
+@tmr-people *1on1-prepare sarah-chen
 
 # Agent automatically reads:
-# - people/active/sarah-chen/context.md
-# - people/active/sarah-chen/pdi.md
-# - people/active/sarah-chen/1on1s/*.md (recent sessions)
-# - people/active/sarah-chen/feedback/*.md
-# - tasks/today.md and tasks/this-week.md
+# - my-teams/{team}/sarah.chen@company.com/context.md
+# - my-teams/{team}/sarah.chen@company.com/pdp.md
+# - my-teams/{team}/sarah.chen@company.com/1on1s/*.md (recent sessions)
+# - my-teams/{team}/sarah.chen@company.com/feedback/*.md
+# - my-tasks/today.md and my-tasks/this-week.md
 # - Related project contexts
 
 # Generates comprehensive agenda:
 # - Check-in topics
 # - Follow-ups from last session
 # - Current challenges/support needs
-# - PDI progress review
+# - PDP progress review
 # - New discussion points
 # - Suggested action items
 ```
 
 **Output:**
-- `people/active/sarah-chen/1on1s/2026-02-08.md` created
+- `my-teams/{team}/sarah.chen@company.com/1on1s/2026-02-10.md` created
 - Structured agenda ready for meeting
-- Manager reviews/edits before meeting
+- Leader reviews/edits before meeting
 
 #### Workflow 4: Weekly Project Status (IDE)
 
 ```bash
-@pm-project *status-report mobile-redesign
+@tmr-project *status-report mobile-redesign
 
 # Agent reads:
-# - projects/active/mobile-redesign/context.md
-# - projects/active/mobile-redesign/meetings/*.md
-# - people/active/sarah-chen/context.md (project lead)
-# - tasks/this-week.md
+# - my-projects/mobile-redesign/context.md
+# - my-projects/mobile-redesign/meetings/*.md
+# - my-teams/{team}/sarah.chen@company.com/context.md (project lead)
+# - my-tasks/this-week.md
 # - Previous status reports for comparison
 
 # Generates status report with:
@@ -370,21 +405,21 @@ tm cycle
 ```
 
 **Output:**
-- `projects/active/mobile-redesign/status-reports/2026-w06.md` created
-- Manager reviews/edits before sharing with stakeholders
+- `my-projects/mobile-redesign/status-reports/2026-w06.md` created
+- Leader reviews/edits before sharing with stakeholders
 
 #### Workflow 5: Hiring - Candidate Review (IDE)
 
 ```bash
 # Interview transcript dropped in inbox
-# Cycle automatically categorizes to:
+# Process automatically categorizes to:
 # operations/hiring/senior-frontend/candidates/john-doe/
 
-@pm-hiring *candidate-review john-doe --approved=true
+@tmr-hiring *candidate-review john-doe --approved=true
 
 # Agent reads:
-# - Job description
-# - All interview transcripts
+# - Job description (auto-generated based on role/seniority)
+# - All interview transcripts and notes
 # - Company culture/values (knowledge-base)
 
 # Generates comprehensive review:
@@ -397,7 +432,7 @@ tm cycle
 
 **Output:**
 - `operations/hiring/senior-frontend/candidates/john-doe/candidate-review.md`
-- Manager reviews before making hiring decision
+- Leader reviews before making hiring decision
 
 ### CLI Terminal UX
 
@@ -412,26 +447,30 @@ tm cycle
 ```
 ┌─────────────────────────────────────────────┐
 │                                             │
-│  ████████╗███╗   ███╗                       │
-│  ╚══██╔══╝████╗ ████║                       │
-│     ██║   ██╔████╔██║  Tech Manager OS      │
-│     ██║   ██║╚██╔╝██║  by Marlon Vidal     │
-│     ██║   ██║ ╚═╝ ██║                       │
-│     ╚═╝   ╚═╝     ╚═╝  Comunidade Tech     │
-│                        Manager de Resultados│
+│  ████████╗███╗   ███╗██████╗                │
+│  ╚══██╔══╝████╗ ████║██╔══██╗               │
+│     ██║   ██╔████╔██║██████╔╝               │
+│     ██║   ██║╚██╔╝██║██╔══██╗               │
+│     ██║   ██║ ╚═╝ ██║██║  ██║               │
+│     ╚═╝   ╚═╝     ╚═╝╚═╝  ╚═╝               │
+│                                             │
+│       Tech Leadership OS                    │
+│       by Marlon Vidal                       │
+│                                             │
+│  Comunidade Tech Manager de Resultados     │
 │                                             │
 └─────────────────────────────────────────────┘
 ```
 
-Shown during `tm init` and with `tm --version`.
+Shown during `tmr init` and with `tmr --version`.
 
 ### IDE Integration
 
 **Cursor Integration:**
-- Agents defined as `.cursor/rules/tm/*.mdc` files
+- Agents defined as `.cursor/rules/tmr/*.mdc` files
 - Rules include agent definition and command reference
 - Agents auto-load relevant context files
-- Usage: `@pm-people *1on1-prepare sarah`
+- Usage: `@tmr-people *1on1-prepare sarah`
 
 **Claude Code Integration:**
 - Agents defined in `.claude/agents/*.md` files
@@ -442,6 +481,12 @@ Shown during `tm init` and with `tm --version`.
 - Agents defined in `.gemini/agents/*.md` files
 - CLI-based agent interaction
 - Usage: Similar to Cursor/Claude
+
+**GitHub Copilot Integration:**
+- Skills defined in `.github/copilot/skills/*.md` files
+- SKILL.md-based agent definitions
+- Follows agentskills.io specification
+- Usage: Similar to other IDEs
 
 ### Accessibility
 
@@ -529,7 +574,7 @@ Shown during `tm init` and with `tm --version`.
    - Target: 80%+ coverage
 
 2. **Integration Tests**
-   - `tm cycle` end-to-end
+   - `tmr process` end-to-end
    - Agent command execution
    - Pack loading and validation
    - File organization workflows
@@ -585,11 +630,11 @@ Shown during `tm init` and with `tm --version`.
 ### Security & Configuration
 
 - API keys stored encrypted in OS-specific directories:
-  - macOS: `~/Library/Application Support/@marlonvidal-tech-manager-os/`
-  - Linux: `~/.config/@marlonvidal-tech-manager-os/`
-  - Windows: `%APPDATA%\@marlonvidal-tech-manager-os\`
+  - macOS: `~/Library/Application Support/@marlonvidal-tech-leadership-os/`
+  - Linux: `~/.config/@marlonvidal-tech-leadership-os/`
+  - Windows: `%APPDATA%\@marlonvidal-tech-leadership-os\`
 - AES-256 encryption using `conf` library
-- Environment variable overrides: `TM_PROVIDER`, `TM_API_KEY`
+- Environment variable overrides: `TMR_PROVIDER`, `TMR_API_KEY`
 - No telemetry or data collection
 - All user data stays local
 
@@ -598,7 +643,8 @@ Shown during `tm init` and with `tm --version`.
 - CLI commands: <100ms response time (excluding AI)
 - AI operations: Show progress after 500ms
 - File operations: Atomic writes (no partial writes)
-- Cycle processing: Handle 20+ inbox files efficiently
+- Process command: Handle 20+ inbox files efficiently
+- Binary file moves: Fast operations without processing overhead
 - Retry logic: Exponential backoff for AI rate limits
 
 ---
@@ -608,15 +654,15 @@ Shown during `tm init` and with `tm --version`.
 ### Complete Folder Structure
 
 ```
-tech-manager-workspace/
+tech-leadership-workspace/
 ├── .tm-core/                           # Core agent system
 │   ├── agents/                         # Agent definitions
 │   │   ├── cycle-agent.md
-│   │   ├── pm-people.md
-│   │   ├── pm-project.md
-│   │   ├── pm-career.md
-│   │   ├── pm-hiring.md
-│   │   └── tm-master.md
+│   │   ├── tmr-people.md
+│   │   ├── tmr-project.md
+│   │   ├── tmr-career.md
+│   │   ├── tmr-hiring.md
+│   │   └── tmr-master.md
 │   ├── skills/                         # Workflow definitions
 │   │   ├── cycle-workflow.md
 │   │   ├── collect-profile.md
@@ -633,15 +679,17 @@ tech-manager-workspace/
 │   │   ├── update-tasks-context.md
 │   │   └── categorize-note.md
 │   ├── templates/                      # Output templates
-│   │   ├── manager-profile-tmpl.yaml
-│   │   ├── manager-pdp-tmpl.yaml
-│   │   ├── brag-entry-tmpl.yaml
 │   │   ├── leader-profile-tmpl.yaml
+│   │   ├── leader-pdp-tmpl.yaml
+│   │   ├── pdp-output-format.yaml      # Separate PDP output format
+│   │   ├── brag-document-structure.yaml
+│   │   ├── leadership-profile-tmpl.yaml
 │   │   ├── member-profile-tmpl.yaml
-│   │   ├── member-pdi-tmpl.yaml
+│   │   ├── member-pdp-tmpl.yaml
 │   │   ├── project-brief-tmpl.yaml
 │   │   ├── job-description-tmpl.yaml
 │   │   ├── candidate-review-tmpl.yaml
+│   │   ├── interview-notes-tmpl.yaml
 │   │   ├── 1on1-session-tmpl.yaml
 │   │   ├── feedback-tmpl.yaml
 │   │   ├── pip-tmpl.yaml
@@ -652,82 +700,92 @@ tech-manager-workspace/
 │   └── core-config.yaml                # System configuration
 ├── .cursor/                            # Cursor IDE integration
 │   └── rules/
-│       └── tm/
-│           ├── pm-people.mdc
-│           ├── pm-project.mdc
-│           ├── pm-career.mdc
-│           ├── pm-hiring.mdc
+│       └── tmr/
+│           ├── tmr-people.mdc
+│           ├── tmr-project.mdc
+│           ├── tmr-career.mdc
+│           ├── tmr-hiring.mdc
 │           └── cycle-agent.mdc
 ├── .claude/                            # Claude Code integration
 │   └── agents/
-│       ├── pm-people.md
-│       ├── pm-project.md
-│       ├── pm-career.md
-│       ├── pm-hiring.md
+│       ├── tmr-people.md
+│       ├── tmr-project.md
+│       ├── tmr-career.md
+│       ├── tmr-hiring.md
 │       └── cycle-agent.md
 ├── .gemini/                            # Gemini CLI integration
 │   └── agents/
-│       ├── pm-people.md
-│       ├── pm-project.md
-│       ├── pm-career.md
-│       ├── pm-hiring.md
+│       ├── tmr-people.md
+│       ├── tmr-project.md
+│       ├── tmr-career.md
+│       ├── tmr-hiring.md
 │       └── cycle-agent.md
+├── .github/                            # GitHub Copilot integration
+│   └── copilot/
+│       └── skills/
+│           ├── tmr-people.md
+│           ├── tmr-project.md
+│           ├── tmr-career.md
+│           └── tmr-hiring.md
 ├── .system/                            # Runtime system
 │   ├── config.json                     # Encrypted configuration
 │   └── watch.pid                       # Watch process tracking
 ├── inbox/                              # Universal drop zone
-│   └── [transcripts and notes]
-├── my-career/                          # Manager's career
+│   └── [transcripts, notes, binary files]
+├── my-career/                          # Leader's career
 │   ├── profile.md
 │   ├── pdp.md
-│   └── brag-document.md
-├── my-leadership/                      # Manager's leader
-│   ├── profile.md
-│   └── alignments/
-│       └── [1on1 transcripts with manager]
-├── people/                             # Team members
-│   ├── active/
-│   │   └── {member-name}/
+│   └── brag-document.md                # Manual updates
+├── my-leadership/                      # Leader's managers (multiple)
+│   └── {leader-email}/
+│       ├── profile.md
+│       ├── alignments/
+│       │   └── [1on1 transcripts]
+│       ├── challenges/
+│       │   └── [harsh feedback conversations]
+│       └── pip.md (if needed)
+├── my-teams/                           # Team members (multi-team support)
+│   ├── {team-name}/
+│   │   ├── meetings/                   # Team-level meetings
+│   │   └── {member-email}/
 │   │       ├── profile.md
 │   │       ├── context.md              # AI-maintained
-│   │       ├── pdi.md
+│   │       ├── pdp.md
 │   │       ├── 1on1s/
 │   │       ├── feedback/
 │   │       ├── pip.md (if needed)
 │   │       └── reviews/
 │   └── archived/
 │       └── {year}/
-│           └── {member-name}/
-├── projects/                           # Projects
-│   ├── active/
-│   │   └── {project-name}/
-│   │       ├── brief.md
-│   │       ├── context.md              # AI-maintained
-│   │       ├── status-reports/
-│   │       ├── risk-assessments/
-│   │       └── meetings/
+│           └── {team-name}/
+│               └── {member-email}/
+├── my-projects/                        # Projects
+│   ├── {project-name}/
+│   │   ├── brief.md
+│   │   ├── context.md                  # AI-maintained
+│   │   ├── status-reports/
+│   │   ├── risk-assessments/
+│   │   ├── meetings/                   # Project-level meetings
+│   │   └── incidents/                  # Project-specific incidents
 │   └── archived/
 │       └── {year}/
 │           └── {project-name}/
+├── my-company/                         # Company-wide interactions
+│   ├── meetings/                       # All-hands, townhalls, strategy
+│   └── relationships/
+│       └── {email}/                    # Non-team/project relationships
+│           └── [interaction notes]
 ├── operations/                         # Operational areas
 │   ├── hiring/
 │   │   └── {role-and-seniority}/
-│   │       ├── job-description.md
+│   │       ├── job-description.md      # Auto-generated
 │   │       └── candidates/
 │   │           └── {candidate-name}/
 │   │               ├── interview-{date}.md
 │   │               ├── candidate-review.md
-│   │               └── emails/
-│   ├── finance/
-│   │   └── budget-notes.md
-│   ├── rituals/
-│   │   ├── leadership/
-│   │   │   └── [leadership meeting notes]
-│   │   └── company/
-│   │       └── [all-hands, townhalls]
-│   └── incidents/
-│       └── post-mortems/
-│           └── [incident documentation]
+│   │               └── notes/
+│   └── finance/
+│       └── budget-notes.md
 ├── knowledge-base/                     # Organizational knowledge
 │   ├── people/
 │   │   ├── culture.md
@@ -741,12 +799,17 @@ tech-manager-workspace/
 │   │   ├── strategy.md
 │   │   ├── org-chart.md
 │   │   └── departments.md
+│   ├── files/                          # Binary files (PDF, PPTX, XLS)
+│   │   └── [manually placed or moved by process]
 │   └── methodology.md
-├── tasks/                              # Task tracking (AI-maintained)
+├── my-tasks/                           # Task tracking (AI-maintained)
 │   ├── today.md
 │   ├── this-week.md
 │   ├── this-month.md
 │   └── this-quarter.md
+├── utils/                              # Copy/paste utilities
+│   ├── team-member-profile-prompt.md
+│   └── leader-profile-prompt.md
 └── archive/
     └── {year}/
         └── {quarter}/
@@ -758,15 +821,16 @@ tech-manager-workspace/
 **Member Profile:**
 ```yaml
 ---
+email: sarah.chen@company.com
 name: Sarah Chen
 role: Senior Frontend Engineer
 seniority: Senior
-team: Platform
+team: platform
 hire_date: 2023-06-15
 status: active
 current_projects:
-  - mobile-redesign (lead)
-  - api-performance (contributor)
+  - "[[mobile-redesign]]" (lead)
+  - "[[api-performance]]" (contributor)
 skills: [React, TypeScript, System Design]
 aspirations: Staff Engineer or Technical Lead
 last_1on1: 2026-02-08
@@ -793,15 +857,20 @@ last_status: 2026-02-08
 ---
 ```
 
-**Manager Profile:**
+**Leader Profile:**
 ```yaml
 ---
 name: Marlon Vidal
+email: marlon.vidal@company.com
 role: Engineering Manager
 experience_years: 8
-management_style: Servant leadership, data-driven
-team_size: 5
-reports_to: João Silva
+leadership_style: Servant leadership, data-driven
+teams:
+  - platform (5 members)
+  - infrastructure (3 members)
+reports_to:
+  - "[[joao.silva@company.com]]"
+  - "[[ana.costa@company.com]]" (matrix reporting)
 strengths: [Technical depth, Empathy, Strategic thinking]
 development_areas: [Executive communication, Scaling teams]
 ---
@@ -812,22 +881,22 @@ development_areas: [Executive communication, Scaling teams]
 ## Epic List
 
 ### Epic 1: Foundation & CLI Infrastructure
-**Goal:** Establish TypeScript/Node.js foundation, build core CLI with Commander.js, implement configuration management with encrypted API key storage, and deliver `tm init` with interactive manager onboarding workflow.
+**Goal:** Establish TypeScript/Node.js foundation, build core CLI with Commander.js, implement configuration management with encrypted API key storage, and deliver `tmr init` with interactive leader onboarding workflow supporting multi-team structure.
 
-### Epic 2: Cycle Intelligence Engine
-**Goal:** Build the AI-powered inbox processing system that scans, categorizes, and files transcripts/notes into appropriate folders, updates context summaries, extracts tasks, and provides actionable insights.
+### Epic 2: Process Intelligence Engine
+**Goal:** Build the AI-powered inbox processing system (`tmr process`) that scans, categorizes, and files transcripts/notes into appropriate multi-level folders (team/project/company), updates context summaries automatically, extracts tasks, handles binary files, and provides actionable insights with Obsidian compatibility.
 
 ### Epic 3: People Management System
-**Goal:** Implement team member lifecycle management, profile collection workflows, and deliver all people-focused agent commands (1:1 prep, feedback, PDI, PIP, reviews).
+**Goal:** Implement multi-team member lifecycle management with email-based identification, utils folder profile collection approach, SKILL.md-based PDP generation, partial archive support, and deliver all people-focused tmr-people agent commands (1:1 prep, feedback, PDP, PIP, reviews with extended periods).
 
-### Epic 4: Manager's Career & Leadership Tracking
-**Goal:** Enable managers to track their own career development with PDP management, brag document logging, and leadership alignment tracking.
+### Epic 4: Leader's Career & Leadership Tracking
+**Goal:** Enable leaders to track their own career development with SKILL.md-based PDP management, manual brag document with suggested structure, multi-leader relationship tracking with per-leader folders (including challenges and PIP support), and leadership alignment tracking.
 
 ### Epic 5: Project Management & Operations
-**Goal:** Implement project lifecycle management, status reporting, risk assessment, and operational workflows for hiring, rituals, and knowledge base.
+**Goal:** Implement project lifecycle management with incidents subfolder, status reporting, risk assessment, partial archive support, multi-level meeting organization (project/team/company), company relationship tracking, hiring with auto-generated job descriptions and interview notes, and manual knowledge base with binary file support.
 
 ### Epic 6: Agent System & Pack Engine
-**Goal:** Build the YAML-based pack system, implement all agent definitions, create IDE integration files, and deliver base-pack.yaml with core methodology.
+**Goal:** Build the YAML-based pack system, implement all tmr-* agent definitions, create IDE integration files for Cursor/Claude/Gemini/GitHub Copilot, create SKILL.md-based PDP generation with role references, and deliver base-pack.yaml with TMR branding.
 
 ### Epic 7: Polish, Testing & Distribution
 **Goal:** Comprehensive testing, documentation, IDE integration validation, and npm packaging for distribution.
@@ -838,7 +907,7 @@ development_areas: [Executive communication, Scaling teams]
 
 ### Epic 1: Foundation & CLI Infrastructure
 
-**Expanded Goal:** Establish a professional TypeScript/Node.js project with Commander.js CLI framework, implement secure configuration management using the `conf` library for encrypted API key storage, build the interactive onboarding workflow that collects manager profile and creates workspace structure, and deliver AI provider adapters for OpenAI, Claude, and Gemini. This epic ensures all subsequent development has a solid foundation.
+**Expanded Goal:** Establish a professional TypeScript/Node.js project with Commander.js CLI framework, implement secure configuration management using the `conf` library for encrypted API key storage, build the interactive onboarding workflow that collects leader profile and creates multi-team workspace structure, and deliver AI provider adapters for OpenAI, Claude, and Gemini. This epic ensures all subsequent development has a solid foundation.
 
 #### Story 1.1: Project Scaffolding and TypeScript Configuration
 
@@ -870,9 +939,9 @@ development_areas: [Executive communication, Scaling teams]
 **Acceptance Criteria:**
 
 1. Commander.js integrated in `cli.ts`
-2. `tm --help` displays tool description, version, command list
-3. `tm --version` displays current version
-4. `tm` with no args shows help
+2. `tmr --help` displays tool description, version, command list
+3. `tmr --version` displays current version
+4. `tmr` with no args shows help
 5. Unknown commands show error with suggestion
 6. Global flags work: `--verbose`, `--plain`, `--json`
 7. Error handling with user-friendly messages
@@ -924,7 +993,7 @@ development_areas: [Executive communication, Scaling teams]
 5. Unit tests cover happy path and error scenarios
 6. Service is mockable for testing
 
-#### Story 1.6: Interactive Onboarding Workflow (`tm init`)
+#### Story 1.6: Interactive Onboarding Workflow (`tmr init`)
 
 **As a** new user,  
 **I want** an interactive setup wizard that guides me through configuration,  
@@ -950,15 +1019,15 @@ development_areas: [Executive communication, Scaling teams]
 
 ---
 
-### Epic 2: Cycle Intelligence Engine
+### Epic 2: Process Intelligence Engine
 
-**Expanded Goal:** Build the AI-powered cycle agent that processes inbox files, categorizes them by type and entity, updates context summaries using intelligent merging, extracts actionable tasks with urgency classification, and moves files to appropriate destinations. This epic delivers the core "transcript-to-context" value proposition.
+**Expanded Goal:** Build the AI-powered cycle agent that powers the `tmr process` command to process inbox files, categorizes them by type and entity, updates context summaries using intelligent merging, extracts actionable tasks with urgency classification, and moves files to appropriate destinations. This epic delivers the core "transcript-to-context" value proposition.
 
 #### Story 2.1: Inbox Scanner and File Parser
 
 **As a** developer,  
 **I want** to scan and parse inbox files efficiently,  
-**so that** the cycle engine can process them.
+**so that** the process command can handle them.
 
 **Acceptance Criteria:**
 
@@ -1042,15 +1111,15 @@ development_areas: [Executive communication, Scaling teams]
 6. Atomic operations (no data loss)
 7. Unit tests cover various organization scenarios
 
-#### Story 2.6: `tm cycle` Command Implementation
+#### Story 2.6: `tmr process` Command Implementation
 
-**As a** manager,  
+**As a** leader,  
 **I want** one command to process all inbox files,  
 **so that** my workspace stays current with minimal effort.
 
 **Acceptance Criteria:**
 
-1. `tm cycle` orchestrates: Scan → Categorize → Update Contexts → Extract Tasks → Organize Files
+1. `tmr process` orchestrates: Scan → Categorize → Update Contexts → Extract Tasks → Organize Files
 2. Progress indicators for each phase
 3. Summary output:
    - Files processed
@@ -1059,20 +1128,20 @@ development_areas: [Executive communication, Scaling teams]
    - Suggested actions
 4. Handles errors gracefully (partial progress saved)
 5. Optional flags: `--dry-run`, `--verbose`
-6. Integration test validates full cycle
+6. Integration test validates full process workflow
 
-#### Story 2.7: `tm watch` Command for Auto-Processing
+#### Story 2.7: `tmr watch` Command for Auto-Processing
 
-**As a** manager,  
+**As a** leader,  
 **I want** inbox to be processed automatically when files are added,  
-**so that** I don't have to remember to run cycle.
+**so that** I don't have to remember to run process.
 
 **Acceptance Criteria:**
 
-1. `tm watch` monitors `inbox/` directory
+1. `tmr watch` monitors `inbox/` directory
 2. Uses `chokidar` for file watching
 3. Debounces multiple file additions (waits 5 seconds)
-4. Runs `tm cycle` automatically
+4. Runs `tmr process` automatically
 5. Displays activity log
 6. Can be stopped with Ctrl+C
 7. Stores PID in `.system/watch.pid`
@@ -1092,15 +1161,15 @@ development_areas: [Executive communication, Scaling teams]
 
 **Acceptance Criteria:**
 
-1. `tm people add <name>` creates structure:
-   - `people/active/{name}/profile.md` (with frontmatter template)
-   - `people/active/{name}/context.md` (empty, will be AI-maintained)
-   - `people/active/{name}/pdi.md` (template)
+1. `tmr team add <team-name> <member-email>` creates structure:
+   - `my-teams/{team-name}/{member-email}/profile.md` (with frontmatter template)
+   - `my-teams/{team-name}/{member-email}/context.md` (empty, will be AI-maintained)
+   - `my-teams/{team-name}/{member-email}/pdp.md` (template)
    - Subdirectories: `1on1s/`, `feedback/`, `reviews/`
-2. `tm people list` displays table with: name, role, last 1:1, status
-3. `tm people archive <name>` moves to `people/archived/{year}/`
-4. `tm people fire <name>` archives with termination marker
-5. `tm show <name>` displays context summary
+2. `tmr team list` displays table with: name, email, role, last 1:1, status
+3. `tmr team archive <team-name> <member-email> [--from --to]` moves to `my-teams/archived/{year}/`
+4. `tmr team fire <team-name> <member-email>` archives with termination marker
+5. `tmr show <member-email>` displays context summary
 6. Unit tests for all commands
 
 #### Story 3.2: Profile Collection Workflow
@@ -1111,7 +1180,7 @@ development_areas: [Executive communication, Scaling teams]
 
 **Acceptance Criteria:**
 
-1. `tm people collect-profile <name>` generates shareable prompt file
+1. `utils/team-member-profile-prompt.md` contains shareable prompt file
 2. Prompt includes questions about:
    - Background and experience
    - Skills and expertise
@@ -1123,7 +1192,7 @@ development_areas: [Executive communication, Scaling teams]
 5. Output is structured markdown with frontmatter
 6. Integration test validates workflow
 
-#### Story 3.3: pm-people Agent - 1:1 Preparation
+#### Story 3.3: tmr-people Agent - 1:1 Preparation
 
 **As a** manager,  
 **I want** AI to generate 1:1 agendas based on context,  
@@ -1144,7 +1213,7 @@ development_areas: [Executive communication, Scaling teams]
 5. Uses template: `1on1-session-tmpl.yaml`
 6. Integration test with sample context
 
-#### Story 3.4: pm-people Agent - Feedback Generation
+#### Story 3.4: tmr-people Agent - Feedback Generation
 
 **As a** manager,  
 **I want** AI to draft feedback based on context,  
@@ -1163,7 +1232,7 @@ development_areas: [Executive communication, Scaling teams]
 5. Manager reviews before delivery
 6. Integration test validates generation
 
-#### Story 3.5: pm-people Agent - PDI Management
+#### Story 3.5: tmr-people Agent - PDP Management
 
 **As a** manager,  
 **I want** AI to help create and maintain PDIs,  
@@ -1184,7 +1253,7 @@ development_areas: [Executive communication, Scaling teams]
 6. Uses template: `member-pdi-tmpl.yaml`
 7. Integration test validates PDI structure
 
-#### Story 3.6: pm-people Agent - PIP and Performance Reviews
+#### Story 3.6: tmr-people Agent - PIP and Performance Reviews
 
 **As a** manager,  
 **I want** AI assistance with PIPs and performance reviews,  
@@ -1214,14 +1283,13 @@ development_areas: [Executive communication, Scaling teams]
 
 **Acceptance Criteria:**
 
-1. `tm my profile` opens profile in editor
-2. `tm my pdp` opens PDP in editor
-3. `tm my brag add <achievement>` logs achievement with timestamp
-4. `tm my brag view` displays brag document
-5. Files created during `tm init`
-6. Unit tests for all commands
+1. `tmr my profile` opens profile in editor
+2. `tmr my pdp` opens PDP in editor
+3. Brag document managed manually (no commands)
+4. Files created during `tmr init` with suggested brag structure
+5. Unit tests for profile/pdp commands
 
-#### Story 4.2: pm-career Agent - PDP Management
+#### Story 4.2: tmr-career Agent - PDP Management
 
 **As a** manager,  
 **I want** AI to help with my own PDP,  
@@ -1237,7 +1305,7 @@ development_areas: [Executive communication, Scaling teams]
 6. Uses template: `manager-pdp-tmpl.yaml`
 7. Integration test validates alignment
 
-#### Story 4.3: pm-career Agent - Brag Document and Self-Review
+#### Story 4.3: tmr-career Agent - Brag Document and Self-Review
 
 **As a** manager,  
 **I want** AI to help summarize my achievements,  
@@ -1260,7 +1328,7 @@ development_areas: [Executive communication, Scaling teams]
 
 **Acceptance Criteria:**
 
-1. Cycle agent recognizes transcripts with leader (based on my-leadership/profile.md)
+1. Process agent recognizes transcripts with leader (based on my-leadership/profile.md)
 2. Files them in: `my-leadership/alignments/{date}.md`
 3. Updates manager's context with alignment notes
 4. Flags misalignment with PDP
@@ -1280,13 +1348,13 @@ development_areas: [Executive communication, Scaling teams]
 
 **Acceptance Criteria:**
 
-1. `tm project add <name>` creates structure with brief.md template
-2. `tm project list` displays table
-3. `tm project archive <name>` moves to archived
-4. `tm show <project>` displays context
+1. `tmr project add <name>` creates structure with brief.md template in `my-projects/`
+2. `tmr project list` displays table
+3. `tmr project archive <name> [--from --to]` moves to archived with optional date filters
+4. `tmr show <project>` displays context
 5. Unit tests for all commands
 
-#### Story 5.2: pm-project Agent - Status Reports
+#### Story 5.2: tmr-project Agent - Status Reports
 
 **As a** manager,  
 **I want** AI to generate weekly status reports,  
@@ -1301,7 +1369,7 @@ development_areas: [Executive communication, Scaling teams]
 5. Uses template: `status-report-tmpl.yaml`
 6. Integration test validates report quality
 
-#### Story 5.3: pm-project Agent - Risk Assessment
+#### Story 5.3: tmr-project Agent - Risk Assessment
 
 **As a** manager,  
 **I want** AI to assess project risks,  
@@ -1323,13 +1391,13 @@ development_areas: [Executive communication, Scaling teams]
 
 **Acceptance Criteria:**
 
-1. `tm hiring open <role>` creates job description template
-2. `tm hiring candidate add <role> <name>` creates candidate folder
-3. `tm hiring list` displays open positions
-4. Cycle agent categorizes interview transcripts
+1. `tmr hiring open <role-and-seniority>` creates job description (auto-generated based on role/seniority)
+2. Interview transcripts auto-categorized by process agent to candidate folders
+3. `tmr hiring list` displays open positions
+4. Process agent creates candidate folders automatically
 5. Unit tests for all commands
 
-#### Story 5.5: pm-hiring Agent - Candidate Reviews
+#### Story 5.5: tmr-hiring Agent - Candidate Reviews
 
 **As a** manager,  
 **I want** AI to help review candidates,  
@@ -1351,9 +1419,9 @@ development_areas: [Executive communication, Scaling teams]
 
 **Acceptance Criteria:**
 
-1. Cycle agent categorizes: leadership meetings, company meetings, post-mortems
-2. `tm kb add <category> <title>` creates knowledge base entry
-3. `tm kb list` displays entries
+1. Process agent categorizes: leadership meetings, company meetings, post-mortems to multi-level locations
+2. Knowledge base entries placed manually by user
+3. Binary files moved to `knowledge-base/files/` by process agent
 4. Knowledge base consulted by agents when relevant
 5. Integration test validates categorization
 
@@ -1417,14 +1485,14 @@ development_areas: [Executive communication, Scaling teams]
 
 1. All agents defined in `.tm-core/agents/`:
    - cycle-agent.md
-   - pm-people.md
-   - pm-project.md
-   - pm-career.md
-   - pm-hiring.md
-   - tm-master.md
+   - tmr-people.md
+   - tmr-project.md
+   - tmr-career.md
+   - tmr-hiring.md
+   - tmr-master.md
 2. Each agent has: persona, commands, dependencies
 3. Documentation includes usage examples
-4. Agent files created during `tm init`
+4. Agent files created during `tmr init`
 
 #### Story 6.5: IDE Integration Files
 
@@ -1437,9 +1505,10 @@ development_areas: [Executive communication, Scaling teams]
 1. `.cursor/rules/tm/*.mdc` files generated
 2. `.claude/agents/*.md` files generated
 3. `.gemini/agents/*.md` files generated
-4. Files include agent definition and command reference
-5. Files created during `tm init`
-6. Integration test validates file structure
+4. `.github/copilot/skills/*.md` files generated
+5. Files include agent definition and command reference
+6. Files created during `tmr init`
+7. Integration test validates file structure
 
 #### Story 6.6: base-pack.yaml Design and Implementation
 
@@ -1450,14 +1519,14 @@ development_areas: [Executive communication, Scaling teams]
 **Acceptance Criteria:**
 
 1. `base-pack.yaml` created with all commands:
-   - Cycle commands (categorize, process-inbox, update-tasks)
-   - People commands (1on1-prepare, feedback, pdi-generate, pdi-update, pip-create, review-generate)
+   - Process commands (categorize, process-inbox, update-tasks)
+   - People commands (1on1-prepare, feedback, pdp-generate, pip-create, review-generate)
    - Project commands (status-report, risk-assessment, health-check)
-   - Career commands (pdp-generate, pdp-update, brag-summarize, self-review)
+   - Career commands (pdp-generate, brag-summarize, self-review)
    - Hiring commands (candidate-review, job-description)
 2. Each command has: well-crafted prompts, appropriate temperature, clear outputs
 3. Validation passes
-4. Generated during `tm init`
+4. Generated during `tmr init`
 
 ---
 
@@ -1505,7 +1574,7 @@ development_areas: [Executive communication, Scaling teams]
 **Acceptance Criteria:**
 
 1. CLI commands <100ms (excluding AI)
-2. Cycle processes 20+ files efficiently
+2. Process command handles 20+ files efficiently
 3. Progress indicators for operations >500ms
 4. File operations are atomic
 5. Retry logic with exponential backoff
@@ -1549,77 +1618,89 @@ development_areas: [Executive communication, Scaling teams]
 
 **Phase 1: Foundation (Weeks 1-2)**
 - Epic 1 complete
-- `tm init` working with manager onboarding
+- `tmr init` working with leader onboarding and multi-team structure
 - Configuration and AI providers functional
 - Basic file operations tested
+- TMR branding implemented
 
-**Phase 2: Cycle Intelligence (Weeks 3-4)**
+**Phase 2: Process Intelligence (Weeks 3-4)**
 - Epic 2 complete
-- `tm cycle` and `tm watch` working
-- Categorization logic validated with sample transcripts
-- Context updates and task extraction functional
+- `tmr process` and `tmr watch` working
+- Categorization logic validated with sample transcripts (multi-level routing)
+- Context updates automatic and task extraction functional
+- Binary file handling implemented
+- Obsidian `[[ ]]` notation support
 
-**Phase 3: People Management (Weeks 5-6)**
+**Phase 3: People Management (Weeks 5-7)**
 - Epic 3 complete
-- All people commands working
-- pm-people agent functional with all commands
-- Profile collection workflow tested
+- All team commands working (multi-team support, email-based)
+- tmr-people agent functional with all commands
+- Utils folder profile collection approach implemented
+- SKILL.md-based PDP generation
+- Partial archive support with date filters
 
-**Phase 4: Career & Leadership (Week 7)**
+**Phase 4: Career & Leadership (Week 8)**
 - Epic 4 complete
-- Manager's career tracking functional
-- pm-career agent working
-- Leadership alignment tracking tested
+- Leader's career tracking functional
+- tmr-career agent working
+- Multi-leader relationship tracking with per-leader folders
+- SKILL.md-based PDP for leaders
+- Challenges and PIP support for leaders
 
-**Phase 5: Projects & Operations (Week 8)**
+**Phase 5: Projects & Operations (Weeks 9-10)**
 - Epic 5 Stories 5.1-5.3 complete
-- Project management functional
-- pm-project agent working
+- Project management functional with incidents folder
+- tmr-project agent working
 - Status and risk reporting tested
+- Partial archive support
 
-**Phase 6: Hiring & Operations (Week 9)**
-- Epic 5 Stories 5.4-5.6 complete
-- Hiring workflow functional
-- pm-hiring agent working
-- Operations and knowledge base tested
+**Phase 6: Hiring & Company Operations (Week 11)**
+- Epic 5 Stories 5.4-5.7 complete
+- Hiring workflow with auto-generated job descriptions
+- tmr-hiring agent working
+- Multi-level meetings (project/team/company)
+- Company relationships tracking
+- Knowledge base with binary file support
 
-**Phase 7: Agent System (Week 10)**
+**Phase 7: Agent System & SKILL.md (Week 12)**
 - Epic 6 complete
 - Pack engine functional
-- All agents defined
-- IDE integration files generated
-- base-pack.yaml validated
+- All tmr-* agents defined with new branding
+- IDE integration files generated for all platforms (including GitHub Copilot)
+- SKILL.md-based PDP with role references
+- base-pack.yaml validated with TMR branding
 
-**Phase 8: Polish & Ship (Week 11-12)**
+**Phase 8: Polish & Ship (Weeks 13-14)**
 - Epic 7 complete
-- Testing comprehensive
-- Documentation complete
+- Testing comprehensive (80%+ coverage)
+- Documentation complete with Tech Leadership OS positioning
 - Performance optimized
-- npm package ready
-- Beta testing with community
+- npm package ready as @marlonvidal/tech-leadership-os
+- Beta testing with TMR community
 
 ### Success Metrics
 
 **MVP Success Criteria:**
 
 1. **Functional Completeness:**
-   - All FR1-FR40 implemented and tested
-   - All agents functional in at least one IDE (Cursor)
-   - Cycle processes 10+ different transcript types accurately
+   - All FR1-FR40+ implemented and tested (with updates and new features)
+   - All tmr-* agents functional in Cursor (primary) plus Claude/Gemini/GitHub Copilot
+   - Process command handles 10+ different transcript types accurately with multi-level routing
 
 2. **User Adoption:**
    - 5 beta testers using system for 2+ weeks
-   - Positive feedback on core workflows (cycle, 1:1 prep, status reports)
+   - Positive feedback on core workflows (process, 1:1 prep, status reports)
    - At least 100 transcripts processed across beta testers
 
 3. **Quality:**
    - 80%+ test coverage
    - Zero critical bugs
-   - AI categorization >85% accuracy on beta tester data
+   - AI categorization >85% accuracy on beta tester data with multi-level routing
 
 4. **Performance:**
    - CLI commands <100ms
-   - Cycle processes 20 files in <60 seconds
+   - Process command handles 20 files in <60 seconds
+   - Binary file moves fast without processing overhead
    - No data loss incidents
 
 5. **Documentation:**
@@ -1652,18 +1733,18 @@ development_areas: [Executive communication, Scaling teams]
 
 What exactly should each time view show?
 
-- **`tm today`:**
+- **`tmr today`:**
   - Urgent tasks only? Or all tasks due today?
   - Should it show scheduled 1:1s automatically by reading calendar files?
-  - Should it show "suggested actions" from last cycle?
+  - Should it show "suggested actions" from last process run?
   - Format: Categorized list or priority-sorted?
 
-- **`tm this-week`:**
+- **`tmr this-week`:**
   - Weekly objectives or daily task rollup?
   - Should it predict capacity (days × hours)?
   - Should it show project milestones due this week?
 
-- **`tm this-month` and `tm this-quarter`:**
+- **`tmr this-month` and `tmr this-quarter`:**
   - More strategic (goals/objectives) or tactical (task list)?
   - Should these be manually curated or AI-generated?
 
@@ -1741,7 +1822,7 @@ Use this checklist to track what needs to be defined before implementation. Each
   - [ ] Output path specifications and templates
   - [ ] Estimated: 8-10 hours of prompt engineering
 
-- [ ] **Cycle Agent Categorization Logic**
+- [ ] **Process Agent Categorization Logic**
   - [ ] Detailed categorization decision tree
   - [ ] Confidence scoring algorithm
   - [ ] Multi-entity handling (note mentions 3 people + 2 projects)
@@ -1771,10 +1852,10 @@ Use this checklist to track what needs to be defined before implementation. Each
   - [ ] Examples for each template
 
 - [ ] **Agent Persona Definitions**
-  - [ ] pm-people: Personality, communication style, expertise areas
-  - [ ] pm-project: Personality, communication style, expertise areas
-  - [ ] pm-career: Personality, communication style, expertise areas
-  - [ ] pm-hiring: Personality, communication style, expertise areas
+  - [ ] tmr-people: Personality, communication style, expertise areas
+  - [ ] tmr-project: Personality, communication style, expertise areas
+  - [ ] tmr-career: Personality, communication style, expertise areas
+  - [ ] tmr-hiring: Personality, communication style, expertise areas
   - [ ] cycle-agent: Analytical approach, decision-making style
   - [ ] Each agent needs: backstory, expertise, limitations, tone
 
@@ -1854,7 +1935,7 @@ Use this checklist to track what needs to be defined before implementation. Each
   - [ ] KB search mechanism (semantic, keyword, both?)
   - [ ] KB update workflow (how do entries get created/updated?)
 
-- [ ] **Multi-Entity Handling in Cycle**
+- [ ] **Multi-Entity Handling in Process**
   - [ ] If note mentions 3 people, do we copy to all 3 contexts?
   - [ ] If note mentions person + project, update both?
   - [ ] Handling general notes (no clear entity match)
@@ -1925,10 +2006,10 @@ Use this checklist to track what needs to be defined before implementation. Each
 - Meta section (name, version, author)
 - 20+ command definitions including:
   - cycle-agent: categorize, process-inbox, update-tasks
-  - pm-people: 1on1-prepare, feedback, pdi-generate, pdi-update, pip-create, review-generate
-  - pm-project: status-report, risk-assessment, health-check
-  - pm-career: pdp-generate, pdp-update, brag-summarize, self-review
-  - pm-hiring: candidate-review, job-description, interview-guide
+  - tmr-people: 1on1-prepare, feedback, pdp-generate, pip-create, review-generate
+  - tmr-project: status-report, risk-assessment, health-check
+  - tmr-career: pdp-generate, brag-summarize, self-review
+  - tmr-hiring: candidate-review, job-description, interview-guide
 
 **Each Command Requires:**
 - Description (what it does)
@@ -1942,7 +2023,7 @@ Use this checklist to track what needs to be defined before implementation. Each
 - Variable injection points using Handlebars syntax
 - Appropriate temperature settings (0.3 for categorization, 0.7 for generation)
 
-### Specification 2: Cycle Categorization Algorithm (Critical)
+### Specification 2: Process Categorization Algorithm (Critical)
 
 **Owner:** AI Engineer + Product Manager  
 **Estimated Effort:** 6-8 hours  
@@ -2021,10 +2102,10 @@ Use this checklist to track what needs to be defined before implementation. Each
 
 **Agents:**
 1. cycle-agent: Analytical, thorough, organized
-2. pm-people: Empathetic coach and development partner
-3. pm-project: Strategic project leader
-4. pm-career: Career counselor for the manager
-5. pm-hiring: Talent assessment specialist
+2. tmr-people: Empathetic coach and development partner
+3. tmr-project: Strategic project leader
+4. tmr-career: Career counselor for the leader
+5. tmr-hiring: Talent assessment specialist
 
 ### Specification 5: IDE Integration Files (High Priority)
 
@@ -2055,7 +2136,7 @@ Use this checklist to track what needs to be defined before implementation. Each
 
 1. **Schedule Design Sessions:**
    - Session 1: base-pack.yaml prompt engineering (8 hours)
-   - Session 2: Cycle categorization algorithm (6 hours)
+   - Session 2: Process categorization algorithm (6 hours)
    - Session 3: Template definitions (6 hours)
    - Session 4: Agent persona definitions (4 hours)
    - Session 5: IDE integration specs (4 hours)
@@ -2093,15 +2174,17 @@ Before starting Epic 1 implementation:
 
 ### Product Vision
 
-Tech Manager OS represents a fundamental shift in how engineering managers work: from scattered notes and manual organization to an AI-enhanced, context-preserving workspace. By treating management artifacts as organized, machine-readable context and providing specialized AI agents for common workflows, we enable managers to:
+Tech Leadership OS represents a fundamental shift in how tech leaders work: from scattered notes and manual organization to an AI-enhanced, context-preserving workspace. By treating management artifacts as organized, machine-readable context and providing specialized TMR agents for common workflows, we enable leaders to:
 
-- **Never lose context** about their team, projects, or career
-- **Reduce cognitive load** of remembering everything across quarters
+- **Never lose context** about their teams, projects, leaders, or career
+- **Reduce cognitive load** of remembering everything across quarters and multiple teams
 - **Deliver better 1:1s** with AI-prepared agendas based on full history
 - **Make data-driven decisions** with complete context at their fingertips
 - **Invest in their own growth** with equal rigor as team development
+- **Scale across multiple teams** with consistent processes and context
+- **Track company relationships** beyond direct reports and projects
 
-The agent-based architecture ensures extensibility and community growth, while the local-first approach respects privacy and data ownership.
+The TMR agent-based architecture with SKILL.md extensibility ensures community growth and customization, while the local-first approach respects privacy and data ownership.
 
 ### MVP Scope Validation
 
@@ -2111,20 +2194,20 @@ This PRD defines a complete MVP covering:
 ✅ **Project Management:** Status reporting and risk assessment  
 ✅ **Manager's Career:** Self-development and leadership alignment  
 ✅ **Operations:** Hiring, rituals, knowledge base  
-✅ **Core System:** Cycle intelligence, task tracking, IDE integration  
+✅ **Core System:** Process intelligence, task tracking, IDE integration  
 ✅ **Extensibility:** Pack system for methodology customization  
 
-The 12-week timeline is aggressive but achievable with focused execution and clear priorities.
+The 13-14 week timeline accounts for the enhanced scope and is achievable with focused execution and clear priorities.
 
 ### Success Criteria
 
 The MVP will be considered successful if:
 
-1. **Functional:** All 40 functional requirements implemented and tested
-2. **Usable:** 5 beta testers successfully onboard and use daily for 2+ weeks
-3. **Reliable:** 80%+ test coverage, zero data loss, >85% categorization accuracy
-4. **Performant:** CLI <100ms, cycle processes 20 files in <60 seconds
-5. **Documented:** Complete user guide, video walkthrough, 5+ example workflows
+1. **Functional:** All 40+ functional requirements (with enhancements) implemented and tested
+2. **Usable:** 5 beta testers from TMR community successfully onboard and use daily for 2+ weeks
+3. **Reliable:** 80%+ test coverage, zero data loss, >85% categorization accuracy with multi-level routing
+4. **Performant:** CLI <100ms, process command handles 20 files in <60 seconds
+5. **Documented:** Complete user guide for Tech Leadership OS, video walkthrough, 5+ example workflows
 
 ### Post-MVP Roadmap (v1.1+)
 
@@ -2144,7 +2227,7 @@ The MVP will be considered successful if:
 
 **Before proceeding to architecture phase:**
 
-1. Complete the 5 critical design specifications (base-pack, cycle logic, templates, personas, IDE integration)
+1. Complete the 5 critical design specifications (base-pack, process logic, templates, personas, IDE integration)
 2. Validate AI categorization accuracy with 20+ sample transcripts
 3. Conduct user research with 3-5 target managers (validate workflows and pain points)
 4. Review security model with security expert (API key encryption, data privacy)
@@ -2153,8 +2236,9 @@ The MVP will be considered successful if:
 
 - Start with Epic 1 (foundation) immediately after specs are complete
 - Run weekly demos with stakeholders to validate direction
-- Engage beta testers starting in Phase 3 (People Management functional)
+- Engage beta testers from TMR community starting in Phase 3 (People Management functional)
 - Maintain strict scope discipline (defer v1.1 features aggressively)
+- Validate GitHub Copilot integration early in Phase 7
 
 ---
 
@@ -2164,7 +2248,7 @@ The MVP will be considered successful if:
 
 **Week 1:**
 - Session 1: base-pack.yaml (8h) - Prompt engineering intensive
-- Session 2: Cycle categorization (6h) - Algorithm design + test suite
+- Session 2: Process categorization (6h) - Algorithm design + test suite
 
 **Week 2:**
 - Session 3: Template definitions (6h) - All 15+ templates
@@ -2186,12 +2270,12 @@ The MVP will be considered successful if:
 
 ---
 
-**PRD Status:** ✅ COMPLETE - Ready for design specifications phase  
+**PRD Status:** ✅ COMPLETE v4.0 - Strategic refinement incorporating TMR branding and enhanced features  
 **Next Milestone:** Complete 5 critical design specifications  
 **Development Start:** After design specs approved (estimated 2 weeks)  
-**Target MVP Delivery:** 12 weeks from development start
+**Target MVP Delivery:** 13-14 weeks from development start
 
 ---
 
-*This PRD represents the complete product vision for Tech Manager OS v1.0. All subsequent work should reference this document as the source of truth for MVP scope and requirements.*
+*This PRD represents the complete product vision for Tech Leadership OS v1.0 (TMR Edition). All subsequent work should reference this document as the source of truth for MVP scope and requirements.*
 
