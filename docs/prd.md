@@ -14,6 +14,9 @@
 - Build an **extensible system** with SKILL.md-based extensibility allowing community-driven management approaches
 - Enable **leaders to manage themselves** with equal attention to their own career development
 - Align with **Tech Manager de Resultados (TMR)** community branding and values
+- Use **Obsidian** as the primary vault interface, with the workspace folder serving as the Obsidian vault root
+- Integrate **Granola** as the official meeting transcript capture tool, synced to `inbox/` via the Granola Sync Obsidian plugin
+- Build the agent/skill system on **BMAD Builder** framework for standardized, extensible, community-compatible agent and skill definitions
 
 ### Background Context
 
@@ -44,6 +47,7 @@ Tech Leadership OS solves this by:
 
 | Date | Version | Description | Author |
 |------|---------|-------------|---------|
+| 2026-02-19 | 4.1 | Course correction: BMAD Builder as core agent engine, Granola+Obsidian as official transcript stack, email-as-identity formalized, dedicated meeting processing skill added (FR41, FR42), FR38-FR40 replaced | John (PM) + Marlon (PO) |
 | 2026-02-10 | 4.0 | Strategic refinement: Tech Leadership OS rebrand, tmr-* agents, multi-team support, enhanced extensibility | John (PM) + Marlon (Product Owner) |
 | 2026-02-08 | 3.0 | Complete architecture redesign: Agent-based system, expanded to manager's career + operations | Mary (Analyst) + John (PM) |
 | 2026-01-29 | 2.0 | Initial PRD draft for "Methodology-as-Code" edition | John (PM) |
@@ -76,6 +80,9 @@ Tech Leadership OS solves this by:
 - Handles binary files (PDF, PPTX, XLS) by moving to `knowledge-base/files/` without processing
 - Provides summary of changes and suggested actions
 - Encourages use of `[[ ]]` notation for relationship tracking (Obsidian compatibility)
+- Parses Granola-synced frontmatter (`granola_id`, `title`, `date`, `attendees`, `type`) as primary routing signals when processing files from `inbox/`
+- Converts all detected email addresses in file content and frontmatter to `[[@email@domain.com]]` Obsidian wiki-link notation before filing
+- Delegates complex meeting note routing to the `process-meeting-note` BMAD skill (see FR42)
 
 **FR5:** The system shall provide a `tmr watch` command that monitors the `inbox/` directory and automatically runs `tmr process` when new files are detected.
 
@@ -86,6 +93,7 @@ Tech Leadership OS solves this by:
 - `my-leadership/{leader-email}/profile.md` - Each leader's expectations and style
 - `my-company/relationships/{email}/context.md` - Running summary of company-wide relationships
 - Context updates triggered automatically by `tmr process` command after inbox processing
+- **Email-as-identity convention (critical):** Every `{email}/` folder in the system must also contain a root file named exactly `{email}.md` (e.g., `john.doe@company.com.md`). This file is the identity anchor that enables Obsidian graph view link resolution — all `[[@email]]` wiki-links resolve to this file. This applies consistently to `my-teams/`, `my-leadership/`, `my-company/relationships/`, and `operations/hiring/candidates/` wherever email-based folders exist.
 
 **FR7:** The system shall provide time-based task views:
 - `tmr today` - Display urgent tasks, scheduled 1:1s, and attention items for today
@@ -100,6 +108,7 @@ Tech Leadership OS solves this by:
 - **tmr-career**: Leader's own career development (PDP, brag document, self-reviews)
 - **tmr-hiring**: Recruitment support (candidate reviews, job descriptions, interview guides)
 - **tmr-master**: All-in-one agent for web platform usage
+- All agent and skill definitions shall be authored as **BMAD Builder-compliant** modules following the BMAD Method specification (https://github.com/bmad-code-org/bmad-builder). The `.tm-core/` system structure follows BMAD module conventions, enabling community extensibility through standardized BMAD-compliant packaging.
 
 #### People Management (FR9-FR16)
 
@@ -232,21 +241,32 @@ Tech Leadership OS solves this by:
 
 **FR37:** The agents may reference knowledge base entries when generating outputs (e.g., culture fit in candidate reviews, process adherence in performance reviews, company values in feedback).
 
-#### Pack System & Extensibility (FR38-FR40)
+#### Agent System & Extensibility (FR38-FR42)
 
-**FR38:** The system shall implement a Prompt Pack Engine that parses YAML files defining:
-- Agent commands with descriptions
-- Input variable definitions and sources
-- AI prompts (system, user, temperature, max_tokens)
-- Output specifications (file paths, formats, templates)
+**FR38 (Revised): BMAD Builder Integration**
+The system's agent and skill extensibility layer shall be built on the BMAD Builder framework (https://github.com/bmad-code-org/bmad-builder). Agent definitions, skill workflows, and task templates shall follow the BMAD Method module specification. Community extensibility is achieved through BMAD-compliant module packaging rather than a custom YAML pack engine. The custom Prompt Pack Engine (previously FR38-FR40) is superseded by BMAD Builder.
 
-**FR39:** The system shall validate all Prompt Pack YAML files against a defined schema using Zod, checking:
-- Schema compliance
-- Variable references match declared inputs
-- Output paths are valid
-- No command name conflicts
+**FR39:** *(Superseded — custom pack validation replaced by BMAD Builder framework)*
 
-**FR40:** The system shall generate `base-pack.yaml` during initialization providing core management methodology commands.
+**FR40:** *(Superseded — base-pack.yaml replaced by BMAD Builder module structure)*
+
+**FR41: Obsidian Vault & Granola Integration Setup**
+The system shall provide a setup guide (`docs/setup/obsidian-granola.md`) covering:
+1. Installing Obsidian and opening the workspace folder as the Obsidian vault
+2. Manually installing the `obsidian-granola-plugin` ([philfreo/obsidian-granola-plugin](https://github.com/philfreo/obsidian-granola-plugin))
+3. Configuring plugin settings: Base Folder → Custom Folder → `inbox`; Filename Pattern → `{date}-{title}`; Sync Notes → enabled
+4. Expected Granola note format (frontmatter fields) and how it integrates with `tmr process`
+5. Verification steps to confirm notes are landing in `inbox/` correctly
+
+**FR42: Dedicated Meeting Note Processing Skill**
+The system shall provide a `process-meeting-note` BMAD skill that handles the complex routing of Granola-synced notes from `inbox/`. The skill shall:
+- Parse Granola frontmatter metadata (`granola_id`, `attendees`, `date`, `title`, `type`) as primary routing signals
+- Identify all email addresses in the attendees list and file content
+- Generate `[[@email@domain.com]]` Obsidian wiki-links for all identified persons, ensuring Obsidian graph view links resolve to the `{email}.md` identity file in the corresponding `{email}/` folder
+- Determine the correct destination category (1:1, team meeting, leadership sync, hiring interview, company all-hands, etc.) based on attendees and content analysis
+- Extract key insights per attendee and distribute content updates to all relevant context files
+- Handle multi-attendee meetings by routing insights to all affected entity folders
+- Create or update the `{email}.md` identity file for any new email address encountered
 
 ### Non-Functional Requirements
 
@@ -535,11 +555,12 @@ Shown during `tmr init` and with `tmr --version`.
    - Inbox monitoring (chokidar)
    - Agent invocation bridge
 
-2. **Agent System (YAML Packs + Markdown)**
-   - Agent definitions (personas, commands, dependencies)
+2. **Agent System (BMAD Builder + Markdown)**
+   - Agent definitions (personas, commands, dependencies) — BMAD-compliant modules
+   - Skill definitions (workflow SKILL.md files)
    - Task definitions (workflows)
    - Template definitions (output formats)
-   - Pack system (YAML configuration)
+   - BMAD Builder framework for extensibility and community packaging
 
 3. **AI Adapter Layer**
    - Provider interface (OpenAI, Claude, Gemini)
@@ -559,7 +580,10 @@ Shown during `tmr init` and with `tmr --version`.
 - **Agent-as-configuration**: Agents are data, not code
 - **Local-first**: No cloud dependencies except AI APIs
 - **IDE-agnostic**: Agent system works across IDEs
-- **Pack-based extensibility**: Community can create packs
+- **BMAD Builder extensibility**: Community creates BMAD-compliant modules
+- **Obsidian-as-vault**: The workspace folder IS the Obsidian vault; `.obsidian/` lives at root
+- **Granola-as-capture**: All meeting transcripts enter via Granola Sync plugin into `inbox/`
+- **Email-as-identity**: Every person-centric `{email}/` folder has a `{email}.md` identity file as the Obsidian graph node anchor
 
 ### Testing Requirements
 
@@ -614,7 +638,12 @@ Shown during `tmr init` and with `tmr --version`.
 **Templating:**
 - `handlebars` - Template rendering
 - `yaml` - YAML parsing
-- `zod` - Schema validation
+- `zod` - Schema validation (for internal models; not for pack validation)
+
+**Agent Framework:**
+- **BMAD Builder** — Agent/skill/workflow definition and extensibility framework
+- **Obsidian** — Local-first vault interface (user-installed; workspace IS the vault)
+- **Granola Sync Plugin** (`obsidian-granola-plugin`) — Meeting note ingestion into `inbox/` (user-installed)
 
 **AI SDKs:**
 - `openai` - OpenAI API
@@ -654,8 +683,11 @@ Shown during `tmr init` and with `tmr --version`.
 ### Complete Folder Structure
 
 ```
-tech-leadership-workspace/
-├── .tm-core/                           # Core agent system
+tech-leadership-workspace/              # ← This folder IS the Obsidian vault root
+├── .obsidian/                          # Obsidian vault config (auto-created by Obsidian)
+│   └── plugins/
+│       └── obsidian-granola-plugin/    # Granola Sync plugin (user-installed)
+├── .tm-core/                           # Core agent system (BMAD Builder module)
 │   ├── agents/                         # Agent definitions
 │   │   ├── cycle-agent.md
 │   │   ├── tmr-people.md
@@ -730,14 +762,15 @@ tech-leadership-workspace/
 ├── .system/                            # Runtime system
 │   ├── config.json                     # Encrypted configuration
 │   └── watch.pid                       # Watch process tracking
-├── inbox/                              # Universal drop zone
-│   └── [transcripts, notes, binary files]
+├── inbox/                              # Universal drop zone (fed by Granola Sync plugin)
+│   └── {date}-{title}.md              # Granola-synced meeting notes (filename: {date}-{title})
 ├── my-career/                          # Leader's career
 │   ├── profile.md
 │   ├── pdp.md
 │   └── brag-document.md                # Manual updates
 ├── my-leadership/                      # Leader's managers (multiple)
 │   └── {leader-email}/
+│       ├── {leader-email}.md           # ← REQUIRED identity file (Obsidian link anchor)
 │       ├── profile.md
 │       ├── alignments/
 │       │   └── [1on1 transcripts]
@@ -748,6 +781,7 @@ tech-leadership-workspace/
 │   ├── {team-name}/
 │   │   ├── meetings/                   # Team-level meetings
 │   │   └── {member-email}/
+│   │       ├── {member-email}.md       # ← REQUIRED identity file (Obsidian link anchor)
 │   │       ├── profile.md
 │   │       ├── context.md              # AI-maintained
 │   │       ├── pdp.md
@@ -774,6 +808,7 @@ tech-leadership-workspace/
 │   ├── meetings/                       # All-hands, townhalls, strategy
 │   └── relationships/
 │       └── {email}/                    # Non-team/project relationships
+│           ├── {email}.md              # ← REQUIRED identity file (Obsidian link anchor)
 │           └── [interaction notes]
 ├── operations/                         # Operational areas
 │   ├── hiring/
@@ -895,8 +930,8 @@ development_areas: [Executive communication, Scaling teams]
 ### Epic 5: Project Management & Operations
 **Goal:** Implement project lifecycle management with incidents subfolder, status reporting, risk assessment, partial archive support, multi-level meeting organization (project/team/company), company relationship tracking, hiring with auto-generated job descriptions and interview notes, and manual knowledge base with binary file support.
 
-### Epic 6: Agent System & Pack Engine
-**Goal:** Build the YAML-based pack system, implement all tmr-* agent definitions, create IDE integration files for Cursor/Claude/Gemini/GitHub Copilot, create SKILL.md-based PDP generation with role references, and deliver base-pack.yaml with TMR branding.
+### Epic 6: Agent System & BMAD Builder Integration
+**Goal:** Build the complete agent and skill system using the BMAD Builder framework, implement all tmr-* agent definitions as BMAD-compliant modules, create the `process-meeting-note` skill for Granola note routing, generate IDE integration files for Cursor/Claude/Gemini/GitHub Copilot, and deliver SKILL.md-based extensibility with TMR branding.
 
 ### Epic 7: Polish, Testing & Distribution
 **Goal:** Comprehensive testing, documentation, IDE integration validation, and npm packaging for distribution.
@@ -1427,43 +1462,49 @@ development_areas: [Executive communication, Scaling teams]
 
 ---
 
-### Epic 6: Agent System & Pack Engine
+### Epic 6: Agent System & BMAD Builder Integration
 
-**Expanded Goal:** Build the complete agent system with YAML-based pack configuration, implement all agent definitions with proper persona and command structures, create IDE integration files for Cursor/Claude/Gemini, and deliver base-pack.yaml containing all core management methodology commands. This epic enables extensibility and community contributions.
+**Expanded Goal:** Build the complete agent and skill system using the BMAD Builder framework as the foundational engine. Implement all tmr-* agent definitions as BMAD-compliant modules, author the `process-meeting-note` skill for intelligent Granola note routing, create IDE integration files for Cursor/Claude/Gemini/GitHub Copilot, and deliver SKILL.md-based extensibility aligned with the BMAD Method module specification. This epic replaces the previously planned custom Pack Engine with BMAD Builder.
 
-#### Story 6.1: Pack Schema and Validation
+#### Story 6.1: BMAD Builder Module Structure Setup
 
 **As a** developer,  
-**I want** strict schema validation for packs,  
-**so that** invalid configurations are caught early.
+**I want** the `.tm-core/` system structured as a BMAD Builder-compliant module,  
+**so that** all agents and skills follow a standardized, extensible format.
 
 **Acceptance Criteria:**
 
-1. Zod schema defined for pack structure
-2. `PackValidationService` with `validate()` method
-3. Validates: schema compliance, variable references, output paths, command conflicts
-4. Clear error messages with line numbers
-5. Unit tests cover valid and invalid scenarios
+1. `.tm-core/` directory organized per BMAD module specification:
+   - `agents/` — BMAD agent definition files
+   - `skills/` — BMAD SKILL.md workflow files
+   - `tasks/` — Task definition files
+   - `templates/` — Output templates
+   - `core-config.yaml` — Module configuration
+2. Module structure validated against BMAD Builder spec
+3. `tmr init` generates this structure in the workspace
+4. Unit tests verify directory creation and file presence
 
-#### Story 6.2: Pack Loader and Command Resolution
+#### Story 6.2: `process-meeting-note` BMAD Skill
 
-**As a** developer,  
-**I want** packs loaded efficiently,  
-**so that** agents have access to commands.
+**As a** manager,  
+**I want** Granola-synced meeting notes intelligently routed to the correct folders,  
+**so that** my workspace organizes itself from my meeting transcripts.
 
 **Acceptance Criteria:**
 
-1. `PackLoaderService` with methods: `loadPack()`, `loadExtensions()`, `resolveCommand()`
-2. Loads base-pack.yaml during initialization
-3. Supports extension packs (community packs)
-4. Command override logic (extensions override base)
-5. Caching for performance
-6. Unit tests cover loading and resolution
+1. `process-meeting-note.md` SKILL.md file created in `.tm-core/skills/`
+2. Skill parses Granola frontmatter: `granola_id`, `attendees`, `date`, `title`, `type`
+3. Identifies all email addresses in attendees and content
+4. Generates `[[@email@domain.com]]` wiki-links for all identified persons
+5. Determines destination category: 1:1, team meeting, leadership sync, hiring interview, company all-hands, etc.
+6. Distributes content updates across all affected entity context files
+7. Creates or updates `{email}.md` identity file for any new email encountered
+8. Integration test with sample Granola-format notes
 
 #### Story 6.3: Template Engine with Variable Injection
 
 **As a** developer,  
-**I want** to inject variables into prompts,  
+**I want** to inject variables into agent prompts and templates,  
 **so that** commands are context-aware.
 
 **Acceptance Criteria:**
@@ -1510,23 +1551,27 @@ development_areas: [Executive communication, Scaling teams]
 6. Files created during `tmr init`
 7. Integration test validates file structure
 
-#### Story 6.6: base-pack.yaml Design and Implementation
+#### Story 6.6: BMAD Core Module — Base Skills and Tasks
 
 **As a** product manager,  
-**I want** a comprehensive base pack,  
-**so that** users get immediate value.
+**I want** a comprehensive set of base BMAD skills and tasks,  
+**so that** users get immediate value out of the box.
 
 **Acceptance Criteria:**
 
-1. `base-pack.yaml` created with all commands:
-   - Process commands (categorize, process-inbox, update-tasks)
-   - People commands (1on1-prepare, feedback, pdp-generate, pip-create, review-generate)
-   - Project commands (status-report, risk-assessment, health-check)
-   - Career commands (pdp-generate, brag-summarize, self-review)
-   - Hiring commands (candidate-review, job-description)
-2. Each command has: well-crafted prompts, appropriate temperature, clear outputs
-3. Validation passes
+1. All core skills created in `.tm-core/skills/`:
+   - `process-meeting-note.md` — Granola note routing (see Story 6.2)
+   - `cycle-workflow.md` — Full inbox processing workflow
+   - `collect-profile.md` — Team member profile collection
+   - `onboarding-manager.md` — Leader onboarding workflow
+   - `archive-workflow.md` — Archive/fire member workflow
+2. All core tasks created in `.tm-core/tasks/`:
+   - `prepare-1on1.md`, `generate-feedback.md`, `create-pip.md`, `generate-pdp.md`
+   - `project-status-report.md`, `project-risk-assessment.md`
+   - `candidate-review.md`, `update-tasks-context.md`, `categorize-note.md`
+3. All skills/tasks follow BMAD module specification format
 4. Generated during `tmr init`
+5. Integration test validates all skill/task files are present and parseable
 
 ---
 
@@ -1559,11 +1604,12 @@ development_areas: [Executive communication, Scaling teams]
 
 1. README.md with: quick start, command reference, architecture overview
 2. User guide with workflow examples
-3. Agent development guide
-4. Pack development guide
+3. Agent development guide (BMAD Builder module authoring)
+4. Skill development guide (SKILL.md format, process-meeting-note as reference example)
 5. SECURITY.md with API key best practices
 6. CHANGELOG.md
 7. Examples directory with sample workflows
+8. `docs/setup/obsidian-granola.md` — Obsidian vault setup + Granola Sync plugin installation and configuration guide (FR41)
 
 #### Story 7.3: Performance Optimization
 
@@ -1662,13 +1708,13 @@ development_areas: [Executive communication, Scaling teams]
 - Company relationships tracking
 - Knowledge base with binary file support
 
-**Phase 7: Agent System & SKILL.md (Week 12)**
+**Phase 7: Agent System & BMAD Builder (Week 12)**
 - Epic 6 complete
-- Pack engine functional
-- All tmr-* agents defined with new branding
+- BMAD Builder module structure in place
+- `process-meeting-note` skill authored and tested with sample Granola notes
+- All tmr-* agents defined as BMAD-compliant modules
 - IDE integration files generated for all platforms (including GitHub Copilot)
-- SKILL.md-based PDP with role references
-- base-pack.yaml validated with TMR branding
+- All core BMAD skills and tasks in `.tm-core/` validated
 
 **Phase 8: Polish & Ship (Weeks 13-14)**
 - Epic 7 complete
@@ -1683,7 +1729,7 @@ development_areas: [Executive communication, Scaling teams]
 **MVP Success Criteria:**
 
 1. **Functional Completeness:**
-   - All FR1-FR40+ implemented and tested (with updates and new features)
+   - All FR1-FR42 implemented and tested (with updates and new features)
    - All tmr-* agents functional in Cursor (primary) plus Claude/Gemini/GitHub Copilot
    - Process command handles 10+ different transcript types accurately with multi-level routing
 
