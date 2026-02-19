@@ -47,6 +47,8 @@ Tech Leadership OS solves this by:
 
 | Date | Version | Description | Author |
 |------|---------|-------------|---------|
+| 2026-02-19 | 4.3 | Obsidian Terminal plugin added as official in-vault CLI tool; Obsidian promoted to primary daily workspace; setup guide expanded and renamed to `obsidian-setup.md`; FR41, tech stack, folder structure, and UX vision updated | Marlon (PO) |
+| 2026-02-19 | 4.2 | Brainstorm-to-spec: routing decision table, confidence-gated routing, single-pass AI manifest, append-only context strategy, archive-after-process flow, standard file header format, folder philosophy principle, optional process log flag — captured in FR4, FR42, Story 6.2 | Mary (Analyst) + Marlon (PO) |
 | 2026-02-19 | 4.1 | Course correction: BMAD Builder as core agent engine, Granola+Obsidian as official transcript stack, email-as-identity formalized, dedicated meeting processing skill added (FR41, FR42), FR38-FR40 replaced | John (PM) + Marlon (PO) |
 | 2026-02-10 | 4.0 | Strategic refinement: Tech Leadership OS rebrand, tmr-* agents, multi-team support, enhanced extensibility | John (PM) + Marlon (Product Owner) |
 | 2026-02-08 | 3.0 | Complete architecture redesign: Agent-based system, expanded to manager's career + operations | Mary (Analyst) + John (PM) |
@@ -83,6 +85,11 @@ Tech Leadership OS solves this by:
 - Parses Granola-synced frontmatter (`granola_id`, `title`, `date`, `attendees`, `type`) as primary routing signals when processing files from `inbox/`
 - Converts all detected email addresses in file content and frontmatter to `[[@email@domain.com]]` Obsidian wiki-link notation before filing
 - Delegates complex meeting note routing to the `process-meeting-note` BMAD skill (see FR42)
+- **Confidence-gated routing:** When routing confidence falls below threshold, pauses processing for that file, presents the proposed destination with a rationale, and awaits user confirmation before writing any files. High-confidence decisions proceed automatically and are shown in the processing summary with their rationale so the user can build trust in the logic over time
+- **Single-pass AI execution:** For each transcript, performs one AI call that ingests only the transcript and lightweight identity context (frontmatter-only from matching profile files — never full context files). The AI produces a structured change manifest (primary file + appends + task extracts) which the CLI then applies atomically. This keeps token cost O(1) per transcript regardless of how large context files have grown
+- **Append-only context updates:** Secondary context files (e.g., `context.md`) are updated by appending a dated, self-contained excerpt block at the end of the file. The AI never needs to read existing context content to generate an append entry. Users decide when to clean up old entries; the system does not auto-summarize or truncate context files
+- **Archive after processing:** Once a transcript is fully processed, the original file is moved from `inbox/` to `archive/{year}/{month}/inbox/{original-filename}.md` with `processed: true` and `routed_to: [...]` appended to its frontmatter. This preserves the original for user auditing and enables future re-processing by moving the file back to `inbox/`
+- **Optional process log:** When the `process_log` config flag is enabled (default: `false`), each `tmr process` run appends a structured entry to `my-tasks/process-log.md` recording every file processed, its routing destination, confidence level, and whether user approval was required
 
 **FR5:** The system shall provide a `tmr watch` command that monitors the `inbox/` directory and automatically runs `tmr process` when new files are detected.
 
@@ -250,23 +257,78 @@ The system's agent and skill extensibility layer shall be built on the BMAD Buil
 
 **FR40:** *(Superseded — base-pack.yaml replaced by BMAD Builder module structure)*
 
-**FR41: Obsidian Vault & Granola Integration Setup**
-The system shall provide a setup guide (`docs/setup/obsidian-granola.md`) covering:
+**FR41: Obsidian Vault & Plugin Setup**
+The system shall provide a setup guide (`docs/setup/obsidian-setup.md`) covering:
 1. Installing Obsidian and opening the workspace folder as the Obsidian vault
-2. Manually installing the `obsidian-granola-plugin` ([philfreo/obsidian-granola-plugin](https://github.com/philfreo/obsidian-granola-plugin))
-3. Configuring plugin settings: Base Folder → Custom Folder → `inbox`; Filename Pattern → `{date}-{title}`; Sync Notes → enabled
+2. Manually installing the `obsidian-granola-plugin` ([philfreo/obsidian-granola-plugin](https://github.com/philfreo/obsidian-granola-plugin)) for meeting note ingestion
+3. Configuring Granola plugin settings: Base Folder → Custom Folder → `inbox`; Filename Pattern → `{date}-{title}`; Sync Notes → enabled
 4. Expected Granola note format (frontmatter fields) and how it integrates with `tmr process`
-5. Verification steps to confirm notes are landing in `inbox/` correctly
+5. Installing the **Obsidian Terminal** plugin ([polyipseity/obsidian-terminal](https://github.com/polyipseity/obsidian-terminal)) to enable running `tmr` CLI commands directly from within Obsidian — eliminating the need to switch to an external IDE or terminal for data operations
+6. Configuring Obsidian Terminal: setting the default shell profile, opening a terminal panel via the ribbon or command palette, and running `tmr process`, `tmr today`, etc. from inside Obsidian
+7. Verification steps to confirm: Granola notes landing in `inbox/`, terminal plugin running `tmr` commands successfully
+8. Recommended Obsidian panel layout: vault file tree on the left, active note in the center, terminal panel at the bottom — enabling a complete "capture → process → review" workflow without leaving Obsidian
 
 **FR42: Dedicated Meeting Note Processing Skill**
 The system shall provide a `process-meeting-note` BMAD skill that handles the complex routing of Granola-synced notes from `inbox/`. The skill shall:
 - Parse Granola frontmatter metadata (`granola_id`, `attendees`, `date`, `title`, `type`) as primary routing signals
 - Identify all email addresses in the attendees list and file content
 - Generate `[[@email@domain.com]]` Obsidian wiki-links for all identified persons, ensuring Obsidian graph view links resolve to the `{email}.md` identity file in the corresponding `{email}/` folder
-- Determine the correct destination category (1:1, team meeting, leadership sync, hiring interview, company all-hands, etc.) based on attendees and content analysis
+- Determine the correct destination category based on attendees and content analysis, following this priority order: (1) Granola `type` field if set, (2) attendee pattern matching, (3) content keyword analysis
 - Extract key insights per attendee and distribute content updates to all relevant context files
 - Handle multi-attendee meetings by routing insights to all affected entity folders
 - Create or update the `{email}.md` identity file for any new email address encountered
+
+**Routing Decision Table (attendee pattern → primary destination):**
+
+| Meeting Type | Attendee Pattern | Primary Destination | Secondary Appends |
+|---|---|---|---|
+| 1:1 with direct report | Leader + 1 team member | `my-teams/{team}/{email}/1on1s/{date}.md` | `{email}/context.md` |
+| Team meeting | Leader + 2+ same-team members | `my-teams/{team}/meetings/{date}-{title}.md` | Each member's `context.md` |
+| Leadership sync | Leader + their manager | `my-leadership/{manager-email}/alignments/{date}.md` | `my-career/` note |
+| Project meeting | Leader + mixed project stakeholders | `my-projects/{project}/meetings/{date}-{title}.md` | `{project}/context.md`, each attendee's `context.md` |
+| Hiring interview | Leader + candidate (+ interviewers) | `operations/hiring/{role}/candidates/{name}/interview-{date}.md` | Candidate notes |
+| All-hands / company-wide | 10+ attendees or no team/project match | `my-company/meetings/{date}-{title}.md` | Mentioned projects/people |
+| Cross-functional / stakeholder | Mixed teams + external | `my-projects/{project}/meetings/` if project identified, else `my-company/meetings/` | Multiple contexts |
+| Skip-level | Leader + manager's manager | `my-leadership/{email}/alignments/{date}.md` | `my-career/` |
+| Incident review | Leader + team + others, incident keywords | `my-projects/{project}/incidents/{date}-{title}.md` | `{project}/context.md` |
+| Unknown person (no match) | Person not in vault | Auto-create `my-company/relationships/{email}/` | Identity file + first context entry |
+
+**Sharding principle — One Primary, Many References:**
+Every transcript has exactly one canonical primary file. All secondary updates are append-only excerpts that link back to the primary via `[[]]` notation. The primary note links outward to all attendees and related entities. This creates a bi-directional Obsidian graph without duplicating content.
+
+**Standard file header for generated meeting notes:**
+Every primary meeting note file shall open with a frontmatter block and a `> Connections:` callout line:
+```markdown
+---
+granola_id: {id}
+title: {title}
+date: {date}
+type: {resolved-type}
+project: "[[{project}]]"           # if applicable
+attendees:
+  - "[[@email@domain.com]]"
+source: "[[archive/{year}/{month}/inbox/{original-filename}]]"
+processed: true
+---
+
+# {title}
+
+> **Connections:** [[{project}]] · [[@attendee1]] · [[@attendee2]]
+> **Source transcript:** [[archive/{year}/{month}/inbox/{original-filename}]]
+```
+
+**Standard append entry for secondary context files:**
+```markdown
+## {date} — {meeting-title}
+
+*Source: [[{primary-file-path}]]*
+
+{per-person excerpt with key decisions, action items, and observations}
+**Action items:** [[my-tasks/this-week]] (if any)
+```
+
+**Folder philosophy (critical for routing decisions):**
+`my-teams/{team}/{member}/` is a *people and career folder* — it stores 1:1s, PDPs, feedback, and reviews. When a team member attends a project meeting or cross-functional meeting, the meeting note lives under `my-projects/` or `my-company/`, and the team member is referenced via `[[@email]]`. Their `context.md` receives an appended excerpt linking back to the primary note. The processing summary shall explicitly communicate this categorization logic to the user so the routing rationale is transparent.
 
 ### Non-Functional Requirements
 
@@ -310,15 +372,17 @@ Tech Leadership OS embraces a **hybrid workflow**: lightweight CLI for data capt
 
 The system should feel like a **natural extension of how leaders already work**: meetings generate transcripts, transcripts go into a folder, the system organizes everything and makes it retrievable when needed.
 
+**Obsidian is the primary daily workspace.** With the Obsidian Terminal plugin installed, leaders can run `tmr process`, `tmr today`, and all other CLI commands directly from a terminal panel inside Obsidian — no context switching to an external IDE required. The recommended layout (file tree + active note + terminal panel) creates a single-window environment for the complete capture → process → review loop. Using an external IDE (Cursor, Claude Code, Gemini CLI) remains fully supported for AI agent operations and is the recommended path for intelligence-heavy tasks like 1:1 prep, performance reviews, and project reports.
+
 ### Key Interaction Paradigms
 
-**CLI Commands (Data Operations):**
+**CLI Commands (Data Operations) — run from Obsidian Terminal or any shell:**
 - **Instant capture**: No friction between thought and storage
 - **Clear organization**: Predictable file structure, easy to navigate
 - **Informative feedback**: Show what happened, what changed, what needs attention
 - **Time-based views**: `today`, `this-week`, `this-month`, `this-quarter` for temporal context
 
-**IDE Agents (Intelligence Operations):**
+**IDE Agents (Intelligence Operations) — Cursor, Claude Code, Gemini CLI, GitHub Copilot:**
 - **Natural language**: Invoke agents like talking to a colleague (`@tmr-people *1on1-prepare sarah`)
 - **Context-aware**: Agents automatically load relevant files
 - **Draft generation**: AI produces human-quality drafts for manager to review/edit
@@ -642,8 +706,9 @@ Shown during `tmr init` and with `tmr --version`.
 
 **Agent Framework:**
 - **BMAD Builder** — Agent/skill/workflow definition and extensibility framework
-- **Obsidian** — Local-first vault interface (user-installed; workspace IS the vault)
+- **Obsidian** — Local-first vault interface and primary daily workspace (user-installed; workspace IS the vault)
 - **Granola Sync Plugin** (`obsidian-granola-plugin`) — Meeting note ingestion into `inbox/` (user-installed)
+- **Obsidian Terminal Plugin** (`obsidian-terminal`) — Integrated terminal inside Obsidian for running `tmr` CLI commands without switching to an external IDE (user-installed; [polyipseity/obsidian-terminal](https://github.com/polyipseity/obsidian-terminal))
 
 **AI SDKs:**
 - `openai` - OpenAI API
@@ -686,7 +751,8 @@ Shown during `tmr init` and with `tmr --version`.
 tech-leadership-workspace/              # ← This folder IS the Obsidian vault root
 ├── .obsidian/                          # Obsidian vault config (auto-created by Obsidian)
 │   └── plugins/
-│       └── obsidian-granola-plugin/    # Granola Sync plugin (user-installed)
+│       ├── obsidian-granola-plugin/    # Granola Sync plugin — meeting note ingestion (user-installed)
+│       └── terminal/                  # Obsidian Terminal — run tmr CLI commands inside Obsidian (user-installed)
 ├── .tm-core/                           # Core agent system (BMAD Builder module)
 │   ├── agents/                         # Agent definitions
 │   │   ├── cycle-agent.md
@@ -847,9 +913,13 @@ tech-leadership-workspace/              # ← This folder IS the Obsidian vault 
 │   └── leader-profile-prompt.md
 └── archive/
     └── {year}/
-        └── {quarter}/
-            └── [unprocessed notes]
+        └── {month}/
+            └── inbox/
+                └── {date}-{title}.md   # Processed originals (frontmatter: processed: true, routed_to: [...])
 ```
+
+> **Folder Philosophy — People vs. Work:**
+> `my-teams/{team}/{member}/` is a *people and career folder*: it stores 1:1s, PDPs, feedback, and reviews. Meeting notes from project or cross-functional meetings are never stored in a member's personal folder — they live under `my-projects/` or `my-company/`. The member is referenced via `[[@email]]` in those notes, and their `context.md` receives an appended excerpt linking back to the primary meeting file. This separation keeps people context focused on growth and relationships, and project/company context focused on work. The processing summary always communicates this routing decision explicitly.
 
 ### Frontmatter Schema Examples
 
@@ -1496,10 +1566,17 @@ development_areas: [Executive communication, Scaling teams]
 2. Skill parses Granola frontmatter: `granola_id`, `attendees`, `date`, `title`, `type`
 3. Identifies all email addresses in attendees and content
 4. Generates `[[@email@domain.com]]` wiki-links for all identified persons
-5. Determines destination category: 1:1, team meeting, leadership sync, hiring interview, company all-hands, etc.
-6. Distributes content updates across all affected entity context files
-7. Creates or updates `{email}.md` identity file for any new email encountered
-8. Integration test with sample Granola-format notes
+5. Determines destination category using priority order: Granola `type` field → attendee pattern → content keywords (see FR42 Routing Decision Table)
+6. **Confidence-gated routing:** When confidence is below threshold, presents proposed destination + rationale to user and awaits confirmation before any file is written; high-confidence decisions are applied automatically and shown in the processing summary with rationale
+7. **Single-pass manifest:** Produces one AI call per transcript yielding a structured change manifest `{ primary, appends[], task_extracts }` — only the transcript and profile frontmatter (not full context files) are loaded as AI input; the CLI code applies all writes atomically after the AI call completes
+8. **Append-only context updates:** Secondary `context.md` files receive a dated excerpt block appended at the end of the file; the AI does not read existing context file content; users manage cleanup manually
+9. Distributes content updates across all affected entity context files using the standard append entry format (see FR42)
+10. Creates or updates `{email}.md` identity file for any new email encountered; unknown persons with no team/project match are auto-created in `my-company/relationships/{email}/`
+11. Generated primary meeting note files include standard frontmatter + `> Connections:` callout (see FR42 header format)
+12. **Archive original:** After processing, moves the inbox file to `archive/{year}/{month}/inbox/{original-filename}.md` with `processed: true` and `routed_to: [...]` added to frontmatter
+13. **Folder philosophy communicated:** Processing summary explicitly states when a team member's meeting note is filed under `my-projects/` or `my-company/` (not their personal folder), so routing rationale is transparent to the user
+14. **Optional process log:** When `process_log: true` is set in config, appends a structured run entry to `my-tasks/process-log.md`; default is `false`
+15. Integration tests with sample Granola-format notes covering: simple 1:1, team meeting, project meeting with external attendees, and unknown-person scenario
 
 #### Story 6.3: Template Engine with Variable Injection
 
@@ -1609,7 +1686,7 @@ development_areas: [Executive communication, Scaling teams]
 5. SECURITY.md with API key best practices
 6. CHANGELOG.md
 7. Examples directory with sample workflows
-8. `docs/setup/obsidian-granola.md` — Obsidian vault setup + Granola Sync plugin installation and configuration guide (FR41)
+8. `docs/setup/obsidian-setup.md` — Obsidian vault setup, Granola Sync plugin installation, and Obsidian Terminal plugin installation and configuration guide (FR41)
 
 #### Story 7.3: Performance Optimization
 
