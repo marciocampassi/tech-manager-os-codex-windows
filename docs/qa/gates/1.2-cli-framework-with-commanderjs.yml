@@ -1,0 +1,136 @@
+story: "1.2 — CLI Framework with Commander.js"
+reviewed_by: "Quinn (QA Agent)"
+review_date: "2026-02-23"
+gate_decision: PASS
+
+# ─── Validation Suite ──────────────────────────────────────────────────────
+validation:
+  lint:    PASS   # eslint src — 0 warnings, 0 errors
+  tests:   PASS   # 13/13 (QA added 1 test for AC4 coverage gap)
+  build:   PASS   # dist/cli.js 2.14KB, dist/cli.d.ts 320B
+  typecheck: PASS # tsc --noEmit clean
+
+# ─── Requirements Traceability ─────────────────────────────────────────────
+acceptance_criteria:
+  AC1:
+    desc: "Commander.js integrated in src/cli.ts"
+    status: PASS
+    evidence: "commander@14.0.3 in dependencies; Command imported and used"
+
+  AC2:
+    desc: "tm --help displays description, version, command list"
+    status: PASS
+    evidence: "e2e verified; program identity tests pass; help text includes all 3 commands"
+
+  AC3:
+    desc: "tm --version displays 1.0.0"
+    status: PASS
+    evidence: "version is 1.0.0 test + --version exitOverride test"
+
+  AC4:
+    desc: "tm with no args shows help"
+    status: PASS
+    evidence: |
+      e2e verified (argv.length <= 2 guard in run()); 
+      QA added unit test: 'no-args shows help output (AC4)'
+
+  AC5:
+    desc: "Unknown commands show error with suggestion to run tm --help"
+    status: PASS
+    evidence: "command:* handler; stderr test verifies message contains 'Unknown command' + 'foobar'"
+
+  AC6:
+    desc: "Global flags --verbose, --plain, --json registered and parsed"
+    status: PASS
+    evidence: "3 flag parse tests; GlobalOptions interface exported"
+
+  AC7:
+    desc: "Error handling — no raw stack traces to end user"
+    status: PASS
+    evidence: |
+      try/catch in run(); stack only shown when --verbose; 
+      CommanderError re-thrown for exitOverride compatibility
+
+# ─── Issues Found ──────────────────────────────────────────────────────────
+issues:
+  - id: "QA-1.2-01"
+    severity: MINOR
+    title: "Test stdout leak — global flags tests wrote to real stdout"
+    status: FIXED
+    description: |
+      Global flags tests executed init stub actions without mocking stdout,
+      causing 3x 'coming soon' messages + full help + version to print during
+      test run. Cosmetic but indicates incomplete test isolation.
+    fix: "Added jest.spyOn(process.stdout, 'write').mockImplementation() to all 5 tests that trigger output."
+
+  - id: "QA-1.2-02"
+    severity: MINOR
+    title: "AC4 had no unit test — only e2e verified"
+    status: FIXED
+    description: |
+      'tm with no args shows help' was validated manually (e2e) but had no
+      automated unit coverage. Any regression in the argv.length guard
+      would be silent.
+    fix: "Added 'no-args shows help output (AC4)' test to 'CLI — --help and --version' describe block."
+
+  - id: "QA-1.2-03"
+    severity: CONCERNS
+    title: "run() is hardwired to module-level program singleton"
+    status: OPEN — DEFERRED
+    description: |
+      createProgram() was introduced to enable fresh instances per test.
+      However, run() references the exported singleton `program`, not a
+      factory-generated instance. This means:
+        1. run() cannot be unit tested with the same isolation pattern
+        2. If run() is called twice, it reuses a stateful program instance
+      The JEST_WORKER_ID guard prevents the issue in practice, but the
+      design is inconsistent.
+    recommendation: |
+      In Story 1.6+ (when commands are real), refactor run() to accept
+      an optional Command instance: run(argv?, p = program). This allows
+      unit tests to inject a fresh program without the singleton.
+    deferred_to: "Story 1.6 (command implementations)"
+
+  - id: "QA-1.2-04"
+    severity: CONCERNS
+    title: "JEST_WORKER_ID guard couples production code to test infrastructure"
+    status: OPEN — ACCEPTED
+    description: |
+      Using process.env.JEST_WORKER_ID to skip module-level execution is
+      a common pattern but creates an implicit coupling between src/cli.ts
+      and the Jest runtime. If the test runner changes (e.g., Vitest uses
+      VITEST env var), this guard silently breaks.
+    recommendation: |
+      Document this assumption in a code comment or migrate to an
+      import.meta.url !== process.argv[1] guard when tsup/Node ESM
+      support matures. Acceptable risk for this stage.
+    accepted_risk: true
+
+# ─── NFR Validation ────────────────────────────────────────────────────────
+nfr_validation:
+  performance:
+    startup_target: "<100ms"
+    actual: "~2ms Commander overhead per Dev notes"
+    status: PASS
+
+  security:
+    no_secrets: true
+    no_auth_surface: true
+    status: PASS
+
+  reliability:
+    test_coverage_decision_points: PASS
+    known_fragility: "JEST_WORKER_ID guard (QA-1.2-04) — accepted"
+
+  maintainability:
+    factory_pattern: PASS
+    globalOptions_exported: PASS
+    run_singleton_coupling: CONCERNS  # QA-1.2-03
+
+# ─── Files Changed by QA ───────────────────────────────────────────────────
+qa_changes:
+  - file: "tests/cli.test.ts"
+    change: |
+      - Added stdout spy to 5 tests that trigger command output (global flags + help/version)
+      - Added 'no-args shows help output (AC4)' test
+      - Total tests: 12 → 13

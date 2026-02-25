@@ -6,40 +6,43 @@
 
 <!-- Use @dev *explain output as a starting point — 1-2 sentences is fine -->
 
+## Type of change
+
+- [ ] New feature
+- [ ] Bug fix
+- [ ] Refactor / tech debt
+- [ ] Chore / tooling
+
+**Breaking change?** No / Yes — _(describe impact if yes)_
+
 ---
 
 ## Pre-PR Checklist
 
 ### BMAD Process
-- [ ] `@sm *draft {N.N}` — story drafted and reviewed
-- [ ] Story status set to `Approved` before dev started
-- [ ] `@dev *develop-story {N.N}` — all task checkboxes are `[x]`
-- [ ] Dev Agent Record complete (Model, Completion Notes, File List)
-- [ ] `@qa *review {N.N}` — QA gate is **PASS**
-- [ ] `@dev *review-qa {N.N}` — QA fixes applied (if gate was CONCERNS/FAIL)
-- [ ] QA re-reviewed and gate confirmed **PASS** (if fixes were needed)
-- [ ] Story status set to `Done`
+- [ ] Story drafted (`@sm *draft`) and status set to `Approved` before dev started
+- [ ] `@dev *develop-story {N.N}` — all task checkboxes `[x]`, Dev Agent Record complete
+- [ ] `@qa *review {N.N}` — gate is **PASS** (re-reviewed if fixes were needed)
+- [ ] `@dev *review-qa {N.N}` — QA fixes applied and story status set to `Done`
 
-### Code
-- [ ] `npm run lint` → 0 errors
-- [ ] `npm test` → all green
-- [ ] `npm run build` → clean
-- [ ] `npx tsc --noEmit` → 0 type errors
+### Code & quality
+- [ ] `npm run validate` passes (lint + typecheck + tests + build)
 - [ ] No `console.log` or debug code left in `src/`
 - [ ] No secrets / API keys hardcoded
 
 ### Git hygiene
-- [ ] Branch name: `story/{N.N}-{slug}` (e.g. `story/1.2-cli-framework`)
-- [ ] `dist/` not committed
-- [ ] `node_modules/` not committed
-- [ ] Story file List matches files actually changed in this PR
+- [ ] Branch: `story/{N.N}-{slug}` (e.g. `story/1.2-cli-framework`)
+- [ ] `dist/` and `node_modules/` not committed
+- [ ] Story File List matches files changed in this PR
 
 ---
 
 ## Test output
 
 ```
-npm run lint   →
-npm test       →
-npm run build  →
+npm run validate →
 ```
+
+## Notes for reviewer
+
+<!-- Anything that needs context, trade-offs made, or follow-up items for next stories -->
