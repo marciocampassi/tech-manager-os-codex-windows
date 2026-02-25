@@ -1,0 +1,140 @@
+story: "1.3 — Configuration Service with Encrypted Storage"
+reviewed_by: "Quinn (QA Agent)"
+review_date: "2026-02-23"
+gate_decision: PASS
+
+# ─── Validation Suite ──────────────────────────────────────────────────────
+validation:
+  lint:      PASS   # eslint src — 0 warnings, 0 errors
+  typecheck: PASS   # tsc --noEmit clean
+  tests:     PASS   # 32/32 (QA added 4 tests: apiKey round-trip, initialize spy, 3x getRedacted)
+  build:     PASS   # dist/cli.js 2.14KB (ConfigService tree-shaken — not in CLI bundle yet)
+
+# ─── Requirements Traceability ─────────────────────────────────────────────
+acceptance_criteria:
+  AC1:
+    desc: "ConfigService class with initialize, set, get, has, delete"
+    status: PASS
+    evidence: "All 5 methods implemented; QA also added getRedacted() for AC4 wiring"
+
+  AC2:
+    desc: "Uses conf library with encryption in OS-specific locations"
+    status: PASS
+    evidence: "conf@15.1.0; encryptionKey: 'tm-config-v1' (AES-256-CBC); projectName routes to OS-correct dir"
+
+  AC3:
+    desc: "Config schema defined with TypeScript interface"
+    status: PASS
+    evidence: "AppConfig interface + CONFIG_KEYS + ENV_MAP in src/types/config.types.ts"
+
+  AC4:
+    desc: "API keys never logged (redaction in place)"
+    status: PASS
+    evidence: |
+      QA finding: redact() existed but was not imported/used in ConfigService.
+      Fixed: added getRedacted(key) method to ConfigService; imports and delegates to redact().
+      3 tests added covering masked output, (not set) case, and env var masking.
+
+  AC5:
+    desc: "Environment variable support: TM_PROVIDER, TM_API_KEY"
+    status: PASS
+    evidence: "get() and has() both check env vars first; ENV_MAP documents the mapping; afterEach cleanup in tests"
+
+  AC6:
+    desc: "Unit tests cover storage/retrieval, environment precedence"
+    status: PASS
+    evidence: "32/32 total; 5 storage tests + 4 env precedence tests + 1 initialize + 3 getRedacted + 5 redact unit tests"
+
+# ─── Issues Found ──────────────────────────────────────────────────────────
+issues:
+  - id: "QA-1.3-01"
+    severity: MINOR
+    title: "redact() utility defined but not wired into ConfigService"
+    status: FIXED
+    description: |
+      AC4 requires 'redaction in place'. redact() was in src/utils/redact.ts
+      but config.service.ts had no import of it — no active enforcement that
+      future logging paths would use it.
+    fix: |
+      Added getRedacted(key): string method to ConfigService. Imports redact()
+      and delegates all value masking through it. Future command code uses
+      getRedacted() whenever displaying config values in CLI output.
+
+  - id: "QA-1.3-02"
+    severity: MINOR
+    title: "initialize() test only verified no-throw, not dotenv.config invocation"
+    status: FIXED
+    description: |
+      The test 'initialize() can be called without throwing' gives no confidence
+      that dotenv.config() is actually called — the test would pass even if
+      initialize() was an empty function.
+    fix: |
+      Replaced with 'initialize() calls dotenv.config()' using:
+      expect(dotenv.config).toHaveBeenCalled() against the mocked dotenv module.
+
+  - id: "QA-1.3-03"
+    severity: MINOR
+    title: "apiKey had no round-trip storage test"
+    status: FIXED
+    description: |
+      Only 'provider' had an explicit set→get round-trip test. 'apiKey' only
+      appeared in the delete test and env-precedence tests — its basic storage
+      path was not independently verified.
+    fix: "Added 'set + get round-trip returns the stored value for apiKey' test."
+
+  - id: "QA-1.3-04"
+    severity: CONCERNS
+    title: "Module-level configService singleton — same pattern as QA-1.2-03"
+    status: OPEN — DEFERRED
+    description: |
+      configService is exported as a module-level singleton (new ConfigService()
+      at import time). This is consistent with Story 1.2's program singleton.
+      In tests it's safe because conf is mocked before import. But tests use
+      fresh new ConfigService() instances — the singleton itself is never tested.
+    recommendation: "Same resolution as QA-1.2-03: addressed when wired in Story 1.6."
+    deferred_to: "Story 1.6"
+
+  - id: "QA-1.3-05"
+    severity: MINOR
+    title: "Redundant type cast in set()"
+    status: OPEN — ACCEPTED
+    description: |
+      this.store.set(key, value as AppConfig[K]) — the cast is unnecessary
+      since value is already typed as AppConfig[K] by the generic constraint.
+      Cosmetic only; TypeScript still compiles cleanly.
+    accepted_risk: true
+
+# ─── NFR Validation ────────────────────────────────────────────────────────
+nfr_validation:
+  security:
+    api_key_redaction: PASS    # getRedacted() enforces masking
+    no_plaintext_logging: PASS # ConfigService has no logging paths today
+    encryption_at_rest: PASS   # AES-256-CBC via conf encryptionKey
+    no_hardcoded_secrets: PASS # encryptionKey is obfuscation key (intentional, documented in story)
+
+  performance:
+    startup_impact: PASS       # ConfigService not in CLI startup path yet (cli.ts unchanged)
+    conf_overhead: PASS        # File I/O only on set/get calls, not at parse time
+
+  reliability:
+    test_isolation: PASS       # Fresh Map per Conf instance; env var cleanup in afterEach
+    no_real_io_in_tests: PASS  # conf and dotenv both mocked; no OS config dir writes
+
+  maintainability:
+    env_map_centralized: PASS  # ENV_MAP in config.types.ts — single source of truth for TM_* vars
+    config_keys_exported: PASS # CONFIG_KEYS enables future iteration without hardcoding
+
+# ─── Files Changed by QA ───────────────────────────────────────────────────
+qa_changes:
+  - file: "src/services/config.service.ts"
+    change: |
+      - Added: import { redact } from '../utils/redact.js'
+      - Added: getRedacted(key) method — satisfies AC4 by actively wiring redact()
+
+  - file: "tests/services/config.service.test.ts"
+    change: |
+      - Added: dynamic import of mocked dotenv for spy assertion
+      - Added: 'set + get round-trip returns the stored value for apiKey' test
+      - Replaced: weak initialize no-throw test with dotenv.config spy assertion
+      - Added: 3 getRedacted() tests (masked value, not-set, env var masking)
+      - Total tests: 10 → 14 in this file (32 total across suite)

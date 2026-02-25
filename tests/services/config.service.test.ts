@@ -1,0 +1,120 @@
+import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
+
+// Must mock before dynamic import so the module loads with the mock in place
+jest.unstable_mockModule('conf', () => ({
+  default: jest.fn().mockImplementation(() => {
+    // Fresh Map per Conf instance — each new ConfigService() gets isolated state
+    const store = new Map<string, unknown>();
+    return {
+      get: (key: string) => store.get(key),
+      set: (key: string, value: unknown) => {
+        store.set(key, value);
+      },
+      has: (key: string) => store.has(key),
+      delete: (key: string) => {
+        store.delete(key);
+      },
+    };
+  }),
+}));
+
+jest.unstable_mockModule('dotenv', () => ({
+  default: { config: jest.fn() },
+}));
+
+const { ConfigService } = await import('../../src/services/config.service.js');
+const { default: dotenv } = await import('dotenv');
+
+let service: InstanceType<typeof ConfigService>;
+
+beforeEach(() => {
+  service = new ConfigService();
+});
+
+afterEach(() => {
+  delete process.env['TM_PROVIDER'];
+  delete process.env['TM_API_KEY'];
+});
+
+describe('ConfigService — storage (AC: 1, 3)', () => {
+  it('set + get round-trip returns the stored value for provider', () => {
+    service.set('provider', 'openai');
+    expect(service.get('provider')).toBe('openai');
+  });
+
+  it('set + get round-trip returns the stored value for apiKey', () => {
+    service.set('apiKey', 'sk-test-abcd-1234');
+    expect(service.get('apiKey')).toBe('sk-test-abcd-1234');
+  });
+
+  it('get returns undefined for a key that was never set', () => {
+    expect(service.get('provider')).toBeUndefined();
+  });
+
+  it('has returns false before set', () => {
+    expect(service.has('provider')).toBe(false);
+  });
+
+  it('has returns true after set', () => {
+    service.set('provider', 'anthropic');
+    expect(service.has('provider')).toBe(true);
+  });
+
+  it('delete removes the stored value', () => {
+    service.set('apiKey', 'sk-test-1234');
+    service.delete('apiKey');
+    expect(service.get('apiKey')).toBeUndefined();
+    expect(service.has('apiKey')).toBe(false);
+  });
+});
+
+describe('ConfigService — environment variable precedence (AC: 5)', () => {
+  it('get("provider") returns TM_PROVIDER env var over stored value', () => {
+    service.set('provider', 'openai');
+    process.env['TM_PROVIDER'] = 'anthropic';
+    expect(service.get('provider')).toBe('anthropic');
+  });
+
+  it('get("apiKey") returns TM_API_KEY env var over stored value', () => {
+    service.set('apiKey', 'stored-key');
+    process.env['TM_API_KEY'] = 'env-key';
+    expect(service.get('apiKey')).toBe('env-key');
+  });
+
+  it('get falls back to conf store when env var is not set', () => {
+    service.set('provider', 'gemini');
+    expect(service.get('provider')).toBe('gemini');
+  });
+
+  it('has returns true when env var is set even if conf store is empty', () => {
+    process.env['TM_PROVIDER'] = 'openai';
+    expect(service.has('provider')).toBe(true);
+  });
+});
+
+describe('ConfigService — initialize (AC: 1)', () => {
+  it('initialize() calls dotenv.config()', () => {
+    service.initialize();
+    expect(dotenv.config).toHaveBeenCalled();
+  });
+});
+
+describe('ConfigService — getRedacted (AC: 4)', () => {
+  it('returns masked value for a stored apiKey', () => {
+    service.set('apiKey', 'sk-test-ABCD');
+    const result = service.getRedacted('apiKey');
+    expect(result).toBe('********ABCD');
+    expect(result).not.toContain('sk-test');
+  });
+
+  it('returns (not set) when key has no value', () => {
+    expect(service.getRedacted('apiKey')).toBe('(not set)');
+  });
+
+  it('returns masked env var value when env var is set', () => {
+    process.env['TM_API_KEY'] = 'env-secret-ZZZZ';
+    const result = service.getRedacted('apiKey');
+    expect(result.endsWith('ZZZZ')).toBe(true);
+    expect(result).not.toContain('env-secret');
+  });
+});
