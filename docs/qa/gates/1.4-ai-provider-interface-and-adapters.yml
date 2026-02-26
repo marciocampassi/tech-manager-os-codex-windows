@@ -1,0 +1,82 @@
+schema: 1
+story: '1.4'
+story_title: 'AI Provider Interface and Adapters'
+gate: PASS
+status_reason: >
+  All 8 ACs verified. 82/82 tests pass after QA inline fixes. Two minor test gaps
+  addressed (Anthropic systemPrompt path, enforceRateLimit active path). No blocking issues.
+reviewer: 'Quinn (Test Architect)'
+updated: '2026-02-23T00:00:00Z'
+
+top_issues:
+  - id: QA-1.4-03
+    severity: low
+    description: >
+      No direct unit tests for AIProviderError class — instanceof, .provider, .name, .cause
+      are tested only indirectly through factory/provider tests.
+    suggested_owner: dev
+    deferred_to: 'Story 1.6 (error handling wired into CLI)'
+  - id: QA-1.4-04
+    severity: low
+    description: >
+      withRetry wraps initial stream setup only, not mid-stream iteration chunks.
+      Correct and accepted behaviour (can't replay a half-consumed stream), but
+      deserves a code comment for future maintainers.
+    suggested_owner: dev
+    deferred_to: 'Story 1.6 or whenever BaseAIProvider is next touched'
+
+waiver:
+  active: false
+
+quality_score: 98
+
+expires: '2026-03-09T00:00:00Z'
+
+evidence:
+  tests_reviewed: 82
+  risks_identified: 2
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7, 8]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: >
+      API keys are constructor args only — no env-scanning or logging in this layer.
+      ConfigService (Story 1.3) owns key storage/redaction. AIProviderError.cause
+      retains raw SDK errors for debugging but is not surfaced to users here.
+  performance:
+    status: PASS
+    notes: >
+      Exponential backoff capped at 10s. enforceRateLimit exits immediately when
+      minIntervalMs=0 (default). No blocking synchronous code.
+  reliability:
+    status: PASS
+    notes: >
+      withRetry handles 429 and 5xx with exponential backoff up to maxRetries=3.
+      Non-retryable errors (401, 400, 403) thrown immediately. testConnection always
+      returns boolean — never throws. All SDK errors normalised to AIProviderError.
+  maintainability:
+    status: PASS
+    notes: >
+      Clean interface/base/factory/provider/mock layering. Adding a new provider
+      requires only: (1) implement AIProvider via BaseAIProvider, (2) add case to
+      AIProviderFactory. No other files need touching. sleep() override pattern
+      keeps tests fast without fake timers.
+
+recommendations:
+  immediate: []
+  future:
+    - action: >
+        Add direct unit tests for AIProviderError class: verify instanceof, .provider,
+        .name === 'AIProviderError', and optional .cause field. Create
+        tests/providers/ai-provider-error.test.ts.
+      refs: ['src/providers/ai-provider.interface.ts']
+      id: QA-1.4-03
+    - action: >
+        Add code comment to BaseAIProvider.streamText override documentation noting
+        that withRetry covers only initial stream creation, not mid-stream chunk
+        errors (which cannot be retried without restarting the full request).
+      refs: ['src/providers/base-ai-provider.ts']
+      id: QA-1.4-04
