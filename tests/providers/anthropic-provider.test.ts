@@ -1,10 +1,12 @@
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 
 const mockMessagesCreate = jest.fn<() => Promise<unknown>>();
+const mockModelsList = jest.fn<() => Promise<unknown>>();
 
 jest.unstable_mockModule('@anthropic-ai/sdk', () => ({
   default: jest.fn().mockImplementation(() => ({
     messages: { create: mockMessagesCreate },
+    models: { list: mockModelsList },
   })),
 }));
 
@@ -16,17 +18,25 @@ let provider: InstanceType<typeof AnthropicProvider>;
 beforeEach(() => {
   provider = new AnthropicProvider('test-key');
   mockMessagesCreate.mockReset();
+  mockModelsList.mockReset();
 });
 
 describe('AnthropicProvider — testConnection', () => {
-  it('returns true when messages.create succeeds', async () => {
-    mockMessagesCreate.mockResolvedValue({ content: [{ type: 'text', text: 'ok' }] });
+  it('returns true when models.list succeeds', async () => {
+    mockModelsList.mockResolvedValue({ data: [] });
     expect(await provider.testConnection()).toBe(true);
   });
 
-  it('returns false when messages.create throws', async () => {
-    mockMessagesCreate.mockRejectedValue(new Error('auth error'));
-    expect(await provider.testConnection()).toBe(false);
+  it('returns true when models.list throws 429 (quota = key is valid)', async () => {
+    const rateLimitErr = Object.assign(new Error('rate limit'), { status: 429 });
+    mockModelsList.mockRejectedValue(rateLimitErr);
+    expect(await provider.testConnection()).toBe(true);
+  });
+
+  it('throws when models.list returns a non-429 error', async () => {
+    const authErr = Object.assign(new Error('auth error'), { status: 401 });
+    mockModelsList.mockRejectedValue(authErr);
+    await expect(provider.testConnection()).rejects.toThrow('auth error');
   });
 });
 

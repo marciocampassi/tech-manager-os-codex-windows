@@ -1,5 +1,13 @@
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 
+// ── Mock fetch (used by testConnection) ───────────────────────────────────────
+
+const mockFetch = jest.fn<() => Promise<Response>>();
+jest.unstable_mockModule('node:fetch', () => ({ default: mockFetch }));
+(globalThis as unknown as Record<string, unknown>).fetch = mockFetch;
+
+// ── Mock @google/generative-ai (used by generateText / streamText) ────────────
+
 const mockGenerateContent = jest.fn<() => Promise<unknown>>();
 const mockGenerateContentStream = jest.fn<() => Promise<unknown>>();
 const mockGetGenerativeModel = jest.fn<() => unknown>().mockReturnValue({
@@ -18,21 +26,48 @@ const { AIProviderError } = await import('../../src/providers/ai-provider.interf
 
 let provider: InstanceType<typeof GeminiProvider>;
 
+function makeResponse(status: number, body = ''): Response {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    text: async () => body,
+  } as unknown as Response;
+}
+
 beforeEach(() => {
   provider = new GeminiProvider('test-key');
+  mockFetch.mockReset();
   mockGenerateContent.mockReset();
   mockGenerateContentStream.mockReset();
 });
 
 describe('GeminiProvider — testConnection', () => {
-  it('returns true when generateContent succeeds', async () => {
-    mockGenerateContent.mockResolvedValue({ response: { text: () => 'ok' } });
+  it('returns true when ListModels responds 200', async () => {
+    mockFetch.mockResolvedValue(makeResponse(200, '{"models":[]}'));
     expect(await provider.testConnection()).toBe(true);
   });
 
-  it('returns false when generateContent throws', async () => {
-    mockGenerateContent.mockRejectedValue(new Error('network error'));
-    expect(await provider.testConnection()).toBe(false);
+  it('returns true when ListModels responds 429 (quota = key is valid)', async () => {
+    mockFetch.mockResolvedValue(makeResponse(429, 'quota exceeded'));
+    expect(await provider.testConnection()).toBe(true);
+  });
+
+  it('throws with status text when ListModels responds 401', async () => {
+    mockFetch.mockResolvedValue(makeResponse(401, 'API_KEY_INVALID'));
+    await expect(provider.testConnection()).rejects.toThrow('[401]');
+  });
+
+  it('throws with status text when ListModels responds 403', async () => {
+    mockFetch.mockResolvedValue(makeResponse(403, 'PERMISSION_DENIED'));
+    await expect(provider.testConnection()).rejects.toThrow('[403]');
+  });
+
+  it('calls ListModels with the API key as query param', async () => {
+    mockFetch.mockResolvedValue(makeResponse(200));
+    await provider.testConnection();
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('key=test-key'),
+    );
   });
 });
 
@@ -44,10 +79,10 @@ describe('GeminiProvider — generateText', () => {
     expect(mockGetGenerativeModel).toHaveBeenCalledWith({ model: 'gemini-1.5-pro' });
   });
 
-  it('uses default model gemini-1.5-flash when none specified', async () => {
+  it('uses default model gemini-2.0-flash-lite when none specified', async () => {
     mockGenerateContent.mockResolvedValue({ response: { text: () => 'ok' } });
     await provider.generateText('hi');
-    expect(mockGetGenerativeModel).toHaveBeenCalledWith({ model: 'gemini-1.5-flash' });
+    expect(mockGetGenerativeModel).toHaveBeenCalledWith({ model: 'gemini-2.0-flash-lite' });
   });
 
   it('wraps SDK error as AIProviderError', async () => {

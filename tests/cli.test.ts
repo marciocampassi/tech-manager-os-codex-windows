@@ -26,21 +26,21 @@ describe('CLI — program identity', () => {
 describe('CLI — global flags', () => {
   it('parses --verbose flag', async () => {
     const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
-    await program.parseAsync(['node', 'tm', '--verbose', 'init']);
+    await program.parseAsync(['node', 'tm', '--verbose', 'process']);
     expect(program.opts<GlobalOptions>().verbose).toBe(true);
     stdoutSpy.mockRestore();
   });
 
   it('parses --plain flag', async () => {
     const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
-    await program.parseAsync(['node', 'tm', '--plain', 'init']);
+    await program.parseAsync(['node', 'tm', '--plain', 'process']);
     expect(program.opts<GlobalOptions>().plain).toBe(true);
     stdoutSpy.mockRestore();
   });
 
   it('parses --json flag', async () => {
     const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
-    await program.parseAsync(['node', 'tm', '--json', 'init']);
+    await program.parseAsync(['node', 'tm', '--json', 'process']);
     expect(program.opts<GlobalOptions>().json).toBe(true);
     stdoutSpy.mockRestore();
   });
@@ -90,11 +90,10 @@ describe('CLI — unknown commands', () => {
 });
 
 describe('CLI — stub commands', () => {
-  it('init stub writes coming-soon message to stdout', async () => {
-    const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
-    await program.parseAsync(['node', 'tm', 'init']);
-    expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining("'init' coming soon"));
-    stdoutSpy.mockRestore();
+  it('init command is registered with correct name and description', () => {
+    const initCmd = program.commands.find((c) => c.name() === 'init');
+    expect(initCmd).toBeDefined();
+    expect(initCmd?.description()).toContain('setup wizard');
   });
 
   it('process stub writes coming-soon message to stdout', async () => {
