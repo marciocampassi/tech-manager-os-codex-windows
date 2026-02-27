@@ -86,7 +86,7 @@ manager_name: ${leadershipContext.managerName}
 manager_email: ${leadershipContext.managerEmail}
 updated: ${date}
 _note: >
-  Bootstrap file created by \`tm init\`. Full email-anchored folder structure
+  Bootstrap file created by \`tmr init\`. Full email-anchored folder structure
   (my-leadership/{email}/) is established in Epic 2.
 ---
 
@@ -110,7 +110,7 @@ export function generateCursorRule(agentName: string): string {
 description: Tech Manager OS — ${agentName}
 ---
 
-> **Placeholder**: This agent definition is populated by \`tm sync-agents\` (coming in Epic 2).
+> **Placeholder**: This agent definition is populated by \`tmr sync-agents\` (coming in Epic 2).
 > Do not edit manually.
 `;
 }
@@ -118,7 +118,7 @@ description: Tech Manager OS — ${agentName}
 export function generateAgentStub(agentName: string): string {
   return `# Tech Manager OS — ${agentName}
 
-> **Placeholder**: This agent definition is populated by \`tm sync-agents\` (coming in Epic 2).
+> **Placeholder**: This agent definition is populated by \`tmr sync-agents\` (coming in Epic 2).
 > Do not edit manually.
 `;
 }

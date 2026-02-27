@@ -1,7 +1,7 @@
 import type { AIProvider, GenerateOptions } from './ai-provider.interface.js';
 
 export abstract class BaseAIProvider implements AIProvider {
-  abstract readonly name: string;
+  abstract readonly name: 'openai' | 'claude' | 'gemini' | 'mock';
   abstract testConnection(): Promise<boolean>;
   abstract generateText(prompt: string, options?: GenerateOptions): Promise<string>;
   // Note: withRetry covers only the initial stream-setup call (the Promise that opens the
@@ -13,7 +13,7 @@ export abstract class BaseAIProvider implements AIProvider {
   protected minIntervalMs = 0;
 
   protected async sleep(ms: number): Promise<void> {
-    await new Promise<void>(resolve => setTimeout(resolve, ms));
+    await new Promise<void>((resolve) => setTimeout(resolve, ms));
   }
 
   protected async enforceRateLimit(): Promise<void> {

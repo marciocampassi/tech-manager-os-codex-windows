@@ -4,7 +4,7 @@ import type { GenerateOptions } from '../../src/providers/ai-provider.interface.
 
 // Concrete subclass with instant sleep to avoid real delays in tests
 class TestProvider extends BaseAIProvider {
-  readonly name = 'test';
+  readonly name = 'mock' as const;
 
   async testConnection(): Promise<boolean> {
     return true;

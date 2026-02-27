@@ -3,10 +3,11 @@ story: '1.4'
 story_title: 'AI Provider Interface and Adapters'
 gate: PASS
 status_reason: >
-  All 8 ACs verified. 82/82 tests pass after QA inline fixes. Two minor test gaps
-  addressed (Anthropic systemPrompt path, enforceRateLimit active path). No blocking issues.
+  All 8 ACs verified. 149/149 tests pass after architecture-compliance fixes.
+  Critical fixes: 'claude' as canonical provider key, union-typed name field,
+  TmrError hierarchy for AIProviderError, legacy 'anthropic' alias preserved.
 reviewer: 'Quinn (Test Architect)'
-updated: '2026-02-23T00:00:00Z'
+updated: '2026-02-27T00:00:00Z'
 
 top_issues:
   - id: QA-1.4-03
@@ -80,3 +81,42 @@ recommendations:
         errors (which cannot be retried without restarting the full request).
       refs: ['src/providers/base-ai-provider.ts']
       id: QA-1.4-04
+
+# ─── Architecture-Compliance Review 2026-02-27 ─────────────────────────────
+arch_compliance_issues:
+  - id: "ARCH-1.4-01"
+    severity: critical
+    title: "AnthropicProvider.name was 'anthropic' — architecture uses 'claude'"
+    status: FIXED
+    refs: ["src/providers/anthropic-provider.ts"]
+    resolution: "name = 'claude' as const. Factory: case 'claude' (canonical) + case 'anthropic' (alias)."
+  - id: "ARCH-1.4-02"
+    severity: critical
+    title: "AIProvider.name was 'string' — architecture specifies 'openai'|'claude'|'gemini'"
+    status: FIXED
+    refs: ["src/providers/ai-provider.interface.ts", "src/providers/base-ai-provider.ts"]
+    resolution: "Union type applied. BaseAIProvider abstract name narrowed. TestProvider in tests updated to use 'mock'."
+  - id: "ARCH-1.4-03"
+    severity: critical
+    title: "AIProviderError extended Error directly — TmrError hierarchy missing"
+    status: FIXED
+    refs: ["src/errors/tmr-error.ts", "src/providers/ai-provider.interface.ts"]
+    resolution: "Canonical TmrError hierarchy in src/errors/tmr-error.ts. AIProviderError re-exported from interface file."
+  - id: "ARCH-1.4-04"
+    severity: high
+    title: "IAIProvider interface naming: architecture mandates I prefix"
+    status: OPEN
+    refs: ["docs/architecture/coding-standards.md"]
+    resolution: "Large rename cascade. Documented as interface naming debt."
+  - id: "ARCH-1.4-05"
+    severity: high
+    title: "Result<T> pattern not used — all providers throw directly"
+    status: OPEN
+    refs: ["docs/architecture/coding-standards.md"]
+    resolution: "ARCH-DEBT-005 — requires full API redesign across providers."
+
+arch_validation:
+  tests: "149/149 PASS"
+  lint: "PASS — 0 errors"
+  typecheck: "PASS — clean"
+  build: "PASS"

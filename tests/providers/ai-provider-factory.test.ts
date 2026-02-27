@@ -12,12 +12,8 @@ jest.unstable_mockModule('@google/generative-ai', () => ({
   GoogleGenerativeAI: jest.fn().mockImplementation(() => ({})),
 }));
 
-const { AIProviderFactory } = await import(
-  '../../src/providers/ai-provider-factory.js'
-);
-const { AIProviderError } = await import(
-  '../../src/providers/ai-provider.interface.js'
-);
+const { AIProviderFactory } = await import('../../src/providers/ai-provider-factory.js');
+const { AIProviderError } = await import('../../src/providers/ai-provider.interface.js');
 
 describe('AIProviderFactory.create()', () => {
   it('creates OpenAIProvider for "openai"', () => {
@@ -25,9 +21,14 @@ describe('AIProviderFactory.create()', () => {
     expect(provider.name).toBe('openai');
   });
 
-  it('creates AnthropicProvider for "anthropic"', () => {
+  it('creates AnthropicProvider for "claude" (canonical key per architecture)', () => {
+    const provider = AIProviderFactory.create('claude', 'key');
+    expect(provider.name).toBe('claude');
+  });
+
+  it('creates AnthropicProvider for "anthropic" (legacy alias — backward compat)', () => {
     const provider = AIProviderFactory.create('anthropic', 'key');
-    expect(provider.name).toBe('anthropic');
+    expect(provider.name).toBe('claude');
   });
 
   it('creates GeminiProvider for "gemini"', () => {
@@ -40,9 +41,9 @@ describe('AIProviderFactory.create()', () => {
     expect(provider.name).toBe('openai');
   });
 
-  it('is case-insensitive — "ANTHROPIC" resolves to anthropic', () => {
-    const provider = AIProviderFactory.create('ANTHROPIC', 'key');
-    expect(provider.name).toBe('anthropic');
+  it('is case-insensitive — "CLAUDE" resolves to claude', () => {
+    const provider = AIProviderFactory.create('CLAUDE', 'key');
+    expect(provider.name).toBe('claude');
   });
 
   it('is case-insensitive — "Gemini" resolves to gemini', () => {

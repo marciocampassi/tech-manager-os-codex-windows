@@ -14,7 +14,7 @@ export interface GlobalOptions {
 export function createProgram(): Command {
   const p = new Command();
 
-  p.name('tm')
+  p.name('tmr')
     .description(pkg.description)
     .version(pkg.version, '-v, --version', 'output the current version')
     .helpOption('-h, --help', 'display help for command')
@@ -33,7 +33,7 @@ export function createProgram(): Command {
     .description('process inbox files and update context')
     .action(() => {
       process.stdout.write(
-        "Command 'process' coming soon — run 'tm --help' for available commands\n",
+        "Command 'process' coming soon — run 'tmr --help' for available commands\n",
       );
     });
 
@@ -41,13 +41,13 @@ export function createProgram(): Command {
     .description('watch inbox folder and auto-process new files')
     .action(() => {
       process.stdout.write(
-        "Command 'watch' coming soon — run 'tm --help' for available commands\n",
+        "Command 'watch' coming soon — run 'tmr --help' for available commands\n",
       );
     });
 
   p.on('command:*', (operands: string[]) => {
     process.stderr.write(
-      `Unknown command: '${operands[0]}'. Run 'tm --help' to see available commands.\n`,
+      `Unknown command: '${operands[0]}'. Run 'tmr --help' to see available commands.\n`,
     );
     process.exit(1);
   });
@@ -74,15 +74,16 @@ export async function run(argv = process.argv): Promise<void> {
     if (opts.verbose && err instanceof Error) {
       process.stderr.write(`Error: ${msg}\n${err.stack ?? ''}\n`);
     } else {
-      process.stderr.write(`Error: ${msg}\nRun 'tm --help' for usage information.\n`);
+      process.stderr.write(`Error: ${msg}\nRun 'tmr --help' for usage information.\n`);
     }
     process.exit(1);
   }
 }
 
-// Guard: skip module-level execution when imported by Jest (JEST_WORKER_ID is set by the Jest
-// worker process). If the test runner changes (e.g., Vitest sets VITEST instead), update this
-// guard accordingly. Tracked in QA-1.2-04.
+// Guard: skip module-level execution when imported by the test runner.
+// Jest sets JEST_WORKER_ID; Vitest (architecture target) sets VITEST.
+// When migrating to Vitest (architectural debt item), update this guard to check VITEST.
+// Tracked in QA-1.2-04 / ARCH-DEBT-003.
 if (!process.env.JEST_WORKER_ID) {
   await run();
 }

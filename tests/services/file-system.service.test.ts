@@ -7,6 +7,8 @@ const mockRename = jest.fn<() => Promise<void>>();
 const mockRemove = jest.fn<() => Promise<void>>();
 const mockMove = jest.fn<() => Promise<void>>();
 const mockPathExists = jest.fn<() => Promise<unknown>>();
+const mockAppendFile = jest.fn<() => Promise<void>>();
+const mockReaddir = jest.fn<() => Promise<unknown>>();
 
 jest.unstable_mockModule('fs-extra', () => ({
   ensureDir: mockEnsureDir,
@@ -16,11 +18,12 @@ jest.unstable_mockModule('fs-extra', () => ({
   remove: mockRemove,
   move: mockMove,
   pathExists: mockPathExists,
+  appendFile: mockAppendFile,
+  readdir: mockReaddir,
 }));
 
-const { FileSystemService, FileSystemError } = await import(
-  '../../src/services/file-system.service.js'
-);
+const { FileSystemService, FileSystemError } =
+  await import('../../src/services/file-system.service.js');
 
 let service: InstanceType<typeof FileSystemService>;
 
@@ -33,6 +36,8 @@ beforeEach(() => {
   mockRemove.mockReset();
   mockMove.mockReset();
   mockPathExists.mockReset();
+  mockAppendFile.mockReset();
+  mockReaddir.mockReset();
 });
 
 // ─── FileSystemError ─────────────────────────────────────────────────────────
@@ -98,9 +103,15 @@ describe('FileSystemService — createDirectory', () => {
 describe('FileSystemService — writeFile', () => {
   it('calls ensureDir, writeFile, rename in order', async () => {
     const calls: string[] = [];
-    mockEnsureDir.mockImplementation(async () => { calls.push('ensureDir'); });
-    mockWriteFile.mockImplementation(async () => { calls.push('writeFile'); });
-    mockRename.mockImplementation(async () => { calls.push('rename'); });
+    mockEnsureDir.mockImplementation(async () => {
+      calls.push('ensureDir');
+    });
+    mockWriteFile.mockImplementation(async () => {
+      calls.push('writeFile');
+    });
+    mockRename.mockImplementation(async () => {
+      calls.push('rename');
+    });
 
     await service.writeFile('/some/dir/file.txt', 'hello');
     expect(calls).toEqual(['ensureDir', 'writeFile', 'rename']);
@@ -266,5 +277,110 @@ describe('FileSystemService — exists', () => {
     mockPathExists.mockResolvedValue(true);
     await service.exists('/check/me');
     expect(mockPathExists).toHaveBeenCalledWith('/check/me');
+  });
+});
+
+// ─── appendFile ──────────────────────────────────────────────────────────────
+
+describe('FileSystemService — appendFile', () => {
+  it('calls ensureDir then appendFile', async () => {
+    const calls: string[] = [];
+    mockEnsureDir.mockImplementation(async () => {
+      calls.push('ensureDir');
+    });
+    mockAppendFile.mockImplementation(async () => {
+      calls.push('appendFile');
+    });
+
+    await service.appendFile('/some/dir/file.txt', 'more content');
+    expect(calls).toEqual(['ensureDir', 'appendFile']);
+  });
+
+  it('calls ensureDir with the parent directory', async () => {
+    mockEnsureDir.mockResolvedValue(undefined);
+    mockAppendFile.mockResolvedValue(undefined);
+    await service.appendFile('/logs/app.log', 'line\n');
+    expect(mockEnsureDir).toHaveBeenCalledWith('/logs');
+  });
+
+  it('passes content and utf8 to fs.appendFile', async () => {
+    mockEnsureDir.mockResolvedValue(undefined);
+    mockAppendFile.mockResolvedValue(undefined);
+    await service.appendFile('/logs/app.log', 'test line\n');
+    expect(mockAppendFile).toHaveBeenCalledWith('/logs/app.log', 'test line\n', 'utf8');
+  });
+
+  it('throws FileSystemError when appendFile fails', async () => {
+    mockEnsureDir.mockResolvedValue(undefined);
+    mockAppendFile.mockRejectedValue(new Error('EACCES'));
+    await expect(service.appendFile('/logs/app.log', 'x')).rejects.toBeInstanceOf(FileSystemError);
+  });
+
+  it('FileSystemError has operation "appendFile", correct path, and cause', async () => {
+    const root = new Error('EACCES');
+    mockEnsureDir.mockResolvedValue(undefined);
+    mockAppendFile.mockRejectedValue(root);
+    await expect(service.appendFile('/logs/app.log', 'x')).rejects.toMatchObject({
+      operation: 'appendFile',
+      path: '/logs/app.log',
+      cause: root,
+    });
+  });
+});
+
+// ─── listFiles ───────────────────────────────────────────────────────────────
+
+const makeDirent = (name: string, isFile = true) => ({
+  name,
+  isFile: () => isFile,
+});
+
+describe('FileSystemService — listFiles', () => {
+  it('returns absolute paths for all files in the directory', async () => {
+    mockReaddir.mockResolvedValue([makeDirent('a.md'), makeDirent('b.md')]);
+    const result = await service.listFiles('/inbox');
+    expect(result).toEqual(['/inbox/a.md', '/inbox/b.md']);
+  });
+
+  it('filters by extension when provided', async () => {
+    mockReaddir.mockResolvedValue([
+      makeDirent('note.md'),
+      makeDirent('image.png'),
+      makeDirent('other.md'),
+    ]);
+    const result = await service.listFiles('/inbox', '.md');
+    expect(result).toEqual(['/inbox/note.md', '/inbox/other.md']);
+  });
+
+  it('excludes directories from results', async () => {
+    mockReaddir.mockResolvedValue([makeDirent('file.md', true), makeDirent('subdir', false)]);
+    const result = await service.listFiles('/inbox');
+    expect(result).toEqual(['/inbox/file.md']);
+  });
+
+  it('passes { withFileTypes: true } to readdir', async () => {
+    mockReaddir.mockResolvedValue([]);
+    await service.listFiles('/inbox');
+    expect(mockReaddir).toHaveBeenCalledWith('/inbox', { withFileTypes: true });
+  });
+
+  it('returns empty array when directory is empty', async () => {
+    mockReaddir.mockResolvedValue([]);
+    expect(await service.listFiles('/empty')).toEqual([]);
+  });
+
+  it('throws FileSystemError when readdir fails', async () => {
+    mockReaddir.mockRejectedValue(new Error('ENOENT'));
+    await expect(service.listFiles('/missing')).rejects.toBeInstanceOf(FileSystemError);
+  });
+
+  it('FileSystemError has operation "listFiles", correct path, and cause', async () => {
+    const root = new Error('ENOENT');
+    mockReaddir.mockRejectedValue(root);
+    await expect(service.listFiles('/missing')).rejects.toMatchObject({
+      operation: 'listFiles',
+      path: '/missing',
+      cause: root,
+    });
   });
 });
