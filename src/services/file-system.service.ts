@@ -1,5 +1,10 @@
-import * as fs from 'fs-extra';
+import * as fsNs from 'fs-extra';
 import path from 'node:path';
+
+// When Node.js loads a CJS module in ESM context the full API lands on `.default`.
+// Jest mocks return named exports directly (no `.default`). This handles both.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const fs: typeof fsNs = ((fsNs as any).default ?? fsNs) as typeof fsNs;
 
 export class FileSystemError extends Error {
   constructor(

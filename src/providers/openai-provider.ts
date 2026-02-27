@@ -16,8 +16,10 @@ export class OpenAIProvider extends BaseAIProvider {
     try {
       await this.client.models.list();
       return true;
-    } catch {
-      return false;
+    } catch (err) {
+      // 429 = quota/rate-limited but the key IS valid — treat as connected.
+      if ((err as { status?: number }).status === 429) return true;
+      throw err;
     }
   }
 

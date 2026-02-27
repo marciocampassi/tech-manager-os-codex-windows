@@ -14,14 +14,13 @@ export class AnthropicProvider extends BaseAIProvider {
 
   async testConnection(): Promise<boolean> {
     try {
-      await this.client.messages.create({
-        model: 'claude-3-5-sonnet-20241022',
-        max_tokens: 1,
-        messages: [{ role: 'user', content: 'ping' }],
-      });
+      // Use models.list — no tokens consumed, no model-name dependency.
+      await this.client.models.list();
       return true;
-    } catch {
-      return false;
+    } catch (err) {
+      // 429 = quota/rate-limited but the key IS valid — treat as connected.
+      if ((err as { status?: number }).status === 429) return true;
+      throw err;
     }
   }
 

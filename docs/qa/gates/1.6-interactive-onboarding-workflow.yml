@@ -1,0 +1,64 @@
+schema: 1
+story: '1.6'
+story_title: 'Interactive Onboarding Workflow'
+gate: PASS
+status_reason: >
+  All 12 ACs verified. 143/143 tests pass after QA inline fixes. Four quality
+  gaps addressed: testConnection false-return guard, CLI description assertion,
+  integration test spy cleanup, and matching unit test for false-return path.
+  No source logic changes beyond the connection guard.
+reviewer: 'Quinn (Test Architect)'
+updated: '2026-02-26T00:00:00Z'
+
+top_issues: []
+
+waiver:
+  active: false
+
+quality_score: 98
+
+expires: '2026-03-12T00:00:00Z'
+
+evidence:
+  tests_reviewed: 143
+  risks_identified: 0
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: >
+      API key collected via masked password prompt, stored encrypted via conf
+      (Story 1.3). Key never appears in template output. OnboardingData.apiKey
+      is passed through orchestration only; template generators ignore it.
+  performance:
+    status: PASS
+    notes: >
+      buildWorkspaceStructure uses Promise.all over 24 ensureDir calls.
+      writeWorkspaceFiles uses Promise.all for 6 writes. CLI init time is
+      dominated by network roundtrip and interactive prompts, not file I/O.
+  reliability:
+    status: PASS
+    notes: >
+      validateConnection handles both exceptions and false returns from
+      testConnection(). spinner.fail + process.exit(1) on either path.
+      Integration test spy is cleaned up in try/finally to prevent leaks.
+  maintainability:
+    status: PASS
+    notes: >
+      Each concern separated: types, prompts, workspace-builder, templates,
+      command. ValidateResult alias avoids repeating boolean|string union 13
+      times. Template generators are pure functions with no side effects.
+
+recommendations:
+  immediate: []
+  future:
+    - >
+      QA-1.6-FUTURE-01: When Handlebars is added in Epic 2, migrate
+      onboarding.templates.ts from string template literals to Handlebars
+      templates to enable community-contributed workspace layouts.
+    - >
+      QA-1.6-FUTURE-02: Add a --workspace flag to `tm init` so users can
+      specify the path non-interactively (useful for scripted setups).

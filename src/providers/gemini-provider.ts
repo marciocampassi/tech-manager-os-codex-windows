@@ -3,30 +3,39 @@ import { BaseAIProvider } from './base-ai-provider.js';
 import { AIProviderError } from './ai-provider.interface.js';
 import type { GenerateOptions } from './ai-provider.interface.js';
 
+const DEFAULT_MODEL = 'gemini-2.0-flash-lite';
+const LIST_MODELS_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
+
 export class GeminiProvider extends BaseAIProvider {
   readonly name = 'gemini';
   private readonly genAI: GoogleGenerativeAI;
+  private readonly apiKey: string;
 
   constructor(apiKey: string) {
     super();
+    this.apiKey = apiKey;
     this.genAI = new GoogleGenerativeAI(apiKey);
   }
 
   async testConnection(): Promise<boolean> {
-    try {
-      const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-      await model.generateContent('ping');
-      return true;
-    } catch {
-      return false;
+    // Use ListModels — no tokens consumed, no model-name dependency.
+    const response = await fetch(`${LIST_MODELS_URL}?key=${this.apiKey}`);
+
+    // 429 = quota exceeded on free tier, but the key IS valid.
+    if (response.status === 429) return true;
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`[${String(response.status)}] ${body}`);
     }
+    return true;
   }
 
   async generateText(prompt: string, options?: GenerateOptions): Promise<string> {
     try {
       await this.enforceRateLimit();
       const model = this.genAI.getGenerativeModel({
-        model: options?.model ?? 'gemini-1.5-flash',
+        model: options?.model ?? DEFAULT_MODEL,
       });
       const result = await this.withRetry(() => model.generateContent(prompt));
       return result.response.text();
@@ -44,7 +53,7 @@ export class GeminiProvider extends BaseAIProvider {
     try {
       await this.enforceRateLimit();
       const model = this.genAI.getGenerativeModel({
-        model: options?.model ?? 'gemini-1.5-flash',
+        model: options?.model ?? DEFAULT_MODEL,
       });
       const result = await this.withRetry(() => model.generateContentStream(prompt));
       for await (const chunk of result.stream) {

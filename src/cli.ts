@@ -1,5 +1,6 @@
 import { Command, CommanderError } from 'commander';
 import { createRequire } from 'module';
+import { InitCommand } from './commands/init.command.js';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json') as { version: string; description: string };
@@ -24,8 +25,8 @@ export function createProgram(): Command {
 
   p.command('init')
     .description('interactive setup wizard — configure your workspace')
-    .action(() => {
-      process.stdout.write("Command 'init' coming soon — run 'tm --help' for available commands\n");
+    .action(async () => {
+      await new InitCommand(pkg.version).run();
     });
 
   p.command('process')

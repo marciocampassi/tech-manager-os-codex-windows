@@ -27,9 +27,16 @@ describe('OpenAIProvider — testConnection', () => {
     expect(await provider.testConnection()).toBe(true);
   });
 
-  it('returns false when models.list throws', async () => {
-    mockModelsList.mockRejectedValue(new Error('network error'));
-    expect(await provider.testConnection()).toBe(false);
+  it('returns true when models.list throws 429 (quota = key is valid)', async () => {
+    const rateLimitErr = Object.assign(new Error('rate limit'), { status: 429 });
+    mockModelsList.mockRejectedValue(rateLimitErr);
+    expect(await provider.testConnection()).toBe(true);
+  });
+
+  it('throws when models.list returns a non-429 error', async () => {
+    const authErr = Object.assign(new Error('invalid api key'), { status: 401 });
+    mockModelsList.mockRejectedValue(authErr);
+    await expect(provider.testConnection()).rejects.toThrow('invalid api key');
   });
 });
 
