@@ -10,8 +10,8 @@ beforeEach(() => {
 });
 
 describe('CLI — program identity', () => {
-  it('program name is tm', () => {
-    expect(program.name()).toBe('tm');
+  it('program name is tmr', () => {
+    expect(program.name()).toBe('tmr');
   });
 
   it('has a non-empty description', () => {
@@ -26,21 +26,21 @@ describe('CLI — program identity', () => {
 describe('CLI — global flags', () => {
   it('parses --verbose flag', async () => {
     const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
-    await program.parseAsync(['node', 'tm', '--verbose', 'process']);
+    await program.parseAsync(['node', 'tmr', '--verbose', 'process']);
     expect(program.opts<GlobalOptions>().verbose).toBe(true);
     stdoutSpy.mockRestore();
   });
 
   it('parses --plain flag', async () => {
     const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
-    await program.parseAsync(['node', 'tm', '--plain', 'process']);
+    await program.parseAsync(['node', 'tmr', '--plain', 'process']);
     expect(program.opts<GlobalOptions>().plain).toBe(true);
     stdoutSpy.mockRestore();
   });
 
   it('parses --json flag', async () => {
     const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
-    await program.parseAsync(['node', 'tm', '--json', 'process']);
+    await program.parseAsync(['node', 'tmr', '--json', 'process']);
     expect(program.opts<GlobalOptions>().json).toBe(true);
     stdoutSpy.mockRestore();
   });
@@ -49,20 +49,20 @@ describe('CLI — global flags', () => {
 describe('CLI — --help and --version', () => {
   it('--help exits cleanly via exitOverride', async () => {
     const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
-    await expect(program.parseAsync(['node', 'tm', '--help'])).rejects.toThrow();
+    await expect(program.parseAsync(['node', 'tmr', '--help'])).rejects.toThrow();
     stdoutSpy.mockRestore();
   });
 
   it('--version exits cleanly via exitOverride', async () => {
     const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
-    await expect(program.parseAsync(['node', 'tm', '--version'])).rejects.toThrow();
+    await expect(program.parseAsync(['node', 'tmr', '--version'])).rejects.toThrow();
     stdoutSpy.mockRestore();
   });
 
   it('no-args shows help output (AC4)', () => {
     const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
     program.outputHelp();
-    expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('tm'));
+    expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('tmr'));
     stdoutSpy.mockRestore();
   });
 });
@@ -77,11 +77,12 @@ describe('CLI — unknown commands', () => {
       });
 
     expect(() => {
-      program.parse(['node', 'tm', 'foobar']);
+      program.parse(['node', 'tmr', 'foobar']);
     }).toThrow('process.exit called');
 
     expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining('Unknown command'));
     expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining('foobar'));
+    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining('tmr --help'));
     expect(exitSpy).toHaveBeenCalledWith(1);
 
     stderrSpy.mockRestore();
@@ -98,14 +99,14 @@ describe('CLI — stub commands', () => {
 
   it('process stub writes coming-soon message to stdout', async () => {
     const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
-    await program.parseAsync(['node', 'tm', 'process']);
+    await program.parseAsync(['node', 'tmr', 'process']);
     expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining("'process' coming soon"));
     stdoutSpy.mockRestore();
   });
 
   it('watch stub writes coming-soon message to stdout', async () => {
     const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
-    await program.parseAsync(['node', 'tm', 'watch']);
+    await program.parseAsync(['node', 'tmr', 'watch']);
     expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining("'watch' coming soon"));
     stdoutSpy.mockRestore();
   });

@@ -4,7 +4,8 @@ import { AIProviderError } from './ai-provider.interface.js';
 import type { GenerateOptions } from './ai-provider.interface.js';
 
 export class AnthropicProvider extends BaseAIProvider {
-  readonly name = 'anthropic';
+  // Architecture specifies 'claude' as the canonical provider key (database-schema.md, components.md)
+  readonly name = 'claude' as const;
   private readonly client: Anthropic;
 
   constructor(apiKey: string) {
@@ -60,10 +61,7 @@ export class AnthropicProvider extends BaseAIProvider {
         }),
       );
       for await (const event of stream) {
-        if (
-          event.type === 'content_block_delta' &&
-          event.delta.type === 'text_delta'
-        ) {
+        if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
           yield event.delta.text;
         }
       }

@@ -1,7 +1,9 @@
 story: "1.3 — Configuration Service with Encrypted Storage"
 reviewed_by: "Quinn (QA Agent)"
 review_date: "2026-02-23"
-gate_decision: PASS
+gate_decision: CONCERNS
+arch_review_date: "2026-02-27"
+arch_gate_decision: CONCERNS
 
 # ─── Validation Suite ──────────────────────────────────────────────────────
 validation:
@@ -138,3 +140,161 @@ qa_changes:
       - Replaced: weak initialize no-throw test with dotenv.config spy assertion
       - Added: 3 getRedacted() tests (masked value, not-set, env var masking)
       - Total tests: 10 → 14 in this file (32 total across suite)
+
+# ─── Architecture-Compliance Review 2026-02-27 ─────────────────────────────
+arch_compliance_issues:
+  - id: "ARCH-1.3-01"
+    severity: critical
+    title: "AppConfig too minimal — missing workspace_path, active_provider, confidence_threshold, providers"
+    status: FIXED
+    refs: ["src/types/config.types.ts"]
+    resolution: "AppConfig expanded with full architecture-aligned schema. ProviderConfig type added. CONFIG_DEFAULTS exported."
+  - id: "ARCH-1.3-02"
+    severity: critical
+    title: "active_provider key missing — architecture schema uses active_provider not provider"
+    status: FIXED
+    refs: ["src/types/config.types.ts", "src/services/config.service.ts"]
+    resolution: "active_provider added to AppConfig and ENV_MAP (TMR_PROVIDER). provider retained as deprecated alias."
+  - id: "ARCH-1.3-03"
+    severity: high
+    title: "Config file stored at platform conf path, not ~/.config/tmr/config.json as per architecture"
+    status: OPEN
+    refs: ["src/services/config.service.ts", "docs/architecture/components.md"]
+    resolution: "Requires explicit cwd/path override in Conf constructor. Deferred to follow-up story."
+  - id: "ARCH-1.3-04"
+    severity: high
+    title: "Missing high-level methods: getActiveProvider, setActiveProvider, addProvider, getWorkspacePath, getConfidenceThreshold"
+    status: OPEN
+    refs: ["docs/architecture/components.md"]
+    resolution: "Deferred to ConfigService enhancement story (Epic 2 prerequisite)."
+  - id: "ARCH-1.3-05"
+    severity: high
+    title: "No Zod validation at input boundaries"
+    status: OPEN
+    refs: ["docs/architecture/security.md"]
+    resolution: "ARCH-DEBT-004 — requires Zod dependency and schema definitions."
+  - id: "ARCH-1.3-06"
+    severity: medium
+    title: "TmrError base class missing — FileSystemError/AIProviderError extended Error directly"
+    status: FIXED
+    refs: ["src/errors/tmr-error.ts"]
+    resolution: "Canonical TmrError hierarchy created. All error classes extend TmrError."
+
+arch_validation:
+  tests: "149/149 PASS"
+  lint: "PASS — 0 errors"
+  typecheck: "PASS — clean"
+  build: "PASS"
+
+# ─── Arch-Debt Re-Review 2026-02-26 ────────────────────────────────────────
+# Dev agent applied: config path fix (cwd override), 6 high-level domain methods,
+# Winston logger utility. QA re-reviewed all changes.
+arch_debt_review_date: "2026-02-26"
+arch_debt_gate: PASS
+
+arch_debt_changes:
+  - id: "ARCH-1.3-03"
+    severity: high
+    title: "Config file path fixed — now targets ~/.config/tmr/config.json"
+    status: FIXED
+    resolution: >
+      ConfigService constructor now passes cwd: join(homedir(), '.config', 'tmr')
+      to Conf. With cwd explicit, conf uses configName (default: 'config') as the
+      filename → ~/.config/tmr/config.json. Architecture-mandated path achieved.
+    note: >
+      encryptionKey changed tm-config-v1 → tmr-config-v1 (aligned with binary
+      rename). Pre-release breaking change: existing stored configs are not
+      portable across this change. Low severity for pre-release; document in
+      CHANGELOG when releasing.
+
+  - id: "ARCH-1.3-04"
+    severity: high
+    title: "High-level domain API implemented"
+    status: FIXED
+    resolution: >
+      Added: getActiveProvider(), setActiveProvider(name), addProvider(name, apiKey, model),
+      getProviderConfig(name), getWorkspacePath(), getConfidenceThreshold().
+      All 6 methods tested (14 new tests; 46 tests total for config suite).
+    qa_findings_during_review:
+      - id: "QA-1.3-DEV-01"
+        severity: MEDIUM
+        title: "addProvider parameter named 'apiKeyEncrypted' — misleading"
+        status: FIXED_BY_QA
+        description: >
+          The parameter name 'apiKeyEncrypted' implied callers should pre-encrypt
+          the API key, but conf handles encryption transparently. This is a documentation
+          and API design defect — future callers would be misled about their
+          responsibilities. The ProviderConfig field api_key_encrypted refers to what
+          is on disk after conf encryption, not to caller responsibility.
+        fix: >
+          Renamed parameter apiKeyEncrypted → apiKey in addProvider().
+          Updated ProviderConfig.api_key_encrypted JSDoc to clarify conf encrypts at storage time.
+          Updated test data strings from 'enc-key-abc' → 'sk-ant-raw-key' to remove
+          misleading 'enc-' prefix in test assertions.
+
+  - id: "ARCH-DEBT-009"
+    severity: medium
+    title: "Winston 3.x logger utility created"
+    status: FIXED
+    resolution: >
+      src/utils/logger.ts created. winston@3.19.0 added to dependencies.
+      Logger targets ~/.config/tmr/logs/tmr.log (file transport) + console.
+      File transport omitted in NODE_ENV=test; console silenced in test mode.
+    qa_findings_during_review:
+      - id: "QA-1.3-DEV-02"
+        severity: HIGH
+        title: "Logger File transport crashes if log directory does not exist"
+        status: FIXED_BY_QA
+        description: >
+          winston File transport does NOT create parent directories automatically.
+          If ~/.config/tmr/logs/ does not exist on a fresh system, the File transport
+          emits an uncaught error event which crashes the process. This is a latent
+          crash-on-first-run bug that would surface when logger is wired into services.
+        fix: >
+          Added mkdirSync(LOG_DIR, { recursive: true }) before createLogger() in
+          src/utils/logger.ts, guarded by !IS_TEST. Wrapped in try/catch so the
+          app degrades gracefully (console transport remains functional) if the
+          directory cannot be created (e.g., permissions issue).
+      - id: "QA-1.3-DEV-03"
+        severity: MEDIUM
+        title: "File transport wrote to real filesystem during tests"
+        status: FIXED_BY_QA
+        description: >
+          The Console transport was silenced via 'silent: NODE_ENV=test' but the
+          File transport was always created, causing real fs writes to
+          ~/.config/tmr/logs/tmr.log from within test runs.
+        fix: >
+          File transport is conditionally omitted entirely when IS_TEST is true:
+          '...(!IS_TEST ? [new transports.File(...)] : [])'. No filesystem writes
+          from logger during test execution.
+
+arch_debt_validation:
+  tests: "173/173 PASS"
+  lint: "PASS — 0 errors"
+  typecheck: "PASS — clean"
+  build: "PASS"
+
+arch_debt_open_items:
+  - id: "ARCH-1.3-05"
+    title: "Zod validation at input boundaries"
+    severity: high
+    status: OPEN
+    resolution: "ARCH-DEBT-004 — requires dedicated story with Zod dependency."
+  - id: "ARCH-1.3-08"
+    title: "IConfigService interface (I prefix convention)"
+    severity: low
+    status: OPEN
+    resolution: "ARCH-DEBT-010 — large rename, needs dedicated story."
+  - id: "LOGGER-INTEGRATION"
+    title: "Logger not yet wired into ConfigService methods"
+    severity: low
+    status: OPEN
+    resolution: "Logger utility exists. Integration deferred to Epic 2 when services emit structured logs."
+
+arch_compliance_score: 92
+arch_debt_gate_reason: >
+  Config path fixed (ARCH-1.3-03 RESOLVED). All 6 high-level domain methods added
+  (ARCH-1.3-04 RESOLVED). Logger utility created with test-mode safety (ARCH-DEBT-009
+  RESOLVED). QA found and fixed 3 issues inline (misleading addProvider param, logger
+  crash on missing dir, logger fs writes in tests). Remaining open items are
+  long-horizon debt (Zod, I-prefix) requiring dedicated stories.

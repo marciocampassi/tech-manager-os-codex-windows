@@ -1,23 +1,17 @@
 import * as fsNs from 'fs-extra';
 import path from 'node:path';
+import { FileSystemError } from '../errors/tmr-error.js';
 
-// When Node.js loads a CJS module in ESM context the full API lands on `.default`.
-// Jest mocks return named exports directly (no `.default`). This handles both.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const fs: typeof fsNs = ((fsNs as any).default ?? fsNs) as typeof fsNs;
+export { FileSystemError } from '../errors/tmr-error.js';
 
-export class FileSystemError extends Error {
-  constructor(
-    message: string,
-    public readonly operation: string,
-    public readonly path: string,
-    public readonly cause?: unknown,
-  ) {
-    super(message);
-    this.name = 'FileSystemError';
-    Object.setPrototypeOf(this, FileSystemError.prototype);
-  }
-}
+// CJS/ESM interop: when bundled by tsup, fs-extra (CJS) lands under `.default`.
+// Jest mocks expose named exports directly without a `.default` wrapper.
+// The type cast is bounded to this single interop shim — no `any` escapes.
+const fs = (
+  Object.prototype.hasOwnProperty.call(fsNs, 'default')
+    ? (fsNs as unknown as { default: typeof fsNs }).default
+    : fsNs
+) as typeof fsNs;
 
 export class FileSystemService {
   async createDirectory(dirPath: string): Promise<void> {
@@ -85,6 +79,49 @@ export class FileSystemService {
 
   async exists(targetPath: string): Promise<boolean> {
     return fs.pathExists(targetPath);
+  }
+
+  // ─── Architecture-mandated additions (components.md § FileSystemService) ─
+
+  /**
+   * Append text to a file; creates the file + parent directories if absent.
+   * NOTE: Unlike writeFile, appendFile is NOT atomic — there is no temp-file/rename
+   * pattern for append semantics. Concurrent appenders may interleave their writes.
+   */
+  async appendFile(filePath: string, content: string): Promise<void> {
+    try {
+      await fs.ensureDir(path.dirname(filePath));
+      await fs.appendFile(filePath, content, 'utf8');
+    } catch (err) {
+      throw new FileSystemError(
+        err instanceof Error ? err.message : 'appendFile failed',
+        'appendFile',
+        filePath,
+        err,
+      );
+    }
+  }
+
+  /**
+   * List files inside a directory (non-recursive — top level only).
+   * Symbolic links are excluded (Dirent.isFile() returns false for symlinks).
+   * @param extension Optional filter (e.g. '.md') — pass undefined for all files.
+   * @returns Absolute file paths, alphabetically ordered by readdir.
+   */
+  async listFiles(dirPath: string, extension?: string): Promise<string[]> {
+    try {
+      const entries = await fs.readdir(dirPath, { withFileTypes: true });
+      return entries
+        .filter((e) => e.isFile() && (!extension || e.name.endsWith(extension)))
+        .map((e) => path.join(dirPath, e.name));
+    } catch (err) {
+      throw new FileSystemError(
+        err instanceof Error ? err.message : 'listFiles failed',
+        'listFiles',
+        dirPath,
+        err,
+      );
+    }
   }
 }
 

@@ -57,19 +57,13 @@ export class InitCommand {
     }
   }
 
-  private async writeWorkspaceFiles(
-    workspacePath: string,
-    data: OnboardingData,
-  ): Promise<void> {
+  private async writeWorkspaceFiles(workspacePath: string, data: OnboardingData): Promise<void> {
     await Promise.all([
       fileSystemService.writeFile(
         join(workspacePath, 'my-career', 'profile.md'),
         generateCareerProfile(data),
       ),
-      fileSystemService.writeFile(
-        join(workspacePath, 'my-career', 'pdp.md'),
-        generatePdp(data),
-      ),
+      fileSystemService.writeFile(join(workspacePath, 'my-career', 'pdp.md'), generatePdp(data)),
       fileSystemService.writeFile(
         join(workspacePath, 'my-leadership', 'profile.md'),
         generateLeadershipProfile(data),
@@ -96,8 +90,8 @@ export class InitCommand {
       chalk.bold('Next steps:'),
       `  ${chalk.cyan('1.')} Open ${chalk.bold(workspacePath)} as your Obsidian vault`,
       `  ${chalk.cyan('2.')} Add meeting notes to ${chalk.bold('inbox/')} (via Granola or manually)`,
-      `  ${chalk.cyan('3.')} Run ${chalk.bold('tm process')} to process inbox files`,
-      `  ${chalk.cyan('4.')} Run ${chalk.bold('tm --help')} to explore all available commands`,
+      `  ${chalk.cyan('3.')} Run ${chalk.bold('tmr process')} to process inbox files`,
+      `  ${chalk.cyan('4.')} Run ${chalk.bold('tmr --help')} to explore all available commands`,
       '',
     ];
     process.stdout.write(lines.join('\n') + '\n');

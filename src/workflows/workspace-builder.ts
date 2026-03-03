@@ -21,11 +21,12 @@ const WORKSPACE_DIRS = [
   '.cursor/rules/tmr',
   '.claude/agents',
   '.gemini/agents',
-  '.tm-core/agents',
-  '.tm-core/skills',
-  '.tm-core/tasks',
-  '.tm-core/templates',
-  '.tm-core/packs',
+  // Architecture (source-tree.md) defines .tmr-core/ as the BMAD agent/skill directory
+  '.tmr-core/agents',
+  '.tmr-core/skills',
+  '.tmr-core/tasks',
+  '.tmr-core/templates',
+  '.tmr-core/packs',
 ];
 
 export async function buildWorkspaceStructure(workspacePath: string): Promise<void> {

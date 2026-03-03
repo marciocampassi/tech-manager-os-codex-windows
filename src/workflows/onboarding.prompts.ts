@@ -29,7 +29,8 @@ export async function promptProviderSelection(): Promise<string> {
       message: 'Select your AI provider:',
       choices: [
         { name: 'OpenAI (GPT-4o)', value: 'openai' },
-        { name: 'Anthropic (Claude)', value: 'anthropic' },
+        // Architecture uses 'claude' as the canonical provider key (database-schema.md)
+        { name: 'Anthropic (Claude)', value: 'claude' },
         { name: 'Google (Gemini)', value: 'gemini' },
       ],
     },

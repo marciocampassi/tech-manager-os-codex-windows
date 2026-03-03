@@ -3,23 +3,51 @@ story: '1.5'
 story_title: 'File System Service'
 gate: PASS
 status_reason: >
-  All 6 ACs verified. 109/109 tests pass after QA inline fixes. Two minor test-quality
-  gaps addressed (silent false-green try/catch pattern + missing cause assertions).
-  No source code changes required.
+  All 6 ACs verified. 149/149 tests pass after architecture-compliance fixes.
+  TmrError hierarchy applied to FileSystemError. CJS/ESM interop 'any' cast
+  replaced with typed unknown guard. Re-export from canonical errors module
+  preserves all existing callers.
 reviewer: 'Quinn (Test Architect)'
-updated: '2026-02-23T00:00:00Z'
+updated: '2026-02-27T00:00:00Z'
 
-top_issues: []
+top_issues:
+  - id: "ARCH-1.5-01"
+    severity: critical
+    title: "FileSystemService should be FileSystemRepository per architecture mandate"
+    status: OPEN
+    refs: ["docs/architecture/coding-standards.md", "src/services/file-system.service.ts"]
+    resolution: "Large rename cascade to all callers. Deferred to dedicated refactor story."
+  - id: "ARCH-1.5-02"
+    severity: critical
+    title: "FileSystemError extended Error directly — TmrError hierarchy missing"
+    status: FIXED
+    refs: ["src/errors/tmr-error.ts", "src/services/file-system.service.ts"]
+    resolution: "FileSystemError now extends TmrError. Re-exported from service file for backward compat."
+  - id: "ARCH-1.5-03"
+    severity: high
+    title: "'any' type in CJS/ESM interop guard"
+    status: FIXED
+    refs: ["src/services/file-system.service.ts"]
+    resolution: "Replaced (fsNs as any) with hasOwnProperty check + (fsNs as unknown as {...}).default cast."
+  - id: "ARCH-1.5-04"
+    severity: high
+    title: "Missing appendFile, listFiles, parseFrontmatter, appendFrontmatter methods"
+    status: PARTIAL
+    refs: ["docs/architecture/components.md"]
+    resolution: >
+      appendFile and listFiles implemented by dev agent (arch-debt pass).
+      parseFrontmatter and appendFrontmatter remain deferred to Epic 2
+      (required for structured note processing).
 
 waiver:
   active: false
 
 quality_score: 100
 
-expires: '2026-03-09T00:00:00Z'
+expires: '2026-03-13T00:00:00Z'
 
 evidence:
-  tests_reviewed: 109
+  tests_reviewed: 173
   risks_identified: 0
   trace:
     ac_covered: [1, 2, 3, 4, 5, 6]
@@ -36,20 +64,106 @@ nfr_validation:
     notes: >
       Atomic write costs one extra rename syscall per write — negligible.
       ensureDir on every writeFile is a single stat on a warm cache; correct
-      over fast.
+      over fast. appendFile is non-atomic by design (documented in method JSDoc);
+      single-writer scenarios are safe.
   reliability:
     status: PASS
     notes: >
       Atomic write guarantees no partial writes. Best-effort temp-file cleanup
       swallows cleanup errors to surface the original write error. pathExists
       never throws. All fs-extra errors normalised to FileSystemError.
+      appendFile creates parent dirs before appending — handles missing-dir case.
   maintainability:
     status: PASS
     notes: >
       Single-responsibility class with clean method signatures. FileSystemError
       carries operation + path + cause for debuggability. Mockable by design
-      via fresh instantiation in tests.
+      via fresh instantiation in tests. appendFile and listFiles constraints
+      (non-atomic, non-recursive, excludes symlinks) now documented in JSDoc.
+
+# ─── Arch-Debt Re-Review 2026-02-26 ────────────────────────────────────────
+# Dev agent applied: appendFile + listFiles added (ARCH-DEBT-008).
+# QA re-reviewed all changes and applied documentation fixes.
+arch_debt_review_date: "2026-02-26"
+arch_debt_gate: PASS
+
+arch_debt_changes:
+  - id: "ARCH-1.5-04-PARTIAL"
+    severity: high
+    title: "appendFile + listFiles added (2 of 4 missing methods)"
+    status: PARTIAL_FIXED
+    resolution: >
+      appendFile(filePath, content): creates parent dirs then appends content.
+      listFiles(dirPath, extension?): non-recursive, excludes directories and symlinks,
+      returns absolute paths. Both wrapped with FileSystemError on failure.
+      14 new unit tests added (7 per method) covering happy paths, extension filter,
+      directory exclusion, and all error paths.
+    remaining: >
+      parseFrontmatter() and appendFrontmatter() remain outstanding.
+      Required for Epic 2 inbox processing (reading/writing YAML front matter in .md files).
+      Recommend creating Epic 2 prerequisite story.
+    qa_findings_during_review:
+      - id: "QA-1.5-DEV-01"
+        severity: LOW
+        title: "appendFile non-atomicity not documented"
+        status: FIXED_BY_QA
+        description: >
+          appendFile does not use the atomic temp-file/rename pattern that writeFile uses.
+          For append semantics atomicity isn't achievable via rename (the temp file would
+          replace the target, losing prior content). This design decision was correct but
+          undocumented — future maintainers might try to 'fix' it by applying the
+          writeFile pattern, breaking append behaviour.
+        fix: "Added JSDoc NOTE to appendFile documenting non-atomic nature and the reason."
+      - id: "QA-1.5-DEV-02"
+        severity: LOW
+        title: "listFiles constraints not documented"
+        status: FIXED_BY_QA
+        description: >
+          listFiles is non-recursive (top-level only) and excludes symlinks
+          (Dirent.isFile() returns false for symlinks). These constraints were
+          undocumented — callers expecting deep listing would be silently surprised.
+        fix: "Updated JSDoc: added 'non-recursive — top level only', symlink exclusion note, and return order note."
+
+arch_debt_validation:
+  tests: "173/173 PASS"
+  lint: "PASS — 0 errors"
+  typecheck: "PASS — clean"
+  build: "PASS"
+
+arch_debt_open_items:
+  - id: "ARCH-1.5-01"
+    title: "FileSystemService → FileSystemRepository rename"
+    severity: critical
+    status: OPEN
+    resolution: "ARCH-DEBT-006 — large cascade rename; dedicated refactor story required."
+  - id: "ARCH-1.5-04-REMAINING"
+    title: "parseFrontmatter + appendFrontmatter missing"
+    severity: high
+    status: OPEN
+    resolution: "Epic 2 prerequisite story. Required for inbox processing pipeline."
+  - id: "ARCH-1.5-05"
+    title: "Result<T> return pattern"
+    severity: medium
+    status: OPEN
+    resolution: "ARCH-DEBT-005 — full API redesign; cross-cutting concern."
+  - id: "ARCH-1.5-06"
+    title: "Logger not wired into FileSystemService"
+    severity: low
+    status: OPEN
+    resolution: "Logger utility now exists (src/utils/logger.ts). Integration deferred to Epic 2."
+
+arch_compliance_score: 80
 
 recommendations:
-  immediate: []
-  future: []
+  immediate:
+    - action: "Create Epic 2 prerequisite story: Add parseFrontmatter + appendFrontmatter to FileSystemService"
+      refs: ["docs/architecture/components.md"]
+    - action: "Create ARCH-DEBT-006 story: Rename FileSystemService → FileSystemRepository"
+      refs: ["docs/architecture/coding-standards.md"]
+  future:
+    - action: "Integrate logger into FileSystemService (logger.error on caught exceptions)"
+      refs: ["src/utils/logger.ts"]
+    - action: "Add Result<T> return pattern to FileSystemService methods (ARCH-DEBT-005)"
+      refs: ["docs/architecture/coding-standards.md"]
+    - action: "Consider recursive listFiles variant for deep directory scanning (Epic 2+)"
+      refs: ["docs/architecture/components.md"]

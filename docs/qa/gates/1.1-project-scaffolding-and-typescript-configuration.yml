@@ -1,17 +1,20 @@
 schema: 1
 story: '1.1'
 story_title: 'Project Scaffolding and TypeScript Configuration'
-gate: PASS
-status_reason: 'All issues from previous review resolved. jest downgraded to @29.7.0 (matches ts-jest@29), lint:fix script added, file list corrected. Lint, tests, build, and typecheck all clean.'
+gate: CONCERNS
+status_reason: >
+  Architecture-compliance review (2026-02-27) found three structural deviations:
+  test framework (Jest vs Vitest), package manager (npm vs pnpm), and project
+  structure (single-package vs monorepo). Binary name fixed (tm → tmr). Structural
+  deviations require dedicated migration stories; functional quality remains high.
 reviewer: 'Quinn (Test Architect)'
-updated: '2026-02-23T01:00:00Z'
+updated: '2026-02-27T00:00:00Z'
 
 top_issues:
   - id: 'eslint-legacy-config'
     severity: high
     title: 'ESLint 10 requires flat config — .eslintrc.json not supported'
     status: FIXED
-    suggested_owner: dev
     refs: ['eslint.config.js']
   - id: 'duplicate-shebang'
     severity: medium
@@ -23,17 +26,44 @@ top_issues:
     title: 'ts-jest@29 peerDependency mismatch with jest@30'
     status: FIXED
     refs: ['package.json']
-    resolution: 'Downgraded jest to ^29.7.0 and @types/jest to ^29.5.14 — now fully compatible with ts-jest@29.4.6'
+    resolution: 'Downgraded jest to ^29.7.0 and @types/jest to ^29.5.14 — compatible with ts-jest@29.4.6'
+  - id: 'ARCH-1.1-01'
+    severity: high
+    title: 'Test framework: Jest used instead of architecture-mandated Vitest 1.x'
+    status: OPEN
+    refs: ['jest.config.ts', 'docs/architecture/test-strategy-and-standards.md']
+    suggested_owner: dev
+    resolution: 'Requires ARCH-DEBT-001 migration story'
+  - id: 'ARCH-1.1-02'
+    severity: high
+    title: 'Package manager: npm used instead of architecture-mandated pnpm 9.x'
+    status: OPEN
+    refs: ['package.json', 'docs/architecture/tech-stack.md']
+    suggested_owner: dev
+    resolution: 'Requires ARCH-DEBT-002 migration story'
+  - id: 'ARCH-1.1-03'
+    severity: critical
+    title: 'Monorepo: single src/ package instead of packages/cli|core|agents|shared/'
+    status: OPEN
+    refs: ['docs/architecture/source-tree.md']
+    suggested_owner: dev
+    resolution: 'Requires ARCH-DEBT-003 restructuring story'
+  - id: 'ARCH-1.1-04'
+    severity: critical
+    title: 'Binary name was tm — architecture mandates tmr'
+    status: FIXED
+    refs: ['package.json', 'src/cli.ts']
+    resolution: 'Changed bin field and program name to tmr; all tests updated'
 
 waiver: { active: false }
 
-quality_score: 95
+quality_score: 55
 
-expires: '2026-03-09T00:00:00Z'
+expires: '2026-03-27T00:00:00Z'
 
 evidence:
   tests_reviewed: 2
-  risks_identified: 3
+  risks_identified: 7
   trace:
     ac_covered: [1, 2, 3, 4, 5, 6, 7, 8]
     ac_gaps: []
@@ -41,21 +71,28 @@ evidence:
 nfr_validation:
   security:
     status: PASS
-    notes: 'No secrets, no API keys, no auth surface. .gitignore excludes .env and logs.'
+    notes: 'No secrets, no API keys. .gitignore excludes .env and logs.'
   performance:
     status: PASS
-    notes: 'Build: 111B, ~10ms. Single shebang in dist/cli.js. Typecheck clean.'
+    notes: 'Build output minimal. tsup + ESM architecture-aligned.'
   reliability:
     status: PASS
-    notes: 'jest@29.7.0 + ts-jest@29.4.6 — officially supported version pairing. All tests pass.'
+    notes: 'All 149 tests pass post-architecture fixes.'
   maintainability:
-    status: PASS
-    notes: 'ESLint 10 flat config, strict TypeScript, Prettier, Husky, lint:fix script — complete quality toolchain.'
+    status: CONCERNS
+    notes: >
+      Structural deviations (single-package, Jest, npm) require migration to
+      match architecture. Functional toolchain quality is high; structural
+      alignment is the concern.
 
 recommendations:
-  immediate: []
+  immediate:
+    - action: 'Create ARCH-DEBT-001: Migrate Jest → Vitest per architecture mandate'
+      refs: ['docs/architecture/test-strategy-and-standards.md']
+    - action: 'Create ARCH-DEBT-002: Migrate npm → pnpm per architecture mandate'
+      refs: ['docs/architecture/tech-stack.md']
+    - action: 'Create ARCH-DEBT-003: Restructure single-package → monorepo packages/cli|core|agents|shared/'
+      refs: ['docs/architecture/source-tree.md']
   future:
-    - action: 'Set meaningful coverageThreshold values in jest.config.ts once source code grows (Story 1.2+)'
+    - action: 'Set meaningful coverageThreshold values in jest.config.ts (migrate to vitest.config.ts)'
       refs: ['jest.config.ts']
-    - action: 'Upgrade jest and ts-jest together when ts-jest@30 releases for jest@30 support'
-      refs: ['package.json']

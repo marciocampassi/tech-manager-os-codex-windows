@@ -2,6 +2,8 @@ story: "1.2 — CLI Framework with Commander.js"
 reviewed_by: "Quinn (QA Agent)"
 review_date: "2026-02-23"
 gate_decision: PASS
+arch_review_date: "2026-02-27"
+arch_gate_decision: PASS
 
 # ─── Validation Suite ──────────────────────────────────────────────────────
 validation:
@@ -134,3 +136,30 @@ qa_changes:
       - Added stdout spy to 5 tests that trigger command output (global flags + help/version)
       - Added 'no-args shows help output (AC4)' test
       - Total tests: 12 → 13
+
+# ─── Architecture-Compliance Review 2026-02-27 ─────────────────────────────
+arch_compliance_issues:
+  - id: "ARCH-1.2-01"
+    severity: critical
+    title: "Binary name 'tm' — architecture mandates 'tmr'"
+    status: FIXED
+    refs: ["src/cli.ts", "tests/cli.test.ts"]
+    resolution: "program.name('tmr'); all help strings updated; test assertions updated"
+  - id: "ARCH-1.2-02"
+    severity: high
+    title: "JEST_WORKER_ID guard couples production code to Jest infrastructure"
+    status: OPEN
+    refs: ["src/cli.ts"]
+    resolution: "Comment updated to note VITEST migration path. Tracked ARCH-DEBT-003."
+  - id: "ARCH-1.2-03"
+    severity: medium
+    title: "GlobalOptions should be IGlobalOptions per interface naming convention"
+    status: OPEN
+    refs: ["src/cli.ts", "docs/architecture/coding-standards.md"]
+    resolution: "Documented debt. Rename cascades to all command handlers."
+
+arch_validation:
+  tests: "149/149 PASS"
+  lint: "PASS — 0 errors"
+  typecheck: "PASS — clean"
+  build: "PASS"
