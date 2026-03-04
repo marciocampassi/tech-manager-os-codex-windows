@@ -40,21 +40,21 @@ export class InitCommand {
     process.stdout.write(banner + '\n\n');
   }
 
-  private async validateConnection(provider: string, apiKey: string): Promise<void> {
+  private async validateConnection(provider: string, apiKey: string): Promise<boolean> {
     const spinner = ora(`Validating ${provider} API key…`).start();
     try {
       const ai = AIProviderFactory.create(provider, apiKey);
       const connected = await ai.testConnection();
       if (!connected) {
-        spinner.fail(`Could not connect to ${provider}. Check your API key.`);
-        process.exit(1);
-        return;
+        spinner.fail(`Could not connect to ${provider}. Check your API key and try again.`);
+        return false;
       }
       spinner.succeed(`Connected to ${provider}`);
+      return true;
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
       spinner.fail(`Could not connect to ${provider}: ${reason}`);
-      process.exit(1);
+      return false;
     }
   }
 
@@ -114,9 +114,13 @@ export class InitCommand {
 
     const workspacePath = await promptWorkspacePath();
     const provider = await promptProviderSelection();
-    const apiKey = await promptApiKey(provider);
 
-    await this.validateConnection(provider, apiKey);
+    let apiKey: string;
+    while (true) {
+      apiKey = await promptApiKey(provider);
+      const connected = await this.validateConnection(provider, apiKey);
+      if (connected) break;
+    }
 
     configService.initialize();
     configService.set('provider', provider);

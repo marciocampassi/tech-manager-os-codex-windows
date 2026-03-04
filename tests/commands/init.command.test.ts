@@ -148,29 +148,47 @@ describe('InitCommand', () => {
     });
   });
 
-  describe('connection failure', () => {
-    it('calls spinner.fail and process.exit(1) when testConnection throws', async () => {
+  describe('connection failure — retry loop', () => {
+    it('shows spinner.fail and re-prompts API key when testConnection throws, then succeeds on retry', async () => {
       mockPrompt
         .mockResolvedValueOnce({ workspacePath: '/tmp/test-workspace' })
         .mockResolvedValueOnce({ provider: 'openai' })
-        .mockResolvedValueOnce({ apiKey: 'bad-key' });
-      mockTestConnection.mockRejectedValue(new Error('Unauthorized'));
+        // first attempt — bad key
+        .mockResolvedValueOnce({ apiKey: 'bad-key' })
+        // second attempt — good key (rest of happy path)
+        .mockResolvedValueOnce({ apiKey: 'sk-good-key' })
+        .mockResolvedValueOnce({ name: 'Alice', email: 'alice@example.com', role: 'EM' })
+        .mockResolvedValueOnce({ managerName: 'Bob', managerEmail: 'bob@example.com' })
+        .mockResolvedValueOnce({ email: '' });
 
-      await expect(new InitCommand().run()).rejects.toThrow('process.exit called');
+      mockTestConnection.mockRejectedValueOnce(new Error('Unauthorized')).mockResolvedValue(true);
+
+      await new InitCommand().run();
+
       expect(mockFail).toHaveBeenCalledWith(expect.stringContaining('openai'));
-      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(mockSucceed).toHaveBeenCalledWith(expect.stringContaining('openai'));
+      expect(mockAICreate).toHaveBeenCalledWith('openai', 'sk-good-key');
     });
 
-    it('calls spinner.fail and process.exit(1) when testConnection returns false', async () => {
+    it('shows spinner.fail and re-prompts API key when testConnection returns false, then succeeds on retry', async () => {
       mockPrompt
         .mockResolvedValueOnce({ workspacePath: '/tmp/test-workspace' })
         .mockResolvedValueOnce({ provider: 'claude' })
-        .mockResolvedValueOnce({ apiKey: 'bad-key' });
-      mockTestConnection.mockResolvedValue(false);
+        // first attempt — bad key
+        .mockResolvedValueOnce({ apiKey: 'bad-key' })
+        // second attempt — good key (rest of happy path)
+        .mockResolvedValueOnce({ apiKey: 'sk-good-key' })
+        .mockResolvedValueOnce({ name: 'Alice', email: 'alice@example.com', role: 'EM' })
+        .mockResolvedValueOnce({ managerName: 'Bob', managerEmail: 'bob@example.com' })
+        .mockResolvedValueOnce({ email: '' });
 
-      await expect(new InitCommand().run()).rejects.toThrow('process.exit called');
+      mockTestConnection.mockResolvedValueOnce(false).mockResolvedValue(true);
+
+      await new InitCommand().run();
+
       expect(mockFail).toHaveBeenCalledWith(expect.stringContaining('claude'));
-      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(mockSucceed).toHaveBeenCalledWith(expect.stringContaining('claude'));
+      expect(mockAICreate).toHaveBeenCalledWith('claude', 'sk-good-key');
     });
   });
 
