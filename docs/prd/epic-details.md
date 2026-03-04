@@ -114,11 +114,330 @@
 
 ---
 
-## Epic 2: Process Intelligence Engine
+## Epic 2: Complete Command-Line Interface Implementation
 
-**Expanded Goal:** Build the AI-powered cycle agent that powers the `tmr process` command to process inbox files, categorizes them by type and entity, updates context summaries using intelligent merging, extracts actionable tasks with urgency classification, and moves files to appropriate destinations. This epic delivers the core "transcript-to-context" value proposition.
+**Expanded Goal:** Build comprehensive CLI commands that establish the CRUD foundation for the entire system. Implement team management with multi-team structure (Option A: separate _members/ and _teams/ directories), member file operations (1on1s, feedback, assessments, performance reviews), relationship tracking, leadership tracking, and project management. All commands support both parameter-passing and interactive modes, implement hierarchical email resolution (team → leadership → relationships), auto-create structures as needed, generate Obsidian-compatible wiki-links, and include complete unit test coverage. This epic enables token-optimized agent implementation where agents invoke CLI commands for file manipulation instead of reading/parsing files directly.
 
-### Story 2.1: Inbox Scanner and File Parser
+### Story 2.1: Team Management Commands
+
+**As a** manager,  
+**I want** CLI commands to manage teams and team members,  
+**so that** I can organize my direct reports across multiple teams with a single source of truth per person.
+
+**Acceptance Criteria:**
+
+1. **Directory Structure Created:**
+   - `/my-teams/_members/{email}/` — Single member profile location
+   - `/my-teams/_members/{email}/{email}.md` — Profile file
+   - `/my-teams/_members/{email}/1on1s/` — Directory for 1on1 files
+   - `/my-teams/_members/{email}/feedback/` — Directory for feedback files
+   - `/my-teams/_members/{email}/assessments/` — Directory for assessment files
+   - `/my-teams/_members/{email}/performance-reviews/` — Directory for review files
+   - `/my-teams/_teams/{team-name}/{team-name}-context.md` — Team-level context
+   - `/my-teams/_teams/{team-name}/{team-name}-members.md` — Team member links
+
+2. **`tmr team create <team-name>` Command:**
+   - Creates team directory structure
+   - Generates `{team-name}-context.md` with frontmatter template
+   - Generates `{team-name}-members.md` with "# Team Members" header
+   - If no team-name provided, prompts interactively
+   - Returns success message with created paths
+
+3. **`tmr team add <team-name> <email> [--role=<role>] [--location=<location>]` Command:**
+   - Auto-creates team if doesn't exist
+   - If no parameters provided, prompts interactively for: team-name, email, role, location
+   - Creates member directory structure (if doesn't exist)
+   - Generates `{email}.md` with frontmatter:
+     ```yaml
+     ---
+     email: user@example.com
+     role: <collected-role>
+     location: <collected-location>
+     teams: [<team-name>]
+     date_added: <current-date>
+     ---
+     ```
+   - Adds sections: Current Manager, Previous Managers, Other Leaderships, Previous Leaderships, Performance Reviews, 1on1s, Assessments, Feedbacks
+   - Populates "Current Manager" with `[[my-career/{logged-user-email}.md]]`
+   - If member already exists in another team, appends team-name to `teams` array
+   - Appends wiki-link to team's `{team-name}-members.md`: `- [[../../_members/{email}/{email}.md|{email}]]`
+   - Unit tests cover: new member, existing member, interactive mode, auto-team-creation
+
+4. **`tmr team list [team-name]` Command:**
+   - Without team-name: displays table of all teams with member counts
+   - With team-name: displays table of team members with: email, role, location, date_added
+   - Reads from `_teams/*/members.md` and `_members/*/frontmatter`
+   - Formats output with aligned columns
+   - Unit tests cover: all teams, specific team, empty team
+
+5. **`tmr team archive <team-name> <email> [--from <date>] [--to <date>]` Command:**
+   - If no parameters, prompts interactively
+   - Moves member directory: `/my-teams/_members/{email}/` → `/my-teams/_archived/{year}/{email}/`
+   - Adds `archived: true` and `archived_date: <date>` to frontmatter
+   - Optional date filters move only files in date range
+   - Removes member wiki-link from team's `{team-name}-members.md`
+   - Unit tests cover: full archive, partial archive, date filtering
+
+6. **`tmr team fire <team-name> <email>` Command:**
+   - Executes archive command
+   - Additionally adds `termination: true` to frontmatter
+   - Adds `termination_date: <date>` to frontmatter
+   - Unit tests cover: termination marking
+
+7. **`tmr show <email>` Command:**
+   - Searches for email in: `_members/`, `_archived/`, `my-leadership/`, `my-company/relationships/`
+   - Displays profile content with formatted output
+   - Shows: teams, role, location, section summaries (counts of 1on1s, feedback, etc.)
+   - Error handling: email not found
+   - Unit tests cover: active member, archived member, not found
+
+### Story 2.2: Member File Management Commands
+
+**As a** manager,  
+**I want** CLI commands to create member-related files and auto-update profile sections,  
+**so that** Obsidian wiki-links stay current without manual editing.
+
+**Acceptance Criteria:**
+
+1. **`tmr member <email> add 1on1` Command:**
+   - Finds member in `/my-teams/_members/{email}/`
+   - Creates file: `1on1s/{date}-{email}-1on1.md` with template:
+     ```yaml
+     ---
+     date: <date>
+     member: <email>
+     type: 1on1
+     ---
+     
+     # 1:1 with {email}
+     
+     ## Check-in
+     
+     ## Discussion Topics
+     
+     ## Action Items
+     
+     ## Notes
+     ```
+   - Parses `{email}.md`, finds "## 1on1s" section
+   - Appends: `- [[1on1s/{date}-{email}-1on1.md]]`
+   - Opens created file in editor (optional `--no-edit` flag)
+   - Error handling: member not found
+   - Unit tests cover: creation, section update, file already exists
+
+2. **`tmr member <email> add feedback` Command:**
+   - Creates file: `feedback/{date}-{email}-feedback.md` with template
+   - Appends to "## Feedbacks" section
+   - Template includes: Situation, Behavior, Impact sections
+   - Unit tests cover: creation, section update
+
+3. **`tmr member <email> add assessment` Command:**
+   - Creates file: `assessments/{date}-{email}-assessment.md` with template
+   - Appends to "## Assessments" section
+   - Template includes: skills assessment structure
+   - Unit tests cover: creation, section update
+
+4. **`tmr member <email> add performance-review` Command:**
+   - Creates file: `performance-reviews/{date}-{email}-review.md` with template
+   - Appends to "## Performance Reviews" section
+   - Template includes: review structure with accomplishments, growth areas, goals
+   - Unit tests cover: creation, section update
+
+5. **Section Parser Service:**
+   - `SectionParserService` class with methods: `findSection(file, sectionName)`, `appendToSection(file, sectionName, content)`
+   - Handles missing sections (creates them)
+   - Preserves existing content
+   - Atomic file operations
+   - Unit tests cover: section finding, appending, missing sections
+
+6. **Template Service:**
+   - `TemplateService` class with method: `getTemplate(type)` where type = 1on1|feedback|assessment|performance-review
+   - Returns template with placeholders replaced (date, email, etc.)
+   - Unit tests cover all template types
+
+### Story 2.3: Relationship Management Commands
+
+**As a** manager,  
+**I want** CLI commands to track company relationships outside my direct reports,  
+**so that** I maintain context on cross-functional collaborators and stakeholders.
+
+**Acceptance Criteria:**
+
+1. **`tmr relationship add <email>` Command:**
+   - Creates structure:
+     ```
+     /my-company/relationships/{email}/
+       {email}.md              (profile with frontmatter)
+       1on1s/                  (directory)
+     ```
+   - Profile template includes: name, role, department, relationship_type
+   - If email already exists in relationships, returns "already exists" message
+   - If no email provided, prompts interactively
+   - Unit tests cover: creation, already exists, interactive mode
+
+2. **`tmr relationship add <email-list>` Batch Command:**
+   - Accepts comma-separated email list: `user1@example.com,user2@example.com,user3@example.com`
+   - Executes `relationship add` for each email
+   - Displays progress indicator for multiple emails
+   - Summary output: X created, Y already existed
+   - Unit tests cover: batch creation, partial success
+
+3. **`tmr relationship <email> add 1on1` Command:**
+   - Creates file: `/my-company/relationships/{email}/1on1s/{date}-{email}-1on1.md`
+   - Template similar to team member 1on1
+   - Appends to relationship profile "## 1on1s" section
+   - Error handling: relationship not found (suggests creating first)
+   - Unit tests cover: creation, not found error
+
+4. **`tmr relationship list` Command:**
+   - Displays table: email, name, department, relationship_type, last 1on1
+   - Sorted by last interaction
+   - Unit tests cover: listing, empty list
+
+### Story 2.4: Leadership Management Commands
+
+**As a** manager,  
+**I want** CLI commands to track my leadership relationships,  
+**so that** I maintain context on my manager and skip-level leaders.
+
+**Acceptance Criteria:**
+
+1. **`tmr leadership add <email>` Command:**
+   - Creates structure:
+     ```
+     /my-leadership/{email}/
+       {email}.md              (profile with frontmatter)
+       1on1s/                  (directory)
+     ```
+   - Profile template includes: name, role, areas_of_responsibility
+   - If no email provided, prompts interactively
+   - Unit tests cover: creation, already exists
+
+2. **`tmr leadership <email> add 1on1` Command:**
+   - Creates file: `/my-leadership/{email}/1on1s/{date}-{email}-1on1.md`
+   - Template includes: alignment topics, support needed, feedback requested
+   - Appends to leadership profile "## 1on1s" section
+   - Unit tests cover: creation, section update
+
+3. **`tmr leadership list` Command:**
+   - Displays table: email, name, role, last 1on1
+   - Unit tests cover: listing
+
+### Story 2.5: Project Management Commands
+
+**As a** manager,  
+**I want** CLI commands to manage project structures and team composition,  
+**so that** I track project context and stakeholder relationships.
+
+**Acceptance Criteria:**
+
+1. **`tmr project add <project-name>` Command:**
+   - Creates structure:
+     ```
+     /my-company/projects/{project-name}-project.md
+     /my-projects/{project-name}/
+       {project-name}-composition.md
+       standup/                (directory)
+       discussion/             (directory)
+       presentation/           (directory)
+     ```
+   - `{project-name}-project.md` template: project overview, goals, timeline
+   - `{project-name}-composition.md` template with sections:
+     ```markdown
+     # Team Members
+     
+     # Stakeholders
+     ```
+   - If no project-name, prompts interactively
+   - Unit tests cover: creation, already exists
+
+2. **`tmr project <project-name> add standup` Command:**
+   - Creates file: `/my-projects/{project-name}/standup/{date}-{project-name}-standup.md`
+   - Template includes: yesterday, today, blockers
+   - Unit tests cover: creation
+
+3. **`tmr project <project-name> add discussion` Command:**
+   - Creates file: `/my-projects/{project-name}/discussion/{date}-{project-name}-discussion.md`
+   - Template includes: topic, attendees, decisions, action items
+   - Unit tests cover: creation
+
+4. **`tmr project <project-name> add presentation --topic=<topic>` Command:**
+   - Creates file: `/my-projects/{project-name}/presentation/{date}-{project-name}-presentation-{topic}.md`
+   - Template includes: slides outline, talking points, Q&A
+   - If no topic, prompts interactively
+   - Unit tests cover: creation, interactive mode
+
+5. **`tmr project <project-name> link-member <email>` Command:**
+   - Uses hierarchical email resolution (see Story 2.6)
+   - If email not found anywhere, creates via `tmr relationship add <email>`
+   - Appends to composition.md "# Team Members" section: `- [[path-to-email-profile|{email}]]`
+   - Determines correct wiki-link path based on email location (team/leadership/relationships)
+   - Unit tests cover: existing team member, existing relationship, new email
+
+6. **`tmr project <project-name> link-members <email-list>` Batch Command:**
+   - Executes `link-member` for each email in comma-separated list
+   - Progress indicator for batch operations
+   - Summary: X linked, Y created
+   - Unit tests cover: batch linking
+
+7. **`tmr project <project-name> link-stakeholder <email>` Command:**
+   - Same logic as link-member
+   - Appends to composition.md "# Stakeholders" section
+   - Unit tests cover: linking, new email
+
+8. **`tmr project <project-name> link-stakeholders <email-list>` Batch Command:**
+   - Batch version of link-stakeholder
+   - Unit tests cover: batch linking
+
+9. **`tmr project list` Command:**
+   - Displays table: project-name, team member count, stakeholder count
+   - Unit tests cover: listing
+
+### Story 2.6: Email Resolution Service
+
+**As a** developer,  
+**I want** a centralized service for hierarchical email resolution,  
+**so that** all commands consistently locate or create email profiles.
+
+**Acceptance Criteria:**
+
+1. **`EmailResolutionService` Class:**
+   - Method: `resolve(email: string): EntityLocation`
+   - Returns: `{ type: 'team' | 'leadership' | 'relationship', path: string }`
+   - Hierarchy order:
+     1. Check `/my-teams/_members/{email}/` (team member)
+     2. Check `/my-leadership/{email}/` (leadership)
+     3. Check `/my-company/relationships/{email}/` (relationship)
+     4. If not found, execute `tmr relationship add <email>` and return relationship path
+
+2. **Email Validation:**
+   - Validates email format before resolution
+   - Handles edge cases: empty, malformed, special characters
+   - Unit tests cover: valid emails, invalid formats
+
+3. **Path Generator:**
+   - Method: `generateWikiLink(email: string, fromPath: string): string`
+   - Generates correct Obsidian wiki-link with relative path
+   - Example: From `/my-projects/platform/composition.md` to `/my-teams/_members/user@example.com/user@example.com.md` → `[[../../my-teams/_members/user@example.com/user@example.com.md|user@example.com]]`
+   - Unit tests cover: various path combinations
+
+4. **Integration with All Commands:**
+   - All `link-*` commands use EmailResolutionService
+   - Consistent resolution logic across project, team, relationship commands
+   - Integration tests validate resolution from each command
+
+5. **Performance Optimization:**
+   - Caches email locations during command execution
+   - Avoids repeated filesystem checks
+   - Unit tests cover: caching behavior
+
+---
+
+## Epic 3: Process Intelligence Engine
+
+**Expanded Goal:** Build the AI-powered process agent that powers the `tmr process` command to process inbox files, categorizes them by type and entity, updates context summaries using CLI commands for token-optimized injection, extracts actionable tasks with urgency classification, and moves files to appropriate destinations. This epic delivers the core "transcript-to-context" value proposition and depends on Epic 2's complete CLI foundation.
+
+### Story 3.1: Inbox Scanner and File Parser
 
 **As a** developer,  
 **I want** to scan and parse inbox files efficiently,  
@@ -133,7 +452,7 @@
 5. Sorted by timestamp (oldest first)
 6. Unit tests cover various file types and scenarios
 
-### Story 2.2: AI-Powered Categorization Logic
+### Story 3.2: AI-Powered Categorization Logic
 
 **As a** manager,  
 **I want** notes automatically categorized and filed,  
@@ -153,25 +472,26 @@
 4. Unit tests with mocked AI responses
 5. Integration test with real file samples
 
-### Story 2.3: Context Summary Merging
+### Story 3.3: Context Summary Updates via CLI Injection
 
 **As a** manager,  
-**I want** context summaries intelligently updated with new information,  
-**so that** I have current, accurate context for each person/project.
+**I want** context summaries intelligently updated using CLI commands,  
+**so that** I have current, accurate context without token-heavy file reading operations.
 
 **Acceptance Criteria:**
 
-1. `ContextService` class with method: `updateContext(entityPath, existingContext, newInsights)`
-2. AI prompt merges new insights with existing context:
-   - Preserves important historical information
-   - Updates with new information
-   - Maintains chronological awareness
-   - Highlights changes in behavior/status
-3. Handles first-time context creation
-4. Prevents context from growing unbounded (summarization strategy)
-5. Unit tests with various merge scenarios
+1. `ContextService` class with method: `updateContext(email, insights)`
+2. Instead of reading full context files, executes CLI commands:
+   - For team members: Uses Epic 2 CLI to append insights
+   - For projects: Updates project context via CLI
+   - For relationships/leadership: Updates via CLI
+3. AI generates insights from new notes
+4. CLI handles section parsing and atomic updates
+5. Token optimization: AI only generates insights, doesn't manipulate files
+6. Unit tests with mocked CLI execution
+7. Integration tests validate context updates
 
-### Story 2.4: Task Extraction and Timeline Classification
+### Story 3.4: Task Extraction and Timeline Classification
 
 **As a** manager,  
 **I want** actionable tasks extracted and classified by urgency,  
@@ -190,7 +510,7 @@
 5. Marks completed tasks based on mentions
 6. Unit tests with task extraction scenarios
 
-### Story 2.5: File Organization and Movement
+### Story 3.5: File Organization and Movement
 
 **As a** developer,  
 **I want** files moved to correct destinations after categorization,  
@@ -206,7 +526,7 @@
 6. Atomic operations (no data loss)
 7. Unit tests cover various organization scenarios
 
-### Story 2.6: `tmr process` Command Implementation
+### Story 3.6: `tmr process` Command Implementation
 
 **As a** leader,  
 **I want** one command to process all inbox files,  
@@ -225,7 +545,7 @@
 5. Optional flags: `--dry-run`, `--verbose`
 6. Integration test validates full process workflow
 
-### Story 2.7: `tmr watch` Command for Auto-Processing
+### Story 3.7: `tmr watch` Command for Auto-Processing
 
 **As a** leader,  
 **I want** inbox to be processed automatically when files are added,  
@@ -244,30 +564,11 @@
 
 ---
 
-## Epic 3: People Management System
+## Epic 4: People Management Agent System
 
-**Expanded Goal:** Implement complete people management lifecycle including member addition/archival, profile collection workflows, and all agent commands for 1:1 preparation, feedback generation, PDI creation/updates, PIP management, and performance reviews. This epic enables managers to effectively support their team's growth.
+**Expanded Goal:** Implement people-focused agent commands for 1:1 preparation, feedback generation, PDP creation/updates, PIP management, and performance reviews. All agent commands leverage Epic 2 CLI for file manipulation, enabling token-optimized context operations where agents generate content and invoke CLI commands rather than directly reading/parsing files. This epic delivers intelligent assistance for the complete people management lifecycle.
 
-### Story 3.1: Team Member Lifecycle Commands
-
-**As a** manager,  
-**I want** to manage my team member roster,  
-**so that** I can track active and past team members.
-
-**Acceptance Criteria:**
-
-1. `tmr team add <team-name> <member-email>` creates structure:
-   - `my-teams/{team-name}/{member-email}/profile.md` (with frontmatter template)
-   - `my-teams/{team-name}/{member-email}/context.md` (empty, will be AI-maintained)
-   - `my-teams/{team-name}/{member-email}/pdp.md` (template)
-   - Subdirectories: `1on1s/`, `feedback/`, `reviews/`
-2. `tmr team list` displays table with: name, email, role, last 1:1, status
-3. `tmr team archive <team-name> <member-email> [--from --to]` moves to `my-teams/archived/{year}/`
-4. `tmr team fire <team-name> <member-email>` archives with termination marker
-5. `tmr show <member-email>` displays context summary
-6. Unit tests for all commands
-
-### Story 3.2: Profile Collection Workflow
+### Story 4.1: Profile Collection Workflow
 
 **As a** manager,  
 **I want** an easy way to collect structured profile information from team members,  
@@ -287,7 +588,27 @@
 5. Output is structured markdown with frontmatter
 6. Integration test validates workflow
 
-### Story 3.3: tmr-people Agent - 1:1 Preparation
+### Story 4.2: tmr-people Agent - 1:1 Preparation
+
+**As a** manager,  
+**I want** an easy way to collect structured profile information from team members,  
+**so that** I have rich context about their background and goals.
+
+**Acceptance Criteria:**
+
+1. `utils/team-member-profile-prompt.md` contains shareable prompt file
+2. Prompt includes questions about:
+   - Background and experience
+   - Skills and expertise
+   - Communication preferences
+   - Career goals
+   - Support needs
+3. Generated file is AI-friendly (can be used in ChatGPT/Claude)
+4. Manager can also run interactive session in IDE
+5. Output is structured markdown with frontmatter
+6. Integration test validates workflow
+
+### Story 4.3: tmr-people Agent - Feedback Generation
 
 **As a** manager,  
 **I want** AI to generate 1:1 agendas based on context,  
@@ -296,19 +617,20 @@
 **Acceptance Criteria:**
 
 1. Agent command: `*1on1-prepare <member>`
-2. Reads: context.md, pdi.md, recent 1on1s, recent feedback, tasks/today.md, related project contexts
-3. Generates agenda with sections:
+2. Reads: context.md, pdp.md, recent 1on1s, recent feedback, tasks/today.md, related project contexts
+3. Generates agenda content
+4. **Uses CLI for file creation:** Executes `tmr member <email> add 1on1`
+5. **Opens created file and populates with generated agenda**
+6. Agenda includes sections:
    - Check-in
    - Follow-ups from last session
    - Current challenges/support needed
-   - PDI progress
+   - PDP progress
    - New discussion topics
    - Action items
-4. Outputs to: `people/active/{member}/1on1s/{date}.md`
-5. Uses template: `1on1-session-tmpl.yaml`
-6. Integration test with sample context
+7. Integration test with sample context
 
-### Story 3.4: tmr-people Agent - Feedback Generation
+### Story 4.3: tmr-people Agent - Feedback Generation
 
 **As a** manager,  
 **I want** AI to draft feedback based on context,  
@@ -323,11 +645,12 @@
    - Clear, actionable language
    - Professional tone
    - SBI model for constructive (Situation-Behavior-Impact)
-4. Outputs to: `people/active/{member}/feedback/{date}-{tone}.md`
-5. Manager reviews before delivery
-6. Integration test validates generation
+4. **Uses CLI for file creation:** Executes `tmr member <email> add feedback`
+5. **Populates created file with generated feedback**
+6. Manager reviews before delivery
+7. Integration test validates generation
 
-### Story 3.5: tmr-people Agent - PDP Management
+### Story 4.4: tmr-people Agent - PDP Management
 
 **As a** manager,  
 **I want** AI to help create and maintain PDIs,  
@@ -348,7 +671,7 @@
 6. Uses template: `member-pdi-tmpl.yaml`
 7. Integration test validates PDI structure
 
-### Story 3.6: tmr-people Agent - PIP and Performance Reviews
+### Story 4.5: tmr-people Agent - PIP and Performance Reviews
 
 **As a** manager,  
 **I want** AI assistance with PIPs and performance reviews,  
@@ -358,19 +681,21 @@
 
 1. Agent command: `*pip-create <member>`
 2. Generates PIP with: issues, improvement plan, timeline, consequences
-3. Agent command: `*review-generate <member> --period=<quarter>`
-4. Generates review with: summary, accomplishments, growth areas, PDI progress, goals
-5. Both use comprehensive context analysis
-6. Manager reviews/edits before finalizing
-7. Integration test validates document quality
+3. **Uses CLI for file creation**
+4. Agent command: `*review-generate <member> --period=<quarter>`
+5. Generates review with: summary, accomplishments, growth areas, PDP progress, goals
+6. **Uses CLI:** Executes `tmr member <email> add performance-review`
+7. Both use comprehensive context analysis
+8. Manager reviews/edits before finalizing
+9. Integration test validates document quality
 
 ---
 
-## Epic 4: Manager's Career & Leadership Tracking
+## Epic 5: Leader's Career & Leadership Agent System
 
-**Expanded Goal:** Enable managers to track their own career development with equal rigor as team management. Implement PDP creation/updates, brag document logging, self-review generation, and leadership alignment tracking. This epic ensures managers don't neglect their own growth.
+**Expanded Goal:** Enable managers to track their own career development with agent-assisted PDP management, brag document summarization, self-review generation, and leadership alignment tracking. All agent commands use Epic 2 CLI for file operations, ensuring consistent token-optimized operations. This epic ensures managers don't neglect their own growth.
 
-### Story 4.1: Manager Career Commands
+### Story 5.1: Manager Career Commands
 
 **As a** manager,  
 **I want** to manage my own career development,  
@@ -384,7 +709,7 @@
 4. Files created during `tmr init` with suggested brag structure
 5. Unit tests for profile/pdp commands
 
-### Story 4.2: tmr-career Agent - PDP Management
+### Story 5.2: tmr-career Agent - PDP Management
 
 **As a** manager,  
 **I want** AI to help with my own PDP,  
@@ -400,7 +725,7 @@
 6. Uses template: `manager-pdp-tmpl.yaml`
 7. Integration test validates alignment
 
-### Story 4.3: tmr-career Agent - Brag Document and Self-Review
+### Story 5.3: tmr-career Agent - Brag Document and Self-Review
 
 **As a** manager,  
 **I want** AI to help summarize my achievements,  
@@ -415,7 +740,7 @@
 5. Generates self-review draft from brag document and PDP
 6. Integration test validates quality
 
-### Story 4.4: Leadership Alignment Tracking
+### Story 5.4: Leadership Alignment Tracking
 
 **As a** manager,  
 **I want** my 1:1s with my leader tracked,  
@@ -424,32 +749,33 @@
 **Acceptance Criteria:**
 
 1. Process agent recognizes transcripts with leader (based on my-leadership/profile.md)
-2. Files them in: `my-leadership/alignments/{date}.md`
+2. **Uses CLI:** Executes `tmr leadership <email> add 1on1`
 3. Updates manager's context with alignment notes
 4. Flags misalignment with PDP
 5. Integration test validates categorization
 
 ---
 
-## Epic 5: Project Management & Operations
+## Epic 6: Project Management Agent System
 
-**Expanded Goal:** Implement project lifecycle management, status reporting, risk assessment, and operational workflows for hiring, rituals, and knowledge base management. This epic extends beyond people management to cover the full scope of a manager's responsibilities.
+**Expanded Goal:** Implement project-focused agent commands for status reporting, risk assessment, and stakeholder communication. All agent commands leverage Epic 2 CLI for project structure management and team composition updates. This epic extends beyond people management to cover the operational aspects of project delivery.
 
-### Story 5.1: Project Lifecycle Commands
+### Story 6.1: Project Lifecycle Commands
 
 **As a** manager,  
-**I want** to manage my project portfolio,  
-**so that** I can track active and completed projects.
+**I want** to view project information and status,  
+**so that** I can track my project portfolio.
+
+**Note:** Project creation commands are in Epic 2, Story 2.5. This story focuses on viewing and display commands.
 
 **Acceptance Criteria:**
 
-1. `tmr project add <name>` creates structure with brief.md template in `my-projects/`
-2. `tmr project list` displays table
-3. `tmr project archive <name> [--from --to]` moves to archived with optional date filters
-4. `tmr show <project>` displays context
-5. Unit tests for all commands
+1. `tmr project list` displays table (implemented in Epic 2)
+2. `tmr project show <name>` displays full project context
+3. `tmr show <project>` displays context (implemented in Epic 2)
+4. Unit tests for display commands
 
-### Story 5.2: tmr-project Agent - Status Reports
+### Story 6.2: tmr-project Agent - Status Reports
 
 **As a** manager,  
 **I want** AI to generate weekly status reports,  
@@ -460,11 +786,11 @@
 1. Agent command: `*status-report <project>`
 2. Reads: context.md, meetings, related member contexts
 3. Generates report: progress, risks, team capacity, next steps
-4. Outputs to: `projects/active/{project}/status-reports/{date}.md`
+4. **Uses CLI:** Executes `tmr project <project-name> add standup` or creates custom report file
 5. Uses template: `status-report-tmpl.yaml`
 6. Integration test validates report quality
 
-### Story 5.3: tmr-project Agent - Risk Assessment
+### Story 6.3: tmr-project Agent - Risk Assessment
 
 **As a** manager,  
 **I want** AI to assess project risks,  
@@ -478,7 +804,7 @@
 4. Outputs to: `projects/active/{project}/risk-assessments/{date}.md`
 5. Integration test validates risk identification
 
-### Story 5.4: Hiring Workflow
+### Story 6.4: Hiring Workflow
 
 **As a** manager,  
 **I want** to manage hiring pipelines,  
@@ -492,7 +818,7 @@
 4. Process agent creates candidate folders automatically
 5. Unit tests for all commands
 
-### Story 5.5: tmr-hiring Agent - Candidate Reviews
+### Story 6.5: tmr-hiring Agent - Candidate Reviews
 
 **As a** manager,  
 **I want** AI to help review candidates,  
@@ -506,7 +832,7 @@
 4. Outputs to: `operations/hiring/{role}/candidates/{name}/candidate-review.md`
 5. Integration test validates review quality
 
-### Story 5.6: Operations and Knowledge Base
+### Story 6.6: Operations and Knowledge Base
 
 **As a** manager,  
 **I want** structured places for operational information,  
@@ -522,11 +848,11 @@
 
 ---
 
-## Epic 6: Agent System & BMAD Builder Integration
+## Epic 7: Agent System & BMAD Builder Integration
 
 **Expanded Goal:** Build the complete agent and skill system using the BMAD Builder framework as the foundational engine. Implement all tmr-* agent definitions as BMAD-compliant modules, author the `process-meeting-note` skill for intelligent Granola note routing, create IDE integration files for Cursor/Claude/Gemini/GitHub Copilot, and deliver SKILL.md-based extensibility aligned with the BMAD Method module specification. This epic replaces the previously planned custom Pack Engine with BMAD Builder.
 
-### Story 6.1: BMAD Builder Module Structure Setup
+### Story 7.1: BMAD Builder Module Structure Setup
 
 **As a** developer,  
 **I want** the `.tm-core/` system structured as a BMAD Builder-compliant module,  
@@ -544,7 +870,7 @@
 3. `tmr init` generates this structure in the workspace
 4. Unit tests verify directory creation and file presence
 
-### Story 6.2: `process-meeting-note` BMAD Skill
+### Story 7.2: `process-meeting-note` BMAD Skill
 
 **As a** manager,  
 **I want** Granola-synced meeting notes intelligently routed to the correct folders,  
@@ -568,7 +894,7 @@
 14. **Optional process log:** When `process_log: true` is set in config, appends a structured run entry to `my-tasks/process-log.md`; default is `false`
 15. Integration tests with sample Granola-format notes covering: simple 1:1, team meeting, project meeting with external attendees, and unknown-person scenario
 
-### Story 6.3: Template Engine with Variable Injection
+### Story 7.3: Template Engine with Variable Injection
 
 **As a** developer,  
 **I want** to inject variables into agent prompts and templates,  
@@ -583,7 +909,7 @@
 5. Security: sandboxed execution
 6. Unit tests cover injection scenarios
 
-### Story 6.4: Agent Definitions
+### Story 7.4: Agent Definitions
 
 **As a** manager using an IDE,  
 **I want** to invoke specialized agents,  
@@ -592,7 +918,7 @@
 **Acceptance Criteria:**
 
 1. All agents defined in `.tm-core/agents/`:
-   - cycle-agent.md
+   - process-agent.md (renamed from cycle-agent)
    - tmr-people.md
    - tmr-project.md
    - tmr-career.md
@@ -602,7 +928,7 @@
 3. Documentation includes usage examples
 4. Agent files created during `tmr init`
 
-### Story 6.5: IDE Integration Files
+### Story 7.5: IDE Integration Files
 
 **As a** manager,  
 **I want** agents available in my IDE,  
@@ -618,7 +944,7 @@
 6. Files created during `tmr init`
 7. Integration test validates file structure
 
-### Story 6.6: BMAD Core Module — Base Skills and Tasks
+### Story 7.6: BMAD Core Module — Base Skills and Tasks
 
 **As a** product manager,  
 **I want** a comprehensive set of base BMAD skills and tasks,  
@@ -627,8 +953,8 @@
 **Acceptance Criteria:**
 
 1. All core skills created in `.tm-core/skills/`:
-   - `process-meeting-note.md` — Granola note routing (see Story 6.2)
-   - `cycle-workflow.md` — Full inbox processing workflow
+   - `process-meeting-note.md` — Granola note routing (see Story 7.2)
+   - `process-workflow.md` — Full inbox processing workflow (renamed from cycle-workflow)
    - `collect-profile.md` — Team member profile collection
    - `onboarding-manager.md` — Leader onboarding workflow
    - `archive-workflow.md` — Archive/fire member workflow
@@ -642,11 +968,11 @@
 
 ---
 
-## Epic 7: Polish, Testing & Distribution
+## Epic 8: Polish, Testing & Distribution
 
 **Expanded Goal:** Comprehensive testing across all layers, complete documentation with user guide and examples, IDE integration validation, performance optimization, and npm packaging for distribution. This epic ensures the system is production-ready.
 
-### Story 7.1: Comprehensive Test Suite
+### Story 8.1: Comprehensive Test Suite
 
 **As a** developer,  
 **I want** thorough test coverage,  
@@ -655,13 +981,13 @@
 **Acceptance Criteria:**
 
 1. Unit tests: 80%+ coverage
-2. Integration tests for all workflows
+2. Integration tests for all workflows (including Epic 2 CLI commands)
 3. Mock AI responses for deterministic testing
-4. Sample transcripts for cycle testing
+4. Sample transcripts for process testing
 5. All tests passing
 6. CI/CD pipeline configured (GitHub Actions)
 
-### Story 7.2: Documentation
+### Story 8.2: Documentation
 
 **As a** new user,  
 **I want** comprehensive documentation,  
@@ -678,7 +1004,7 @@
 7. Examples directory with sample workflows
 8. `docs/setup/obsidian-setup.md` — Obsidian vault setup, Granola Sync plugin installation, and Obsidian Terminal plugin installation and configuration guide (FR41)
 
-### Story 7.3: Performance Optimization
+### Story 8.3: Performance Optimization
 
 **As a** user,  
 **I want** fast response times,  
@@ -693,7 +1019,7 @@
 5. Retry logic with exponential backoff
 6. Performance benchmarks documented
 
-### Story 7.4: Error Handling and UX Polish
+### Story 8.4: Error Handling and UX Polish
 
 **As a** user,  
 **I want** clear error messages and polished UI,  
@@ -708,7 +1034,7 @@
 5. Help text comprehensive
 6. Accessibility flags work (--plain, --json)
 
-### Story 7.5: npm Packaging and Distribution
+### Story 8.5: npm Packaging and Distribution
 
 **As a** developer,  
 **I want** the package ready for npm,  

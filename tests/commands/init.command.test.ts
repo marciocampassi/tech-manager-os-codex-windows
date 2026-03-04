@@ -273,8 +273,8 @@ describe('InitCommand', () => {
       expect(writtenPaths.some((p) => p.endsWith('my-career/profile.md'))).toBe(true);
       expect(writtenPaths.some((p) => p.endsWith('my-career/pdp.md'))).toBe(true);
       expect(writtenPaths.some((p) => p.endsWith('my-leadership/profile.md'))).toBe(true);
-      expect(writtenPaths.some((p) => p.endsWith('cycle-agent.mdc'))).toBe(true);
-      expect(writtenPaths.filter((p) => p.endsWith('cycle-agent.md'))).toHaveLength(2);
+      expect(writtenPaths.some((p) => p.endsWith('process-agent.mdc'))).toBe(true);
+      expect(writtenPaths.filter((p) => p.endsWith('process-agent.md'))).toHaveLength(2);
     });
 
     it('writes 6 base files plus one file per team member', async () => {

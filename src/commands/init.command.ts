@@ -70,16 +70,16 @@ export class InitCommand {
         generateLeadershipProfile(data),
       ),
       fileSystemService.writeFile(
-        join(workspacePath, '.cursor', 'rules', 'tmr', 'cycle-agent.mdc'),
-        generateCursorRule('cycle-agent'),
+        join(workspacePath, '.cursor', 'rules', 'tmr', 'process-agent.mdc'),
+        generateCursorRule('process-agent'),
       ),
       fileSystemService.writeFile(
-        join(workspacePath, '.claude', 'agents', 'cycle-agent.md'),
-        generateAgentStub('cycle-agent'),
+        join(workspacePath, '.claude', 'agents', 'process-agent.md'),
+        generateAgentStub('process-agent'),
       ),
       fileSystemService.writeFile(
-        join(workspacePath, '.gemini', 'agents', 'cycle-agent.md'),
-        generateAgentStub('cycle-agent'),
+        join(workspacePath, '.gemini', 'agents', 'process-agent.md'),
+        generateAgentStub('process-agent'),
       ),
     ]);
   }

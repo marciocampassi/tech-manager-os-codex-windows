@@ -189,14 +189,14 @@ describe('InitCommand integration', () => {
       expect(paths.some((p) => p.endsWith('my-leadership/profile.md'))).toBe(true);
     });
 
-    it('writes .cursor cycle-agent.mdc', () => {
+    it('writes .cursor process-agent.mdc', () => {
       const paths = Array.from(writtenFiles.keys());
-      expect(paths.some((p) => p.endsWith('cycle-agent.mdc'))).toBe(true);
+      expect(paths.some((p) => p.endsWith('process-agent.mdc'))).toBe(true);
     });
 
-    it('writes two cycle-agent.md stubs (.claude and .gemini)', () => {
+    it('writes two process-agent.md stubs (.claude and .gemini)', () => {
       const paths = Array.from(writtenFiles.keys());
-      expect(paths.filter((p) => p.endsWith('cycle-agent.md'))).toHaveLength(2);
+      expect(paths.filter((p) => p.endsWith('process-agent.md'))).toHaveLength(2);
     });
 
     it('writes team member profile under my-team/{email}/', () => {
@@ -239,8 +239,8 @@ describe('InitCommand integration', () => {
       expect(content).toContain('Director Dana');
     });
 
-    it('cycle-agent.mdc contains placeholder notice', () => {
-      const mdcPath = Array.from(writtenFiles.keys()).find((p) => p.endsWith('cycle-agent.mdc'));
+    it('process-agent.mdc contains placeholder notice', () => {
+      const mdcPath = Array.from(writtenFiles.keys()).find((p) => p.endsWith('process-agent.mdc'));
       expect(mdcPath).toBeDefined();
       const content = writtenFiles.get(mdcPath!)!;
       expect(content).toContain('sync-agents');
