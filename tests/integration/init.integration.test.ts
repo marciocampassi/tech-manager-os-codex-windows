@@ -31,7 +31,9 @@ jest.unstable_mockModule('boxen', () => ({
   default: jest.fn((_content: string) => '[banner]'),
 }));
 
-function makeBold(s: string): string { return s; }
+function makeBold(s: string): string {
+  return s;
+}
 makeBold.cyan = (s: string) => s;
 makeBold.green = (s: string) => s;
 
@@ -84,6 +86,7 @@ const { InitCommand } = await import('../../src/commands/init.command.js');
 const WORKSPACE = '/tmp/integration-test-workspace';
 const MANAGER_NAME = 'Integration User';
 const MANAGER_EMAIL = 'integration@example.com';
+const TEAM_MEMBER_EMAIL = 'dev@example.com';
 
 // ── Suite ─────────────────────────────────────────────────────────────────────
 
@@ -91,29 +94,30 @@ describe('InitCommand integration', () => {
   beforeAll(async () => {
     jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
     try {
-    mockPrompt
-      .mockResolvedValueOnce({ workspacePath: WORKSPACE })
-      .mockResolvedValueOnce({ provider: 'openai' })
-      .mockResolvedValueOnce({ apiKey: 'sk-integration-test' })
-      .mockResolvedValueOnce({
-        name: MANAGER_NAME,
-        email: MANAGER_EMAIL,
-        role: 'Senior Engineering Manager',
-        experienceYears: 7,
-        managementStyle: 'Servant',
-        strengths: 'Empathy, Coaching, Communication',
-        developmentAreas: 'Executive presence, Delegation',
-      })
-      .mockResolvedValueOnce({
-        shortTerm: 'Build high-performing teams',
-        longTerm: 'Become VP of Engineering',
-        targetRole: 'VP of Engineering',
-      })
-      .mockResolvedValueOnce({
-        managerName: 'Director Dana',
-        managerEmail: 'dana@example.com',
-        expectations: 'Scale engineering capability and delivery speed',
-      });
+      mockPrompt
+        // promptWorkspacePath
+        .mockResolvedValueOnce({ workspacePath: WORKSPACE })
+        // promptProviderSelection
+        .mockResolvedValueOnce({ provider: 'openai' })
+        // promptApiKey
+        .mockResolvedValueOnce({ apiKey: 'sk-integration-test' })
+        // promptManagerProfile
+        .mockResolvedValueOnce({
+          name: MANAGER_NAME,
+          email: MANAGER_EMAIL,
+          role: 'Senior Engineering Manager',
+        })
+        // promptLeadershipContext
+        .mockResolvedValueOnce({
+          managerName: 'Director Dana',
+          managerEmail: 'dana@example.com',
+        })
+        // promptTeamMembers — loop iteration 1: email
+        .mockResolvedValueOnce({ email: TEAM_MEMBER_EMAIL })
+        // loop iteration 1: name/gender/role
+        .mockResolvedValueOnce({ name: 'Dev One', gender: 'Female', role: 'Software Engineer' })
+        // loop iteration 2: email (empty → exits)
+        .mockResolvedValueOnce({ email: '' });
 
       await new InitCommand().run();
     } catch (err) {
@@ -136,6 +140,11 @@ describe('InitCommand integration', () => {
     it('creates my-leadership/ directory', () => {
       const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
       expect(dirs.some((d) => d.endsWith('my-leadership'))).toBe(true);
+    });
+
+    it('creates my-team/ directory', () => {
+      const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
+      expect(dirs.some((d) => d.endsWith('my-team'))).toBe(true);
     });
 
     it('creates my-teams/ directory', () => {
@@ -189,6 +198,11 @@ describe('InitCommand integration', () => {
       const paths = Array.from(writtenFiles.keys());
       expect(paths.filter((p) => p.endsWith('cycle-agent.md'))).toHaveLength(2);
     });
+
+    it('writes team member profile under my-team/{email}/', () => {
+      const paths = Array.from(writtenFiles.keys());
+      expect(paths.some((p) => p.includes(`my-team/${TEAM_MEMBER_EMAIL}/profile.md`))).toBe(true);
+    });
   });
 
   describe('generated files — content', () => {
@@ -209,30 +223,11 @@ describe('InitCommand integration', () => {
       expect(content).toContain(MANAGER_EMAIL);
     });
 
-    it('my-career/profile.md has YAML frontmatter with strengths list', () => {
-      const profilePath = Array.from(writtenFiles.keys()).find((p) =>
-        p.endsWith('my-career/profile.md'),
-      );
-      const content = writtenFiles.get(profilePath!)!;
-      expect(content).toContain('strengths:');
-      expect(content).toContain('- Empathy');
-    });
-
     it('my-career/pdp.md contains ## Career Goals section', () => {
-      const pdpPath = Array.from(writtenFiles.keys()).find((p) =>
-        p.endsWith('my-career/pdp.md'),
-      );
+      const pdpPath = Array.from(writtenFiles.keys()).find((p) => p.endsWith('my-career/pdp.md'));
       expect(pdpPath).toBeDefined();
       const content = writtenFiles.get(pdpPath!)!;
       expect(content).toContain('## Career Goals');
-    });
-
-    it('my-career/pdp.md contains the short-term goal', () => {
-      const pdpPath = Array.from(writtenFiles.keys()).find((p) =>
-        p.endsWith('my-career/pdp.md'),
-      );
-      const content = writtenFiles.get(pdpPath!)!;
-      expect(content).toContain('Build high-performing teams');
     });
 
     it('my-leadership/profile.md contains the manager name', () => {
@@ -245,12 +240,20 @@ describe('InitCommand integration', () => {
     });
 
     it('cycle-agent.mdc contains placeholder notice', () => {
-      const mdcPath = Array.from(writtenFiles.keys()).find((p) =>
-        p.endsWith('cycle-agent.mdc'),
-      );
+      const mdcPath = Array.from(writtenFiles.keys()).find((p) => p.endsWith('cycle-agent.mdc'));
       expect(mdcPath).toBeDefined();
       const content = writtenFiles.get(mdcPath!)!;
       expect(content).toContain('sync-agents');
+    });
+
+    it('team member profile.md contains the member email and role', () => {
+      const memberPath = Array.from(writtenFiles.keys()).find((p) =>
+        p.includes(`my-team/${TEAM_MEMBER_EMAIL}/profile.md`),
+      );
+      expect(memberPath).toBeDefined();
+      const content = writtenFiles.get(memberPath!)!;
+      expect(content).toContain(TEAM_MEMBER_EMAIL);
+      expect(content).toContain('Software Engineer');
     });
   });
 });

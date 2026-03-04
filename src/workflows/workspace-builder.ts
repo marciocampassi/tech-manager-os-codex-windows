@@ -5,6 +5,7 @@ const WORKSPACE_DIRS = [
   'inbox',
   'my-career',
   'my-leadership',
+  'my-team',
   'my-teams',
   'my-projects',
   'my-company/meetings',

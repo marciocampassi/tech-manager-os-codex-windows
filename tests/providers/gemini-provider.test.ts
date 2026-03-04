@@ -52,22 +52,31 @@ describe('GeminiProvider — testConnection', () => {
     expect(await provider.testConnection()).toBe(true);
   });
 
-  it('throws with status text when ListModels responds 401', async () => {
-    mockFetch.mockResolvedValue(makeResponse(401, 'API_KEY_INVALID'));
-    await expect(provider.testConnection()).rejects.toThrow('[401]');
+  it('throws only the error message when ListModels responds 401', async () => {
+    const body = JSON.stringify({
+      error: { message: 'API key not valid. Please pass a valid API key.' },
+    });
+    mockFetch.mockResolvedValue(makeResponse(401, body));
+    await expect(provider.testConnection()).rejects.toThrow(
+      'API key not valid. Please pass a valid API key.',
+    );
   });
 
-  it('throws with status text when ListModels responds 403', async () => {
-    mockFetch.mockResolvedValue(makeResponse(403, 'PERMISSION_DENIED'));
-    await expect(provider.testConnection()).rejects.toThrow('[403]');
+  it('throws only the error message when ListModels responds 403', async () => {
+    const body = JSON.stringify({ error: { message: 'Permission denied on resource.' } });
+    mockFetch.mockResolvedValue(makeResponse(403, body));
+    await expect(provider.testConnection()).rejects.toThrow('Permission denied on resource.');
+  });
+
+  it('falls back to raw body when response is not JSON', async () => {
+    mockFetch.mockResolvedValue(makeResponse(500, 'Internal Server Error'));
+    await expect(provider.testConnection()).rejects.toThrow('Internal Server Error');
   });
 
   it('calls ListModels with the API key as query param', async () => {
     mockFetch.mockResolvedValue(makeResponse(200));
     await provider.testConnection();
-    expect(mockFetch).toHaveBeenCalledWith(
-      expect.stringContaining('key=test-key'),
-    );
+    expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining('key=test-key'));
   });
 });
 

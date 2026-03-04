@@ -26,7 +26,14 @@ export class GeminiProvider extends BaseAIProvider {
 
     if (!response.ok) {
       const body = await response.text();
-      throw new Error(`[${String(response.status)}] ${body}`);
+      let message: string;
+      try {
+        const parsed = JSON.parse(body) as { error?: { message?: string } };
+        message = parsed.error?.message ?? body;
+      } catch {
+        message = body;
+      }
+      throw new Error(message);
     }
     return true;
   }

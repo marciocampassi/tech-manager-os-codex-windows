@@ -2,22 +2,18 @@ export interface ManagerProfile {
   name: string;
   email: string;
   role: string;
-  experienceYears: number;
-  managementStyle: string;
-  strengths: string[];
-  developmentAreas: string[];
-}
-
-export interface CareerGoals {
-  shortTerm: string;
-  longTerm: string;
-  targetRole: string;
 }
 
 export interface LeadershipContext {
   managerName: string;
   managerEmail: string;
-  expectations: string;
+}
+
+export interface TeamMember {
+  email: string;
+  name: string;
+  gender: string;
+  role: string;
 }
 
 export interface OnboardingData {
@@ -25,6 +21,6 @@ export interface OnboardingData {
   apiKey: string;
   workspacePath: string;
   profile: ManagerProfile;
-  careerGoals: CareerGoals;
   leadershipContext: LeadershipContext;
+  teamMembers: TeamMember[];
 }

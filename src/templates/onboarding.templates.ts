@@ -1,12 +1,7 @@
-import type { OnboardingData } from '../types/onboarding.types.js';
+import type { OnboardingData, TeamMember } from '../types/onboarding.types.js';
 
 function today(): string {
   return new Date().toISOString().split('T')[0];
-}
-
-function yamlList(items: string[]): string {
-  if (items.length === 0) return '[]';
-  return '\n' + items.map((item) => `  - ${item}`).join('\n');
 }
 
 export function generateCareerProfile(data: OnboardingData): string {
@@ -15,35 +10,20 @@ export function generateCareerProfile(data: OnboardingData): string {
 name: ${profile.name}
 email: ${profile.email}
 role: ${profile.role}
-experience_years: ${profile.experienceYears}
-leadership_style: ${profile.managementStyle}
 teams: []
 reports_to: []
-strengths:${yamlList(profile.strengths)}
-development_areas:${yamlList(profile.developmentAreas)}
 updated: ${today()}
 ---
 
 ## About
 
-${profile.name} is a ${profile.role} with ${profile.experienceYears} year${profile.experienceYears === 1 ? '' : 's'} of management experience.
+${profile.name} is a ${profile.role}.
 
-## Leadership Style
-
-${profile.managementStyle} leadership.
-
-## Strengths
-
-${profile.strengths.map((s) => `- ${s}`).join('\n')}
-
-## Development Areas
-
-${profile.developmentAreas.map((d) => `- ${d}`).join('\n')}
 `;
 }
 
 export function generatePdp(data: OnboardingData): string {
-  const { profile, careerGoals } = data;
+  const { profile } = data;
   const date = today();
   return `---
 name: ${profile.name}
@@ -56,21 +36,16 @@ updated: ${date}
 
 ### Short-Term (Next 6 Months)
 
-${careerGoals.shortTerm}
+_Add your short-term goals here._
 
 ### Long-Term (1–3 Years)
 
-${careerGoals.longTerm}
-
-### Target Role
-
-${careerGoals.targetRole}
+_Add your long-term goals here._
 
 ## Development Plan
 
 | Area | Action | Timeline | Status |
 |------|--------|----------|--------|
-${profile.developmentAreas.map((area) => `| ${area} | _TBD_ | _TBD_ | Not started |`).join('\n')}
 
 ## Milestones
 
@@ -95,13 +70,33 @@ _note: >
 **Name:** ${leadershipContext.managerName}
 **Email:** ${leadershipContext.managerEmail}
 
-## Expectations
-
-${leadershipContext.expectations}
-
 ## Alignment Notes
 
 _Add alignment notes after 1:1s._
+`;
+}
+
+export function generateTeamMemberProfile(member: TeamMember): string {
+  const date = today();
+  return `---
+name: ${member.name}
+email: ${member.email}
+gender: ${member.gender}
+role: ${member.role}
+created: ${date}
+updated: ${date}
+---
+
+## Profile
+
+**Name:** ${member.name}
+**Email:** ${member.email}
+**Gender:** ${member.gender}
+**Role:** ${member.role}
+
+## Notes
+
+_Add notes about this team member here._
 `;
 }
 

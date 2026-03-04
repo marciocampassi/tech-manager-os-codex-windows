@@ -1,7 +1,7 @@
 import inquirer from 'inquirer';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import type { CareerGoals, LeadershipContext, ManagerProfile } from '../types/onboarding.types.js';
+import type { LeadershipContext, ManagerProfile, TeamMember } from '../types/onboarding.types.js';
 
 type ValidateResult = boolean | string;
 
@@ -22,16 +22,21 @@ export async function promptWorkspacePath(): Promise<string> {
 }
 
 export async function promptProviderSelection(): Promise<string> {
+  process.stdout.write('\nAPI Key documentation:\n');
+  process.stdout.write('  Gemini : https://ai.google.dev/gemini-api/docs/api-key?hl=pt-br\n');
+  process.stdout.write('  OpenAI : https://developers.openai.com/api/docs/quickstart/\n');
+  process.stdout.write('  Claude : https://platform.claude.com/docs/en/get-started\n\n');
+
   const answers = await inquirer.prompt<{ provider: string }>([
     {
-      type: 'list',
+      type: 'select',
       name: 'provider',
       message: 'Select your AI provider:',
       choices: [
+        { name: 'Gemini (Google)', value: 'gemini' },
         { name: 'OpenAI (GPT-4o)', value: 'openai' },
         // Architecture uses 'claude' as the canonical provider key (database-schema.md)
-        { name: 'Anthropic (Claude)', value: 'claude' },
-        { name: 'Google (Gemini)', value: 'gemini' },
+        { name: 'Claude (Anthropic)', value: 'claude' },
       ],
     },
   ]);
@@ -56,10 +61,6 @@ export async function promptManagerProfile(): Promise<ManagerProfile> {
     name: string;
     email: string;
     role: string;
-    experienceYears: number;
-    managementStyle: string;
-    strengths: string;
-    developmentAreas: string;
   }>([
     {
       type: 'input',
@@ -82,77 +83,13 @@ export async function promptManagerProfile(): Promise<ManagerProfile> {
       validate: (v: string): ValidateResult =>
         v.trim().length > 0 ? true : 'Role cannot be empty',
     },
-    {
-      type: 'number',
-      name: 'experienceYears',
-      message: 'Years of management experience:',
-      validate: (v: number): ValidateResult =>
-        Number.isInteger(v) && v >= 0 ? true : 'Must be a non-negative integer',
-    },
-    {
-      type: 'list',
-      name: 'managementStyle',
-      message: 'Your primary management style:',
-      choices: ['Servant', 'Directive', 'Coaching', 'Democratic', 'Transformational'],
-    },
-    {
-      type: 'input',
-      name: 'strengths',
-      message: 'Your key strengths (comma-separated):',
-      validate: (v: string): ValidateResult =>
-        v.trim().length > 0 ? true : 'Please enter at least one strength',
-    },
-    {
-      type: 'input',
-      name: 'developmentAreas',
-      message: 'Your development areas (comma-separated):',
-      validate: (v: string): ValidateResult =>
-        v.trim().length > 0 ? true : 'Please enter at least one development area',
-    },
   ]);
 
   return {
     name: answers.name,
     email: answers.email,
     role: answers.role,
-    experienceYears: answers.experienceYears,
-    managementStyle: answers.managementStyle,
-    strengths: answers.strengths
-      .split(',')
-      .map((s: string) => s.trim())
-      .filter(Boolean),
-    developmentAreas: answers.developmentAreas
-      .split(',')
-      .map((s: string) => s.trim())
-      .filter(Boolean),
   };
-}
-
-export async function promptCareerGoals(): Promise<CareerGoals> {
-  const answers = await inquirer.prompt<CareerGoals>([
-    {
-      type: 'input',
-      name: 'shortTerm',
-      message: 'Short-term career goal (next 6 months):',
-      validate: (v: string): ValidateResult =>
-        v.trim().length > 0 ? true : 'Please enter a short-term goal',
-    },
-    {
-      type: 'input',
-      name: 'longTerm',
-      message: 'Long-term career goal (1–3 years):',
-      validate: (v: string): ValidateResult =>
-        v.trim().length > 0 ? true : 'Please enter a long-term goal',
-    },
-    {
-      type: 'input',
-      name: 'targetRole',
-      message: 'Target role:',
-      validate: (v: string): ValidateResult =>
-        v.trim().length > 0 ? true : 'Please enter a target role',
-    },
-  ]);
-  return answers;
 }
 
 export async function promptLeadershipContext(): Promise<LeadershipContext> {
@@ -171,13 +108,77 @@ export async function promptLeadershipContext(): Promise<LeadershipContext> {
       validate: (v: string): ValidateResult =>
         v.includes('@') ? true : 'Must be a valid email address',
     },
-    {
-      type: 'input',
-      name: 'expectations',
-      message: 'Key expectations from your manager:',
-      validate: (v: string): ValidateResult =>
-        v.trim().length > 0 ? true : 'Please enter expectations',
-    },
   ]);
   return answers;
+}
+
+// Characters unsafe for use as filesystem directory segments.
+// Real email addresses never contain these, so rejecting them is both
+// a security guard and a valid email format check.
+const PATH_UNSAFE_RE = /[/\\.]\.|\.\.|[/\\]/;
+
+export async function promptTeamMembers(): Promise<TeamMember[]> {
+  process.stdout.write(
+    '\nNow, we are going to add your team members. Type their email one by one, when you finish just type enter.\n\n',
+  );
+
+  const members: TeamMember[] = [];
+  const seenEmails = new Set<string>();
+
+  while (true) {
+    const { email } = await inquirer.prompt<{ email: string }>([
+      {
+        type: 'input',
+        name: 'email',
+        message: "Type your team member email (empty when you're done):",
+        validate: (v: string): ValidateResult => {
+          const trimmed = v.trim();
+          if (trimmed.length === 0) return true; // exit condition — allow empty
+          if (!trimmed.includes('@')) return 'Must be a valid email address';
+          if (PATH_UNSAFE_RE.test(trimmed)) return 'Email contains unsafe characters';
+          return true;
+        },
+      },
+    ]);
+
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) break;
+
+    if (seenEmails.has(trimmedEmail)) {
+      process.stdout.write(`  ⚠  ${trimmedEmail} was already added — skipping duplicate.\n`);
+      continue;
+    }
+
+    const { name, gender, role } = await inquirer.prompt<{
+      name: string;
+      gender: string;
+      role: string;
+    }>([
+      {
+        type: 'input',
+        name: 'name',
+        message: 'His/her name:',
+        validate: (v: string): ValidateResult =>
+          v.trim().length > 0 ? true : 'Name cannot be empty',
+      },
+      {
+        type: 'select',
+        name: 'gender',
+        message: 'Gender:',
+        choices: ['Male', 'Female', 'Non-binary', 'Prefer not to say'],
+      },
+      {
+        type: 'input',
+        name: 'role',
+        message: 'Role:',
+        validate: (v: string): ValidateResult =>
+          v.trim().length > 0 ? true : 'Role cannot be empty',
+      },
+    ]);
+
+    seenEmails.add(trimmedEmail);
+    members.push({ email: trimmedEmail, name: name.trim(), gender, role: role.trim() });
+  }
+
+  return members;
 }
