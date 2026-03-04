@@ -10,18 +10,19 @@ import {
   promptProviderSelection,
   promptApiKey,
   promptManagerProfile,
-  promptCareerGoals,
   promptLeadershipContext,
+  promptTeamMembers,
 } from '../workflows/onboarding.prompts.js';
 import { buildWorkspaceStructure } from '../workflows/workspace-builder.js';
 import {
   generateCareerProfile,
   generatePdp,
   generateLeadershipProfile,
+  generateTeamMemberProfile,
   generateCursorRule,
   generateAgentStub,
 } from '../templates/onboarding.templates.js';
-import type { OnboardingData } from '../types/onboarding.types.js';
+import type { OnboardingData, TeamMember } from '../types/onboarding.types.js';
 
 export class InitCommand {
   constructor(private readonly version: string = '1.0.0') {}
@@ -83,6 +84,17 @@ export class InitCommand {
     ]);
   }
 
+  private async writeTeamMemberFiles(workspacePath: string, members: TeamMember[]): Promise<void> {
+    await Promise.all(
+      members.map((member) =>
+        fileSystemService.writeFile(
+          join(workspacePath, 'my-team', member.email, 'profile.md'),
+          generateTeamMemberProfile(member),
+        ),
+      ),
+    );
+  }
+
   private displayNextSteps(workspacePath: string): void {
     const lines = [
       chalk.bold.green(`\n✓ Workspace created at ${workspacePath}`),
@@ -111,21 +123,22 @@ export class InitCommand {
     configService.set('apiKey', apiKey);
 
     const profile = await promptManagerProfile();
-    const careerGoals = await promptCareerGoals();
     const leadershipContext = await promptLeadershipContext();
+    const teamMembers = await promptTeamMembers();
 
     const data: OnboardingData = {
       provider,
       apiKey,
       workspacePath,
       profile,
-      careerGoals,
       leadershipContext,
+      teamMembers,
     };
 
     const spinner = ora('Creating workspace…').start();
     await buildWorkspaceStructure(workspacePath);
     await this.writeWorkspaceFiles(workspacePath, data);
+    await this.writeTeamMemberFiles(workspacePath, teamMembers);
     spinner.succeed('Workspace ready');
 
     this.displayNextSteps(workspacePath);

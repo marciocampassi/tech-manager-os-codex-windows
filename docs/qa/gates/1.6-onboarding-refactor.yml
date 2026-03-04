@@ -1,0 +1,71 @@
+schema: 1
+story: "1.6"
+story_title: "Interactive Onboarding Workflow — Onboarding Refactor (user-directed)"
+gate: CONCERNS
+status_reason: "3 bugs fixed inline (email validation, whitespace trimming, zero-member test). 4 open items remain: story AC divergence, data-architecture schema drift, no multi-member test, and no duplicate-email guard. Code is functionally correct; concerns are documentation/architecture alignment."
+reviewer: "Quinn (Test Architect)"
+updated: "2026-03-03T00:00:00Z"
+
+waiver: { active: false }
+
+top_issues:
+  - id: "QA-1.6R-04"
+    severity: medium
+    finding: "Story 1.6 ACs 5, 6, 7 no longer match the implementation after the onboarding refactor — experience years, management style, strengths, development areas, career goals, and expectations fields were removed. The story is marked Done but the ACs are stale."
+    suggested_action: "Create a new story or amend AC 5/6/7 to reflect the simplified profile + TeamMember model. Owner: SM/PO."
+
+  - id: "QA-1.6R-05"
+    severity: medium
+    finding: "generateCareerProfile() no longer emits experience_years, leadership_style, strengths, or development_areas fields defined in docs/prd/data-architecture.md. Downstream tools or agents that consume my-career/profile.md expecting these frontmatter keys will find them absent."
+    suggested_action: "Update data-architecture.md to reflect the new simplified schema, or restore the fields in the template. Owner: Dev/PO."
+
+  - id: "QA-1.6R-06"
+    severity: low
+    finding: "No test covers adding 2 or more team members. Only the 1-member-then-exit and 0-member paths are tested."
+    suggested_action: "Add a test with 2 members to verify concurrent Promise.all writes and correct file paths. Owner: Dev."
+
+  - id: "QA-1.6R-07"
+    severity: low
+    finding: "Duplicate team member emails are not detected. A second entry with the same email silently overwrites the first profile.md via atomic rename."
+    suggested_action: "Track seen emails in a Set; warn and skip duplicates in the loop. Owner: Dev."
+
+risk_summary:
+  totals: { critical: 0, high: 0, medium: 2, low: 2 }
+  recommendations:
+    must_fix: []
+    monitor:
+      - "QA-1.6R-04: story AC alignment (SM/PO decision)"
+      - "QA-1.6R-05: career profile schema drift (Dev/PO decision)"
+
+quality_score: 80
+
+evidence:
+  tests_reviewed: 176
+  risks_identified: 4
+  trace:
+    ac_covered: [1, 2, 3, 4, 8, 9, 10, 11, 12]
+    ac_gaps: [5, 6, 7]
+
+nfr_validation:
+  security:
+    status: CONCERNS
+    notes: "Team member email used as directory name is not sanitized against path traversal (../). Low severity in local filesystem context only."
+  performance:
+    status: PASS
+    notes: "writeTeamMemberFiles uses Promise.all — concurrent, non-overlapping paths, safe."
+  reliability:
+    status: PASS
+    notes: "Loop exit condition correct. Empty email allowed by validator (exits cleanly). Atomic writes preserved via FileSystemService."
+  maintainability:
+    status: PASS
+    notes: "Clean separation of concerns maintained. Types, prompts, templates, and orchestration all updated consistently."
+
+recommendations:
+  immediate: []
+  future:
+    - action: "Sanitize team member email before using as directory segment (strip path separators)"
+      refs: ["src/commands/init.command.ts:writeTeamMemberFiles"]
+    - action: "Add 2-member test and duplicate-email deduplication"
+      refs: ["tests/commands/init.command.test.ts", "src/workflows/onboarding.prompts.ts"]
+    - action: "Align story 1.6 ACs or create a new story for this refactoring"
+      refs: ["docs/stories/1.6.interactive-onboarding-workflow.story.md"]

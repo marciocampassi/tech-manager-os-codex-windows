@@ -23,7 +23,9 @@ jest.unstable_mockModule('boxen', () => ({
 
 // chalk.bold is both callable (chalk.bold('text')) and a property accessor (chalk.bold.cyan)
 // so it must be a function that also has sub-properties.
-function makeBold(s: string): string { return s; }
+function makeBold(s: string): string {
+  return s;
+}
 makeBold.cyan = (s: string) => s;
 makeBold.green = (s: string) => s;
 
@@ -65,28 +67,29 @@ const { InitCommand } = await import('../../src/commands/init.command.js');
 
 function setupHappyPath(): void {
   mockPrompt
+    // promptWorkspacePath
     .mockResolvedValueOnce({ workspacePath: '/tmp/test-workspace' })
+    // promptProviderSelection
     .mockResolvedValueOnce({ provider: 'openai' })
+    // promptApiKey
     .mockResolvedValueOnce({ apiKey: 'sk-test-key' })
+    // promptManagerProfile
     .mockResolvedValueOnce({
       name: 'Alice Example',
       email: 'alice@example.com',
       role: 'Engineering Manager',
-      experienceYears: 5,
-      managementStyle: 'Coaching',
-      strengths: 'Empathy, Communication',
-      developmentAreas: 'Delegation, Prioritization',
     })
-    .mockResolvedValueOnce({
-      shortTerm: 'Lead two teams effectively',
-      longTerm: 'Become Director of Engineering',
-      targetRole: 'Director of Engineering',
-    })
+    // promptLeadershipContext
     .mockResolvedValueOnce({
       managerName: 'Bob Manager',
       managerEmail: 'bob@example.com',
-      expectations: 'Scale the platform team',
-    });
+    })
+    // promptTeamMembers — loop iteration 1: email prompt
+    .mockResolvedValueOnce({ email: 'member@example.com' })
+    // loop iteration 1: name/gender/role prompt
+    .mockResolvedValueOnce({ name: 'Member One', gender: 'Male', role: 'Developer' })
+    // loop iteration 2: email prompt (empty → exits loop)
+    .mockResolvedValueOnce({ email: '' });
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -161,13 +164,84 @@ describe('InitCommand', () => {
     it('calls spinner.fail and process.exit(1) when testConnection returns false', async () => {
       mockPrompt
         .mockResolvedValueOnce({ workspacePath: '/tmp/test-workspace' })
-        .mockResolvedValueOnce({ provider: 'anthropic' })
+        .mockResolvedValueOnce({ provider: 'claude' })
         .mockResolvedValueOnce({ apiKey: 'bad-key' });
       mockTestConnection.mockResolvedValue(false);
 
       await expect(new InitCommand().run()).rejects.toThrow('process.exit called');
-      expect(mockFail).toHaveBeenCalledWith(expect.stringContaining('anthropic'));
+      expect(mockFail).toHaveBeenCalledWith(expect.stringContaining('claude'));
       expect(exitSpy).toHaveBeenCalledWith(1);
+    });
+  });
+
+  describe('team members — empty loop', () => {
+    it('completes successfully when the user immediately exits the team member loop', async () => {
+      mockPrompt
+        .mockResolvedValueOnce({ workspacePath: '/tmp/test-workspace' })
+        .mockResolvedValueOnce({ provider: 'openai' })
+        .mockResolvedValueOnce({ apiKey: 'sk-test-key' })
+        .mockResolvedValueOnce({ name: 'Alice Example', email: 'alice@example.com', role: 'EM' })
+        .mockResolvedValueOnce({ managerName: 'Bob', managerEmail: 'bob@example.com' })
+        // team loop: immediately empty → exits
+        .mockResolvedValueOnce({ email: '' });
+
+      await new InitCommand().run();
+      // Only 6 base files written (no team member files)
+      expect(mockWriteFile).toHaveBeenCalledTimes(6);
+    });
+  });
+
+  describe('team members — multiple members', () => {
+    it('writes one profile file per member and correct paths for 2 members', async () => {
+      mockPrompt
+        .mockResolvedValueOnce({ workspacePath: '/tmp/test-workspace' })
+        .mockResolvedValueOnce({ provider: 'openai' })
+        .mockResolvedValueOnce({ apiKey: 'sk-test-key' })
+        .mockResolvedValueOnce({ name: 'Alice Example', email: 'alice@example.com', role: 'EM' })
+        .mockResolvedValueOnce({ managerName: 'Bob', managerEmail: 'bob@example.com' })
+        // loop iteration 1
+        .mockResolvedValueOnce({ email: 'dev1@example.com' })
+        .mockResolvedValueOnce({ name: 'Dev One', gender: 'Male', role: 'Engineer' })
+        // loop iteration 2
+        .mockResolvedValueOnce({ email: 'dev2@example.com' })
+        .mockResolvedValueOnce({ name: 'Dev Two', gender: 'Female', role: 'Designer' })
+        // loop exit
+        .mockResolvedValueOnce({ email: '' });
+
+      await new InitCommand().run();
+
+      const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) => c[0]);
+      // 6 base files + 2 team member profiles
+      expect(mockWriteFile).toHaveBeenCalledTimes(8);
+      expect(writtenPaths.some((p) => p.includes('my-team/dev1@example.com/profile.md'))).toBe(
+        true,
+      );
+      expect(writtenPaths.some((p) => p.includes('my-team/dev2@example.com/profile.md'))).toBe(
+        true,
+      );
+    });
+
+    it('skips duplicate emails without writing a second profile file', async () => {
+      mockPrompt
+        .mockResolvedValueOnce({ workspacePath: '/tmp/test-workspace' })
+        .mockResolvedValueOnce({ provider: 'openai' })
+        .mockResolvedValueOnce({ apiKey: 'sk-test-key' })
+        .mockResolvedValueOnce({ name: 'Alice Example', email: 'alice@example.com', role: 'EM' })
+        .mockResolvedValueOnce({ managerName: 'Bob', managerEmail: 'bob@example.com' })
+        // loop iteration 1 — first entry
+        .mockResolvedValueOnce({ email: 'dup@example.com' })
+        .mockResolvedValueOnce({ name: 'Original', gender: 'Male', role: 'Engineer' })
+        // loop iteration 2 — duplicate email, skipped (no name/gender/role prompt follows)
+        .mockResolvedValueOnce({ email: 'dup@example.com' })
+        // loop exit
+        .mockResolvedValueOnce({ email: '' });
+
+      await new InitCommand().run();
+
+      const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) => c[0]);
+      // 6 base files + 1 team member profile (duplicate not written)
+      expect(mockWriteFile).toHaveBeenCalledTimes(7);
+      expect(writtenPaths.filter((p) => p.includes('dup@example.com'))).toHaveLength(1);
     });
   });
 
@@ -185,10 +259,21 @@ describe('InitCommand', () => {
       expect(writtenPaths.filter((p) => p.endsWith('cycle-agent.md'))).toHaveLength(2);
     });
 
-    it('writes all 6 files total', async () => {
+    it('writes 6 base files plus one file per team member', async () => {
       setupHappyPath();
       await new InitCommand().run();
-      expect(mockWriteFile).toHaveBeenCalledTimes(6);
+      // 6 base files + 1 team member profile
+      expect(mockWriteFile).toHaveBeenCalledTimes(7);
+    });
+
+    it('writes team member profile under my-team/{email}/', async () => {
+      setupHappyPath();
+      await new InitCommand().run();
+
+      const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) => c[0]);
+      expect(writtenPaths.some((p) => p.includes('my-team/member@example.com/profile.md'))).toBe(
+        true,
+      );
     });
   });
 
@@ -197,9 +282,7 @@ describe('InitCommand', () => {
       setupHappyPath();
       await new InitCommand().run();
 
-      const allOutput = (stdoutSpy.mock.calls as [string][])
-        .map((c) => c[0])
-        .join('');
+      const allOutput = (stdoutSpy.mock.calls as [string][]).map((c) => c[0]).join('');
       expect(allOutput).toContain('/tmp/test-workspace');
     });
   });
