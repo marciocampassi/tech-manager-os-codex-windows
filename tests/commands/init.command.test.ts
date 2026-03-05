@@ -47,9 +47,19 @@ jest.unstable_mockModule('../../src/providers/ai-provider-factory.js', () => ({
 
 const mockConfigInitialize = jest.fn<() => void>();
 const mockConfigSet = jest.fn<() => void>();
+const mockConfigSetActiveProvider = jest.fn<() => void>();
+const mockConfigAddProvider = jest.fn<() => void>();
+const mockConfigGetProviderConfig =
+  jest.fn<(p: string) => { api_key_encrypted?: string } | undefined>();
 
 jest.unstable_mockModule('../../src/services/config.service.js', () => ({
-  configService: { initialize: mockConfigInitialize, set: mockConfigSet },
+  configService: {
+    initialize: mockConfigInitialize,
+    set: mockConfigSet,
+    setActiveProvider: mockConfigSetActiveProvider,
+    addProvider: mockConfigAddProvider,
+    getProviderConfig: mockConfigGetProviderConfig,
+  },
 }));
 
 const mockCreateDirectory = jest.fn<() => Promise<void>>();
@@ -78,6 +88,7 @@ function setupHappyPath(): void {
       name: 'Alice Example',
       email: 'alice@example.com',
       role: 'Engineering Manager',
+      location: 'São Paulo, SP, Brasil',
     })
     // promptLeadershipContext
     .mockResolvedValueOnce({
@@ -103,6 +114,8 @@ describe('InitCommand', () => {
     mockCreateDirectory.mockResolvedValue(undefined);
     mockWriteFile.mockResolvedValue(undefined);
     mockTestConnection.mockResolvedValue(true);
+    // By default no existing key — no reuse prompt shown
+    mockConfigGetProviderConfig.mockReturnValue(undefined);
     stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
     exitSpy = jest
       .spyOn(process, 'exit')
@@ -128,11 +141,11 @@ describe('InitCommand', () => {
   });
 
   describe('happy path', () => {
-    it('saves provider and apiKey via configService after successful connection', async () => {
+    it('sets active provider and persists key via addProvider after successful connection', async () => {
       setupHappyPath();
       await new InitCommand().run();
-      expect(mockConfigSet).toHaveBeenCalledWith('provider', 'openai');
-      expect(mockConfigSet).toHaveBeenCalledWith('apiKey', 'sk-test-key');
+      expect(mockConfigSetActiveProvider).toHaveBeenCalledWith('openai');
+      expect(mockConfigAddProvider).toHaveBeenCalledWith('openai', 'sk-test-key', '');
     });
 
     it('calls AIProviderFactory.create with correct provider and apiKey', async () => {
@@ -148,8 +161,61 @@ describe('InitCommand', () => {
     });
   });
 
-  describe('connection failure — retry loop', () => {
-    it('shows spinner.fail and re-prompts API key when testConnection throws, then succeeds on retry', async () => {
+  describe('existing key reuse', () => {
+    it('skips key prompt and reuses existing key when user confirms', async () => {
+      mockConfigGetProviderConfig.mockReturnValue({ api_key_encrypted: 'sk-existing' });
+
+      mockPrompt
+        .mockResolvedValueOnce({ workspacePath: '/tmp/test-workspace' })
+        .mockResolvedValueOnce({ provider: 'openai' })
+        // reuse confirmation → yes
+        .mockResolvedValueOnce({ reuse: true })
+        // rest of onboarding
+        .mockResolvedValueOnce({
+          name: 'Alice',
+          email: 'alice@example.com',
+          role: 'EM',
+          location: '',
+        })
+        .mockResolvedValueOnce({ managerName: 'Bob', managerEmail: 'bob@example.com' })
+        .mockResolvedValueOnce({ email: '' });
+
+      await new InitCommand().run();
+
+      // Should NOT call testConnection — key was reused without re-validation
+      expect(mockTestConnection).not.toHaveBeenCalled();
+      // Should persist the existing key again via addProvider
+      expect(mockConfigAddProvider).toHaveBeenCalledWith('openai', 'sk-existing', '');
+    });
+
+    it('falls through to new key prompt when user declines reuse', async () => {
+      mockConfigGetProviderConfig.mockReturnValue({ api_key_encrypted: 'sk-existing' });
+
+      mockPrompt
+        .mockResolvedValueOnce({ workspacePath: '/tmp/test-workspace' })
+        .mockResolvedValueOnce({ provider: 'openai' })
+        // reuse confirmation → no
+        .mockResolvedValueOnce({ reuse: false })
+        // new key entry
+        .mockResolvedValueOnce({ apiKey: 'sk-new-key' })
+        .mockResolvedValueOnce({
+          name: 'Alice',
+          email: 'alice@example.com',
+          role: 'EM',
+          location: '',
+        })
+        .mockResolvedValueOnce({ managerName: 'Bob', managerEmail: 'bob@example.com' })
+        .mockResolvedValueOnce({ email: '' });
+
+      await new InitCommand().run();
+
+      expect(mockTestConnection).toHaveBeenCalled();
+      expect(mockConfigAddProvider).toHaveBeenCalledWith('openai', 'sk-new-key', '');
+    });
+  });
+
+  describe('connection failure — retry loop (capped at 3)', () => {
+    it('shows spinner.fail and re-prompts API key when testConnection throws, then succeeds on 2nd attempt', async () => {
       mockPrompt
         .mockResolvedValueOnce({ workspacePath: '/tmp/test-workspace' })
         .mockResolvedValueOnce({ provider: 'openai' })
@@ -157,7 +223,12 @@ describe('InitCommand', () => {
         .mockResolvedValueOnce({ apiKey: 'bad-key' })
         // second attempt — good key (rest of happy path)
         .mockResolvedValueOnce({ apiKey: 'sk-good-key' })
-        .mockResolvedValueOnce({ name: 'Alice', email: 'alice@example.com', role: 'EM' })
+        .mockResolvedValueOnce({
+          name: 'Alice',
+          email: 'alice@example.com',
+          role: 'EM',
+          location: '',
+        })
         .mockResolvedValueOnce({ managerName: 'Bob', managerEmail: 'bob@example.com' })
         .mockResolvedValueOnce({ email: '' });
 
@@ -170,7 +241,7 @@ describe('InitCommand', () => {
       expect(mockAICreate).toHaveBeenCalledWith('openai', 'sk-good-key');
     });
 
-    it('shows spinner.fail and re-prompts API key when testConnection returns false, then succeeds on retry', async () => {
+    it('shows spinner.fail and re-prompts API key when testConnection returns false, then succeeds on 2nd attempt', async () => {
       mockPrompt
         .mockResolvedValueOnce({ workspacePath: '/tmp/test-workspace' })
         .mockResolvedValueOnce({ provider: 'claude' })
@@ -178,7 +249,12 @@ describe('InitCommand', () => {
         .mockResolvedValueOnce({ apiKey: 'bad-key' })
         // second attempt — good key (rest of happy path)
         .mockResolvedValueOnce({ apiKey: 'sk-good-key' })
-        .mockResolvedValueOnce({ name: 'Alice', email: 'alice@example.com', role: 'EM' })
+        .mockResolvedValueOnce({
+          name: 'Alice',
+          email: 'alice@example.com',
+          role: 'EM',
+          location: '',
+        })
         .mockResolvedValueOnce({ managerName: 'Bob', managerEmail: 'bob@example.com' })
         .mockResolvedValueOnce({ email: '' });
 
@@ -190,6 +266,63 @@ describe('InitCommand', () => {
       expect(mockSucceed).toHaveBeenCalledWith(expect.stringContaining('claude'));
       expect(mockAICreate).toHaveBeenCalledWith('claude', 'sk-good-key');
     });
+
+    it('continues onboarding without a key after all 3 attempts fail and shows deferred warning', async () => {
+      mockPrompt
+        .mockResolvedValueOnce({ workspacePath: '/tmp/test-workspace' })
+        .mockResolvedValueOnce({ provider: 'gemini' })
+        // 3 failed attempts
+        .mockResolvedValueOnce({ apiKey: 'bad-1' })
+        .mockResolvedValueOnce({ apiKey: 'bad-2' })
+        .mockResolvedValueOnce({ apiKey: 'bad-3' })
+        // rest of onboarding continues
+        .mockResolvedValueOnce({
+          name: 'Alice',
+          email: 'alice@example.com',
+          role: 'EM',
+          location: '',
+        })
+        .mockResolvedValueOnce({ managerName: 'Bob', managerEmail: 'bob@example.com' })
+        .mockResolvedValueOnce({ email: '' });
+
+      mockTestConnection.mockResolvedValue(false);
+
+      await new InitCommand().run();
+
+      expect(mockFail).toHaveBeenCalledTimes(3);
+      const allOutput = (stdoutSpy.mock.calls as [string][]).map((c) => c[0]).join('');
+      expect(allOutput).toContain('tmr config set-key');
+      // Key must NOT be persisted when validation never succeeded
+      expect(mockConfigAddProvider).not.toHaveBeenCalled();
+      // But workspace creation still completes
+      expect(mockWriteFile).toHaveBeenCalledTimes(6);
+    });
+
+    it('includes attempt counter in API key prompt message', async () => {
+      mockPrompt
+        .mockResolvedValueOnce({ workspacePath: '/tmp/test-workspace' })
+        .mockResolvedValueOnce({ provider: 'gemini' })
+        .mockResolvedValueOnce({ apiKey: 'bad-1' })
+        .mockResolvedValueOnce({ apiKey: 'bad-2' })
+        .mockResolvedValueOnce({ apiKey: 'bad-3' })
+        .mockResolvedValueOnce({
+          name: 'Alice',
+          email: 'alice@example.com',
+          role: 'EM',
+          location: '',
+        })
+        .mockResolvedValueOnce({ managerName: 'Bob', managerEmail: 'bob@example.com' })
+        .mockResolvedValueOnce({ email: '' });
+
+      mockTestConnection.mockResolvedValue(false);
+
+      await new InitCommand().run();
+
+      // promptApiKey is called 3 times; each call passes different args to inquirer.prompt
+      // The 3rd inquirer call is the 1st apiKey prompt (after workspace + provider)
+      const apiKeyCall = mockPrompt.mock.calls[2] as unknown as [Array<{ message: string }>];
+      expect(apiKeyCall[0][0].message).toContain('1/3');
+    });
   });
 
   describe('team members — empty loop', () => {
@@ -198,7 +331,12 @@ describe('InitCommand', () => {
         .mockResolvedValueOnce({ workspacePath: '/tmp/test-workspace' })
         .mockResolvedValueOnce({ provider: 'openai' })
         .mockResolvedValueOnce({ apiKey: 'sk-test-key' })
-        .mockResolvedValueOnce({ name: 'Alice Example', email: 'alice@example.com', role: 'EM' })
+        .mockResolvedValueOnce({
+          name: 'Alice Example',
+          email: 'alice@example.com',
+          role: 'EM',
+          location: '',
+        })
         .mockResolvedValueOnce({ managerName: 'Bob', managerEmail: 'bob@example.com' })
         // team loop: immediately empty → exits
         .mockResolvedValueOnce({ email: '' });
@@ -215,7 +353,12 @@ describe('InitCommand', () => {
         .mockResolvedValueOnce({ workspacePath: '/tmp/test-workspace' })
         .mockResolvedValueOnce({ provider: 'openai' })
         .mockResolvedValueOnce({ apiKey: 'sk-test-key' })
-        .mockResolvedValueOnce({ name: 'Alice Example', email: 'alice@example.com', role: 'EM' })
+        .mockResolvedValueOnce({
+          name: 'Alice Example',
+          email: 'alice@example.com',
+          role: 'EM',
+          location: '',
+        })
         .mockResolvedValueOnce({ managerName: 'Bob', managerEmail: 'bob@example.com' })
         // loop iteration 1
         .mockResolvedValueOnce({ email: 'dev1@example.com' })
@@ -244,7 +387,12 @@ describe('InitCommand', () => {
         .mockResolvedValueOnce({ workspacePath: '/tmp/test-workspace' })
         .mockResolvedValueOnce({ provider: 'openai' })
         .mockResolvedValueOnce({ apiKey: 'sk-test-key' })
-        .mockResolvedValueOnce({ name: 'Alice Example', email: 'alice@example.com', role: 'EM' })
+        .mockResolvedValueOnce({
+          name: 'Alice Example',
+          email: 'alice@example.com',
+          role: 'EM',
+          location: '',
+        })
         .mockResolvedValueOnce({ managerName: 'Bob', managerEmail: 'bob@example.com' })
         // loop iteration 1 — first entry
         .mockResolvedValueOnce({ email: 'dup@example.com' })
@@ -292,6 +440,42 @@ describe('InitCommand', () => {
       expect(writtenPaths.some((p) => p.includes('my-team/member@example.com/profile.md'))).toBe(
         true,
       );
+    });
+  });
+
+  describe('locality field (Story 1.9)', () => {
+    it('includes location in profile.md content when provided', async () => {
+      setupHappyPath();
+      await new InitCommand().run();
+
+      const profileCall = (mockWriteFile.mock.calls as [string, string][]).find(([p]) =>
+        p.endsWith('my-career/profile.md'),
+      );
+      expect(profileCall).toBeDefined();
+      expect(profileCall![1]).toContain('location: São Paulo, SP, Brasil');
+    });
+
+    it('omits location key from profile.md when field is empty', async () => {
+      mockPrompt
+        .mockResolvedValueOnce({ workspacePath: '/tmp/test-workspace' })
+        .mockResolvedValueOnce({ provider: 'openai' })
+        .mockResolvedValueOnce({ apiKey: 'sk-test-key' })
+        .mockResolvedValueOnce({
+          name: 'Alice',
+          email: 'alice@example.com',
+          role: 'EM',
+          location: '',
+        })
+        .mockResolvedValueOnce({ managerName: 'Bob', managerEmail: 'bob@example.com' })
+        .mockResolvedValueOnce({ email: '' });
+
+      await new InitCommand().run();
+
+      const profileCall = (mockWriteFile.mock.calls as [string, string][]).find(([p]) =>
+        p.endsWith('my-career/profile.md'),
+      );
+      expect(profileCall).toBeDefined();
+      expect(profileCall![1]).not.toContain('location:');
     });
   });
 

@@ -2,6 +2,7 @@ export interface ManagerProfile {
   name: string;
   email: string;
   role: string;
+  location?: string;
 }
 
 export interface LeadershipContext {

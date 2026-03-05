@@ -1,5 +1,6 @@
 import boxen from 'boxen';
 import chalk from 'chalk';
+import inquirer from 'inquirer';
 import ora from 'ora';
 import { join } from 'node:path';
 import { AIProviderFactory } from '../providers/ai-provider-factory.js';
@@ -24,6 +25,8 @@ import {
 } from '../templates/onboarding.templates.js';
 import type { OnboardingData, TeamMember } from '../types/onboarding.types.js';
 
+const MAX_API_KEY_ATTEMPTS = 3;
+
 export class InitCommand {
   constructor(private readonly version: string = '1.0.0') {}
 
@@ -40,8 +43,14 @@ export class InitCommand {
     process.stdout.write(banner + '\n\n');
   }
 
-  private async validateConnection(provider: string, apiKey: string): Promise<boolean> {
-    const spinner = ora(`Validating ${provider} API key…`).start();
+  private async validateConnection(
+    provider: string,
+    apiKey: string,
+    attempt = 1,
+    maxAttempts = MAX_API_KEY_ATTEMPTS,
+  ): Promise<boolean> {
+    const attemptLabel = `(attempt ${attempt}/${maxAttempts})`;
+    const spinner = ora(`Validating ${provider} API key… ${attemptLabel}`).start();
     try {
       const ai = AIProviderFactory.create(provider, apiKey);
       const connected = await ai.testConnection();
@@ -115,16 +124,53 @@ export class InitCommand {
     const workspacePath = await promptWorkspacePath();
     const provider = await promptProviderSelection();
 
-    let apiKey: string;
-    while (true) {
-      apiKey = await promptApiKey(provider);
-      const connected = await this.validateConnection(provider, apiKey);
-      if (connected) break;
+    // Reuse existing key if one is already configured for the selected provider
+    const existingCfg = configService.getProviderConfig(provider);
+    let apiKey = existingCfg?.api_key_encrypted ?? '';
+    let keyValidated = false;
+
+    if (apiKey) {
+      const { reuse } = await inquirer.prompt<{ reuse: boolean }>([
+        {
+          type: 'confirm',
+          name: 'reuse',
+          message: `A key is already configured for ${provider}. Use the existing key?`,
+          default: true,
+        },
+      ]);
+      if (reuse) {
+        keyValidated = true;
+        process.stdout.write(`\n✔ Using existing ${provider} key.\n\n`);
+      } else {
+        apiKey = '';
+      }
+    }
+
+    if (!keyValidated) {
+      for (let attempt = 1; attempt <= MAX_API_KEY_ATTEMPTS; attempt++) {
+        apiKey = await promptApiKey(provider, attempt, MAX_API_KEY_ATTEMPTS);
+        keyValidated = await this.validateConnection(
+          provider,
+          apiKey,
+          attempt,
+          MAX_API_KEY_ATTEMPTS,
+        );
+        if (keyValidated) break;
+      }
+    }
+
+    if (!keyValidated) {
+      process.stdout.write(
+        `\n⚠  Could not validate the API key after ${MAX_API_KEY_ATTEMPTS} attempts.\n` +
+          '   You can configure it later with: tmr config set-key\n\n',
+      );
     }
 
     configService.initialize();
-    configService.set('provider', provider);
-    configService.set('apiKey', apiKey);
+    configService.setActiveProvider(provider);
+    if (keyValidated) {
+      configService.addProvider(provider, apiKey, '');
+    }
 
     const profile = await promptManagerProfile();
     const leadershipContext = await promptLeadershipContext();

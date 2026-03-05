@@ -58,6 +58,9 @@ jest.unstable_mockModule('../../src/services/config.service.js', () => ({
   configService: {
     initialize: jest.fn(),
     set: jest.fn(),
+    setActiveProvider: jest.fn(),
+    addProvider: jest.fn(),
+    getProviderConfig: jest.fn().mockReturnValue(undefined),
   },
 }));
 
@@ -106,6 +109,7 @@ describe('InitCommand integration', () => {
           name: MANAGER_NAME,
           email: MANAGER_EMAIL,
           role: 'Senior Engineering Manager',
+          location: 'São Paulo, SP, Brasil',
         })
         // promptLeadershipContext
         .mockResolvedValueOnce({
