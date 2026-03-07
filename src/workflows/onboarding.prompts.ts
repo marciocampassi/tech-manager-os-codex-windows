@@ -43,12 +43,17 @@ export async function promptProviderSelection(): Promise<string> {
   return answers.provider;
 }
 
-export async function promptApiKey(provider: string): Promise<string> {
+export async function promptApiKey(
+  provider: string,
+  attempt = 1,
+  maxAttempts = 1,
+): Promise<string> {
+  const attemptSuffix = maxAttempts > 1 ? ` (attempt ${attempt}/${maxAttempts})` : '';
   const answers = await inquirer.prompt<{ apiKey: string }>([
     {
       type: 'password',
       name: 'apiKey',
-      message: `Enter your ${provider} API key:`,
+      message: `Enter your ${provider} API key${attemptSuffix}:`,
       validate: (v: string): ValidateResult =>
         v.trim().length > 0 ? true : 'API key cannot be empty',
     },
@@ -61,6 +66,7 @@ export async function promptManagerProfile(): Promise<ManagerProfile> {
     name: string;
     email: string;
     role: string;
+    location: string;
   }>([
     {
       type: 'input',
@@ -83,12 +89,19 @@ export async function promptManagerProfile(): Promise<ManagerProfile> {
       validate: (v: string): ValidateResult =>
         v.trim().length > 0 ? true : 'Role cannot be empty',
     },
+    {
+      type: 'input',
+      name: 'location',
+      message: 'Your location (optional):',
+      default: '',
+    },
   ]);
 
   return {
     name: answers.name,
     email: answers.email,
     role: answers.role,
+    ...(answers.location.trim() ? { location: answers.location.trim() } : {}),
   };
 }
 

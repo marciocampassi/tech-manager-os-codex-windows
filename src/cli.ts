@@ -1,6 +1,7 @@
 import { Command, CommanderError } from 'commander';
 import { createRequire } from 'module';
 import { InitCommand } from './commands/init.command.js';
+import { createConfigCommand } from './commands/config.command.js';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json') as { version: string; description: string };
@@ -28,6 +29,8 @@ export function createProgram(): Command {
     .action(async () => {
       await new InitCommand(pkg.version).run();
     });
+
+  p.addCommand(createConfigCommand());
 
   p.command('process')
     .description('process inbox files and update context')

@@ -6,11 +6,12 @@ function today(): string {
 
 export function generateCareerProfile(data: OnboardingData): string {
   const { profile } = data;
+  const locationLine = profile.location ? `location: ${profile.location}\n` : '';
   return `---
 name: ${profile.name}
 email: ${profile.email}
 role: ${profile.role}
-teams: []
+${locationLine}teams: []
 reports_to: []
 updated: ${today()}
 ---
