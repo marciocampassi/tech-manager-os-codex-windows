@@ -1,8 +1,8 @@
-# Epic 6: Agent System & BMAD Builder Integration
+# Epic 7: Agent System & BMAD Builder Integration
 
 **Expanded Goal:** Build the complete agent and skill system using the BMAD Builder framework as the foundational engine. Implement all tmr-* agent definitions as BMAD-compliant modules, author the `process-meeting-note` skill for intelligent Granola note routing, create IDE integration files for Cursor/Claude/Gemini/GitHub Copilot, and deliver SKILL.md-based extensibility aligned with the BMAD Method module specification. This epic replaces the previously planned custom Pack Engine with BMAD Builder.
 
-## Story 6.1: BMAD Builder Module Structure Setup
+## Story 7.1: BMAD Builder Module Structure Setup
 
 **As a** developer,  
 **I want** the `.tm-core/` system structured as a BMAD Builder-compliant module,  
@@ -20,7 +20,7 @@
 3. `tmr init` generates this structure in the workspace
 4. Unit tests verify directory creation and file presence
 
-## Story 6.2: `process-meeting-note` BMAD Skill
+## Story 7.2: `process-meeting-note` BMAD Skill
 
 **As a** manager,  
 **I want** Granola-synced meeting notes intelligently routed to the correct folders,  
@@ -44,7 +44,7 @@
 14. **Optional process log:** When `process_log: true` is set in config, appends a structured run entry to `my-tasks/process-log.md`; default is `false`
 15. Integration tests with sample Granola-format notes covering: simple 1:1, team meeting, project meeting with external attendees, and unknown-person scenario
 
-## Story 6.3: Template Engine with Variable Injection
+## Story 7.3: Template Engine with Variable Injection
 
 **As a** developer,  
 **I want** to inject variables into agent prompts and templates,  
@@ -59,7 +59,7 @@
 5. Security: sandboxed execution
 6. Unit tests cover injection scenarios
 
-## Story 6.4: Agent Definitions
+## Story 7.4: Agent Definitions
 
 **As a** manager using an IDE,  
 **I want** to invoke specialized agents,  
@@ -68,7 +68,7 @@
 **Acceptance Criteria:**
 
 1. All agents defined in `.tm-core/agents/`:
-   - cycle-agent.md
+   - process-agent.md (renamed from cycle-agent)
    - tmr-people.md
    - tmr-project.md
    - tmr-career.md
@@ -78,7 +78,7 @@
 3. Documentation includes usage examples
 4. Agent files created during `tmr init`
 
-## Story 6.5: IDE Integration Files
+## Story 7.5: IDE Integration Files
 
 **As a** manager,  
 **I want** agents available in my IDE,  
@@ -94,7 +94,7 @@
 6. Files created during `tmr init`
 7. Integration test validates file structure
 
-## Story 6.6: BMAD Core Module — Base Skills and Tasks
+## Story 7.6: BMAD Core Module — Base Skills and Tasks
 
 **As a** product manager,  
 **I want** a comprehensive set of base BMAD skills and tasks,  
@@ -103,8 +103,8 @@
 **Acceptance Criteria:**
 
 1. All core skills created in `.tm-core/skills/`:
-   - `process-meeting-note.md` — Granola note routing (see Story 6.2)
-   - `cycle-workflow.md` — Full inbox processing workflow
+   - `process-meeting-note.md` — Granola note routing (see Story 7.2)
+   - `process-workflow.md` — Full inbox processing workflow (renamed from cycle-workflow)
    - `collect-profile.md` — Team member profile collection
    - `onboarding-manager.md` — Leader onboarding workflow
    - `archive-workflow.md` — Archive/fire member workflow

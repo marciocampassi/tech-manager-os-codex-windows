@@ -1,22 +1,23 @@
-# Epic 5: Project Management & Operations
+# Epic 6: Project Management Agent System
 
-**Expanded Goal:** Implement project lifecycle management, status reporting, risk assessment, and operational workflows for hiring, rituals, and knowledge base management. This epic extends beyond people management to cover the full scope of a manager's responsibilities.
+**Expanded Goal:** Implement project-focused agent commands for status reporting, risk assessment, and stakeholder communication. All agent commands leverage Epic 2 CLI for project structure management and team composition updates. This epic extends beyond people management to cover the operational aspects of project delivery.
 
-## Story 5.1: Project Lifecycle Commands
+## Story 6.1: Project Lifecycle Commands
 
 **As a** manager,  
-**I want** to manage my project portfolio,  
-**so that** I can track active and completed projects.
+**I want** to view project information and status,  
+**so that** I can track my project portfolio.
+
+**Note:** Project creation commands are in Epic 2, Story 2.5. This story focuses on viewing and display commands.
 
 **Acceptance Criteria:**
 
-1. `tmr project add <name>` creates structure with brief.md template in `my-projects/`
-2. `tmr project list` displays table
-3. `tmr project archive <name> [--from --to]` moves to archived with optional date filters
-4. `tmr show <project>` displays context
-5. Unit tests for all commands
+1. `tmr project list` displays table (implemented in Epic 2)
+2. `tmr project show <name>` displays full project context
+3. `tmr show <project>` displays context (implemented in Epic 2)
+4. Unit tests for display commands
 
-## Story 5.2: tmr-project Agent - Status Reports
+## Story 6.2: tmr-project Agent - Status Reports
 
 **As a** manager,  
 **I want** AI to generate weekly status reports,  
@@ -27,11 +28,11 @@
 1. Agent command: `*status-report <project>`
 2. Reads: context.md, meetings, related member contexts
 3. Generates report: progress, risks, team capacity, next steps
-4. Outputs to: `projects/active/{project}/status-reports/{date}.md`
+4. **Uses CLI:** Executes `tmr project <project-name> add standup` or creates custom report file
 5. Uses template: `status-report-tmpl.yaml`
 6. Integration test validates report quality
 
-## Story 5.3: tmr-project Agent - Risk Assessment
+## Story 6.3: tmr-project Agent - Risk Assessment
 
 **As a** manager,  
 **I want** AI to assess project risks,  
@@ -45,7 +46,7 @@
 4. Outputs to: `projects/active/{project}/risk-assessments/{date}.md`
 5. Integration test validates risk identification
 
-## Story 5.4: Hiring Workflow
+## Story 6.4: Hiring Workflow
 
 **As a** manager,  
 **I want** to manage hiring pipelines,  
@@ -59,7 +60,7 @@
 4. Process agent creates candidate folders automatically
 5. Unit tests for all commands
 
-## Story 5.5: tmr-hiring Agent - Candidate Reviews
+## Story 6.5: tmr-hiring Agent - Candidate Reviews
 
 **As a** manager,  
 **I want** AI to help review candidates,  
@@ -73,7 +74,7 @@
 4. Outputs to: `operations/hiring/{role}/candidates/{name}/candidate-review.md`
 5. Integration test validates review quality
 
-## Story 5.6: Operations and Knowledge Base
+## Story 6.6: Operations and Knowledge Base
 
 **As a** manager,  
 **I want** structured places for operational information,  
