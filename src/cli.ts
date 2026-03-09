@@ -4,6 +4,7 @@ import { InitCommand } from './commands/init.command.js';
 import { createConfigCommand } from './commands/config.command.js';
 import { createTeamCommand, runShow } from './commands/team.command.js';
 import { createMemberCommand } from './commands/member.command.js';
+import { createRelationshipCommand } from './commands/relationship.command.js';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json') as { version: string; description: string };
@@ -35,6 +36,7 @@ export function createProgram(): Command {
   p.addCommand(createConfigCommand());
   p.addCommand(createTeamCommand());
   p.addCommand(createMemberCommand());
+  p.addCommand(createRelationshipCommand());
 
   p.command('show <email>')
     .description('display profile for an email address (searches teams, leadership, relationships)')

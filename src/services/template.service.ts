@@ -1,10 +1,29 @@
 import type { FileType } from '../types/member.types.js';
 
 /**
- * Generates markdown file templates for member-related documents.
+ * Generates markdown file templates for member and relationship documents.
  * Pure functions — no IO.
  */
 export class TemplateService {
+  getRelationship1on1Template(date: string, email: string): string {
+    return `---
+date: ${date}
+member: ${email}
+type: 1on1
+---
+
+# 1:1 with ${email}
+
+## Alignment Topics
+
+## Support Needed
+
+## Feedback Requested
+
+## Notes
+`;
+  }
+
   getTemplate(type: FileType, date: string, email: string): string {
     switch (type) {
       case '1on1':
