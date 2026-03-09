@@ -2,7 +2,7 @@ import path from 'node:path';
 import { FileSystemService, fileSystemService } from './file-system.service.js';
 import { SectionParserService, sectionParserService } from './section-parser.service.js';
 import { TemplateService, templateService } from './template.service.js';
-import { configService } from './config.service.js';
+import { getWorkspaceRoot as resolveWorkspaceRoot } from '../utils/workspace.js';
 import {
   FILE_TYPE_CONFIG,
   type FileType,
@@ -38,7 +38,7 @@ export class MemberService {
   ) {}
 
   getWorkspaceRoot(): string {
-    return configService.getWorkspacePath() ?? process.cwd();
+    return resolveWorkspaceRoot();
   }
 
   /**

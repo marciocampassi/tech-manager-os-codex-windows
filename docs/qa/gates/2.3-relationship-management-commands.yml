@@ -1,0 +1,32 @@
+story: 2.3
+title: Relationship Management Commands
+date: 2026-03-07
+reviewer: Quinn (QA Agent)
+status: PASS
+
+acceptance_criteria:
+  AC1_add_single_relationship: PASS
+  AC2_batch_add: PASS
+  AC3_add_1on1: PASS
+  AC4_list_relationships: PASS
+  AC5_optional_fields: PASS
+  AC6_template_service_extension: PASS
+  AC7_unit_and_integration_tests: PASS
+
+coding_standards:
+  file_system_service_only: PASS
+  stdout_not_console_log: PASS
+  constructor_injection: PASS
+  email_normalized: PASS
+  explicit_return_types: PASS
+  no_linter_errors: PASS
+
+test_results:
+  new_tests: 57
+  total_tests: 325
+  failed: 0
+  suites: 25
+
+observations:
+  - "getWorkspaceRoot() still duplicated across 3 services — extract to shared utility before Story 2.4"
+  - "CLI syntax 'tmr relationship 1on1 <email>' vs PRD 'tmr relationship <email> add 1on1' — deviation documented"

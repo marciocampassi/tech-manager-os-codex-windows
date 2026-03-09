@@ -1,7 +1,7 @@
 import path from 'node:path';
 import matter from 'gray-matter';
 import { FileSystemService, fileSystemService } from './file-system.service.js';
-import { configService } from './config.service.js';
+import { getWorkspaceRoot as resolveWorkspaceRoot } from '../utils/workspace.js';
 import type {
   IAddMemberOptions,
   IArchiveOptions,
@@ -123,7 +123,7 @@ export class TeamService {
   constructor(private readonly _fs: FileSystemService) {}
 
   getWorkspaceRoot(): string {
-    return configService.getWorkspacePath() ?? process.cwd();
+    return resolveWorkspaceRoot();
   }
 
   async getManagerEmail(workspaceRoot: string): Promise<string | null> {
