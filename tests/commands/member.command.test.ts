@@ -1,0 +1,197 @@
+import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
+
+// ── Mock declarations (must precede dynamic imports) ──────────────────────────
+
+const mockGetWorkspaceRoot = jest.fn<() => string>().mockReturnValue('/fake/ws');
+const mockCreateMemberFile = jest
+  .fn<() => Promise<{ filePath: string; profilePath: string; wikiLink: string }>>()
+  .mockResolvedValue({
+    filePath: '/fake/ws/my-teams/_members/john@co.com/1on1s/2026-03-07-john@co.com-1on1.md',
+    profilePath: '/fake/ws/my-teams/_members/john@co.com/john@co.com.md',
+    wikiLink: '- [[1on1s/2026-03-07-john@co.com-1on1.md]]',
+  });
+const mockFindMember = jest
+  .fn<() => Promise<string | null>>()
+  .mockResolvedValue('/fake/ws/my-teams/_members/john@co.com/john@co.com.md');
+
+const mockMemberServiceInstance = {
+  getWorkspaceRoot: mockGetWorkspaceRoot,
+  createMemberFile: mockCreateMemberFile,
+  findMember: mockFindMember,
+};
+
+jest.unstable_mockModule('../../src/services/member.service.js', () => ({
+  MemberService: jest.fn(() => mockMemberServiceInstance),
+  memberService: mockMemberServiceInstance,
+}));
+
+const mockPrompt = jest.fn<() => Promise<Record<string, string>>>();
+jest.unstable_mockModule('inquirer', () => ({
+  default: { prompt: mockPrompt },
+}));
+
+jest.unstable_mockModule('chalk', () => ({
+  default: {
+    bold: (s: string) => s,
+    green: (s: string) => s,
+    dim: (s: string) => s,
+    red: (s: string) => s,
+  },
+}));
+
+// exec is called for editor open — mock to avoid actual OS interaction
+jest.unstable_mockModule('node:child_process', () => ({
+  exec: jest.fn(),
+}));
+
+// Dynamic imports after mocks
+const { createMemberCommand, runMemberAdd } = await import('../../src/commands/member.command.js');
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
+
+describe('member command', () => {
+  let stdoutSpy: ReturnType<typeof jest.spyOn>;
+  let exitCodeSpy: ReturnType<typeof jest.spyOn>;
+
+  beforeEach(() => {
+    stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    exitCodeSpy = jest.spyOn(process, 'exitCode', 'set').mockImplementation(() => {});
+    jest.clearAllMocks();
+    mockGetWorkspaceRoot.mockReturnValue('/fake/ws');
+    mockCreateMemberFile.mockResolvedValue({
+      filePath: '/fake/ws/my-teams/_members/john@co.com/1on1s/2026-03-07-john@co.com-1on1.md',
+      profilePath: '/fake/ws/my-teams/_members/john@co.com/john@co.com.md',
+      wikiLink: '- [[1on1s/2026-03-07-john@co.com-1on1.md]]',
+    });
+  });
+
+  afterEach(() => {
+    stdoutSpy.mockRestore();
+    exitCodeSpy.mockRestore();
+  });
+
+  // ── `tmr member add` ─────────────────────────────────────────────────────────
+
+  describe('tmr member add <type> <email>', () => {
+    it('creates 1on1 file via Commander add subcommand', async () => {
+      const cmd = createMemberCommand();
+      await cmd.parseAsync(['add', '1on1', 'john@co.com'], { from: 'user' });
+
+      expect(mockCreateMemberFile).toHaveBeenCalledWith(
+        'john@co.com',
+        '1on1',
+        expect.objectContaining({}),
+        '/fake/ws',
+      );
+    });
+
+    it('creates feedback file', async () => {
+      const cmd = createMemberCommand();
+      await cmd.parseAsync(['add', 'feedback', 'john@co.com'], { from: 'user' });
+
+      expect(mockCreateMemberFile).toHaveBeenCalledWith(
+        'john@co.com',
+        'feedback',
+        expect.any(Object),
+        '/fake/ws',
+      );
+    });
+
+    it('creates assessment file', async () => {
+      const cmd = createMemberCommand();
+      await cmd.parseAsync(['add', 'assessment', 'john@co.com'], { from: 'user' });
+
+      expect(mockCreateMemberFile).toHaveBeenCalledWith(
+        'john@co.com',
+        'assessment',
+        expect.any(Object),
+        '/fake/ws',
+      );
+    });
+
+    it('creates performance-review file', async () => {
+      const cmd = createMemberCommand();
+      await cmd.parseAsync(['add', 'performance-review', 'john@co.com'], { from: 'user' });
+
+      expect(mockCreateMemberFile).toHaveBeenCalledWith(
+        'john@co.com',
+        'performance-review',
+        expect.any(Object),
+        '/fake/ws',
+      );
+    });
+
+    it('passes --date option to service', async () => {
+      const cmd = createMemberCommand();
+      await cmd.parseAsync(['add', '1on1', 'john@co.com', '--date', '2026-01-15'], {
+        from: 'user',
+      });
+
+      expect(mockCreateMemberFile).toHaveBeenCalledWith(
+        'john@co.com',
+        '1on1',
+        expect.objectContaining({ date: '2026-01-15' }),
+        '/fake/ws',
+      );
+    });
+
+    it('prints success output with file and wiki-link info', async () => {
+      const cmd = createMemberCommand();
+      await cmd.parseAsync(['add', '1on1', 'john@co.com', '--no-edit'], { from: 'user' });
+
+      const output = stdoutSpy.mock.calls.map((c: unknown[]) => c[0]).join('');
+      expect(output).toContain('1on1s/2026-03-07-john@co.com-1on1.md');
+    });
+  });
+
+  // ── Interactive prompt ────────────────────────────────────────────────────────
+
+  describe('interactive mode', () => {
+    it('prompts for email when email argument is missing', async () => {
+      mockPrompt.mockResolvedValueOnce({ resolvedEmail: 'alice@co.com' } as Record<string, string>);
+      mockCreateMemberFile.mockResolvedValueOnce({
+        filePath: '/fake/ws/my-teams/_members/alice@co.com/1on1s/2026-03-07-alice@co.com-1on1.md',
+        profilePath: '/fake/ws/my-teams/_members/alice@co.com/alice@co.com.md',
+        wikiLink: '- [[1on1s/2026-03-07-alice@co.com-1on1.md]]',
+      });
+
+      await runMemberAdd(mockMemberServiceInstance as never, '1on1', undefined, { noEdit: true });
+
+      expect(mockPrompt).toHaveBeenCalled();
+      expect(mockCreateMemberFile).toHaveBeenCalledWith(
+        'alice@co.com',
+        '1on1',
+        expect.any(Object),
+        '/fake/ws',
+      );
+    });
+  });
+
+  // ── Error handling ────────────────────────────────────────────────────────────
+
+  describe('error handling', () => {
+    it('prints error and sets exitCode when type is invalid', async () => {
+      await runMemberAdd(mockMemberServiceInstance as never, 'invalid-type', 'john@co.com', {
+        noEdit: true,
+      });
+
+      const output = stdoutSpy.mock.calls.map((c: unknown[]) => c[0]).join('');
+      expect(output).toContain('Unknown type');
+      expect(exitCodeSpy).toHaveBeenCalledWith(1);
+    });
+
+    it('prints error and sets exitCode when member not found', async () => {
+      mockCreateMemberFile.mockRejectedValueOnce(
+        new Error("Member 'john@co.com' not found. Run 'tmr team add <team> john@co.com' first."),
+      );
+
+      await runMemberAdd(mockMemberServiceInstance as never, '1on1', 'john@co.com', {
+        noEdit: true,
+      });
+
+      const output = stdoutSpy.mock.calls.map((c: unknown[]) => c[0]).join('');
+      expect(output).toContain('not found');
+      expect(exitCodeSpy).toHaveBeenCalledWith(1);
+    });
+  });
+});
