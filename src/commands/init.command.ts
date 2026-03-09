@@ -167,6 +167,7 @@ export class InitCommand {
     }
 
     configService.initialize();
+    configService.set('workspace_path', workspacePath);
     configService.setActiveProvider(provider);
     if (keyValidated) {
       configService.addProvider(provider, apiKey, '');

@@ -123,6 +123,24 @@ export class FileSystemService {
       );
     }
   }
+
+  /**
+   * List immediate child directories of a given path.
+   * @returns Array of directory names (not full paths), alphabetically ordered.
+   */
+  async listDirectories(dirPath: string): Promise<string[]> {
+    try {
+      const entries = await fs.readdir(dirPath, { withFileTypes: true });
+      return entries.filter((e) => e.isDirectory()).map((e) => e.name);
+    } catch (err) {
+      throw new FileSystemError(
+        err instanceof Error ? err.message : 'listDirectories failed',
+        'listDirectories',
+        dirPath,
+        err,
+      );
+    }
+  }
 }
 
 export const fileSystemService = new FileSystemService();

@@ -1,8 +1,8 @@
-# Epic 4: Manager's Career & Leadership Tracking
+# Epic 5: Leader's Career & Leadership Agent System
 
-**Expanded Goal:** Enable managers to track their own career development with equal rigor as team management. Implement PDP creation/updates, brag document logging, self-review generation, and leadership alignment tracking. This epic ensures managers don't neglect their own growth.
+**Expanded Goal:** Enable managers to track their own career development with agent-assisted PDP management, brag document summarization, self-review generation, and leadership alignment tracking. All agent commands use Epic 2 CLI for file operations, ensuring consistent token-optimized operations. This epic ensures managers don't neglect their own growth.
 
-## Story 4.1: Manager Career Commands
+## Story 5.1: Manager Career Commands
 
 **As a** manager,  
 **I want** to manage my own career development,  
@@ -16,7 +16,7 @@
 4. Files created during `tmr init` with suggested brag structure
 5. Unit tests for profile/pdp commands
 
-## Story 4.2: tmr-career Agent - PDP Management
+## Story 5.2: tmr-career Agent - PDP Management
 
 **As a** manager,  
 **I want** AI to help with my own PDP,  
@@ -32,7 +32,7 @@
 6. Uses template: `manager-pdp-tmpl.yaml`
 7. Integration test validates alignment
 
-## Story 4.3: tmr-career Agent - Brag Document and Self-Review
+## Story 5.3: tmr-career Agent - Brag Document and Self-Review
 
 **As a** manager,  
 **I want** AI to help summarize my achievements,  
@@ -47,7 +47,7 @@
 5. Generates self-review draft from brag document and PDP
 6. Integration test validates quality
 
-## Story 4.4: Leadership Alignment Tracking
+## Story 5.4: Leadership Alignment Tracking
 
 **As a** manager,  
 **I want** my 1:1s with my leader tracked,  
@@ -56,7 +56,7 @@
 **Acceptance Criteria:**
 
 1. Process agent recognizes transcripts with leader (based on my-leadership/profile.md)
-2. Files them in: `my-leadership/alignments/{date}.md`
+2. **Uses CLI:** Executes `tmr leadership <email> add 1on1`
 3. Updates manager's context with alignment notes
 4. Flags misalignment with PDP
 5. Integration test validates categorization

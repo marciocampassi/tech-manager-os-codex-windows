@@ -1,8 +1,8 @@
-# Epic 2: Process Intelligence Engine
+# Epic 3: Process Intelligence Engine
 
-**Expanded Goal:** Build the AI-powered cycle agent that powers the `tmr process` command to process inbox files, categorizes them by type and entity, updates context summaries using intelligent merging, extracts actionable tasks with urgency classification, and moves files to appropriate destinations. This epic delivers the core "transcript-to-context" value proposition.
+**Expanded Goal:** Build the AI-powered process agent that powers the `tmr process` command to process inbox files, categorizes them by type and entity, updates context summaries using CLI commands for token-optimized injection, extracts actionable tasks with urgency classification, and moves files to appropriate destinations. This epic delivers the core "transcript-to-context" value proposition and depends on Epic 2's complete CLI foundation.
 
-## Story 2.1: Inbox Scanner and File Parser
+## Story 3.1: Inbox Scanner and File Parser
 
 **As a** developer,  
 **I want** to scan and parse inbox files efficiently,  
@@ -17,7 +17,7 @@
 5. Sorted by timestamp (oldest first)
 6. Unit tests cover various file types and scenarios
 
-## Story 2.2: AI-Powered Categorization Logic
+## Story 3.2: AI-Powered Categorization Logic
 
 **As a** manager,  
 **I want** notes automatically categorized and filed,  
@@ -37,25 +37,26 @@
 4. Unit tests with mocked AI responses
 5. Integration test with real file samples
 
-## Story 2.3: Context Summary Merging
+## Story 3.3: Context Summary Updates via CLI Injection
 
 **As a** manager,  
-**I want** context summaries intelligently updated with new information,  
-**so that** I have current, accurate context for each person/project.
+**I want** context summaries intelligently updated using CLI commands,  
+**so that** I have current, accurate context without token-heavy file reading operations.
 
 **Acceptance Criteria:**
 
-1. `ContextService` class with method: `updateContext(entityPath, existingContext, newInsights)`
-2. AI prompt merges new insights with existing context:
-   - Preserves important historical information
-   - Updates with new information
-   - Maintains chronological awareness
-   - Highlights changes in behavior/status
-3. Handles first-time context creation
-4. Prevents context from growing unbounded (summarization strategy)
-5. Unit tests with various merge scenarios
+1. `ContextService` class with method: `updateContext(email, insights)`
+2. Instead of reading full context files, executes CLI commands:
+   - For team members: Uses Epic 2 CLI to append insights
+   - For projects: Updates project context via CLI
+   - For relationships/leadership: Updates via CLI
+3. AI generates insights from new notes
+4. CLI handles section parsing and atomic updates
+5. Token optimization: AI only generates insights, doesn't manipulate files
+6. Unit tests with mocked CLI execution
+7. Integration tests validate context updates
 
-## Story 2.4: Task Extraction and Timeline Classification
+## Story 3.4: Task Extraction and Timeline Classification
 
 **As a** manager,  
 **I want** actionable tasks extracted and classified by urgency,  
@@ -74,7 +75,7 @@
 5. Marks completed tasks based on mentions
 6. Unit tests with task extraction scenarios
 
-## Story 2.5: File Organization and Movement
+## Story 3.5: File Organization and Movement
 
 **As a** developer,  
 **I want** files moved to correct destinations after categorization,  
@@ -90,7 +91,7 @@
 6. Atomic operations (no data loss)
 7. Unit tests cover various organization scenarios
 
-## Story 2.6: `tmr process` Command Implementation
+## Story 3.6: `tmr process` Command Implementation
 
 **As a** leader,  
 **I want** one command to process all inbox files,  
@@ -109,7 +110,7 @@
 5. Optional flags: `--dry-run`, `--verbose`
 6. Integration test validates full process workflow
 
-## Story 2.7: `tmr watch` Command for Auto-Processing
+## Story 3.7: `tmr watch` Command for Auto-Processing
 
 **As a** leader,  
 **I want** inbox to be processed automatically when files are added,  
