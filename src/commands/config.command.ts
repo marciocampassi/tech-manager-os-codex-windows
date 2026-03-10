@@ -20,7 +20,8 @@ async function promptHiddenKey(provider: string, attempt: number, max: number): 
       type: 'password',
       name: 'apiKey',
       message: `Enter your ${provider} API key${attemptSuffix}:`,
-      validate: (v: string) => (v.trim().length > 0 ? true : 'API key cannot be empty'),
+      validate: (v: string): boolean | string =>
+        v.trim().length > 0 ? true : 'API key cannot be empty',
     },
   ]);
   return apiKey;

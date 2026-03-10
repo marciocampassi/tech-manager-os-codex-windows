@@ -48,7 +48,7 @@ export async function runLeadershipAdd(
         type: 'input',
         name: 'email',
         message: 'Email:',
-        validate: (v: string) =>
+        validate: (v: string): boolean | string =>
           /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) || 'Valid email required',
       },
       { type: 'input', name: 'name', message: 'Name (optional):' },
@@ -89,7 +89,7 @@ export async function runLeadership1on1(
         type: 'input',
         name: 'resolvedEmail',
         message: 'Leadership email:',
-        validate: (v: string) =>
+        validate: (v: string): boolean | string =>
           /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) || 'Valid email required',
       },
     ]);

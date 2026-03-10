@@ -49,7 +49,7 @@ async function runCreate(svc: TeamService, teamNameArg: string | undefined): Pro
         type: 'input',
         name: 'name',
         message: 'Team name:',
-        validate: (v: string) => v.trim().length > 0 || 'Team name is required',
+        validate: (v: string): boolean | string => v.trim().length > 0 || 'Team name is required',
       },
     ]);
     teamName = name.trim();
@@ -85,13 +85,13 @@ async function runAdd(
           type: 'input',
           name: 'teamName',
           message: 'Team name:',
-          validate: (v: string) => v.trim().length > 0 || 'Required',
+          validate: (v: string): boolean | string => v.trim().length > 0 || 'Required',
         },
         !email && {
           type: 'input',
           name: 'email',
           message: 'Member email:',
-          validate: (v: string) =>
+          validate: (v: string): boolean | string =>
             /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) || 'Valid email required',
         },
         !role && {
@@ -144,13 +144,13 @@ async function runArchive(
           type: 'input',
           name: 'teamName',
           message: 'Team name:',
-          validate: (v: string) => v.trim().length > 0 || 'Required',
+          validate: (v: string): boolean | string => v.trim().length > 0 || 'Required',
         },
         !email && {
           type: 'input',
           name: 'email',
           message: 'Member email to archive:',
-          validate: (v: string) => v.trim().length > 0 || 'Required',
+          validate: (v: string): boolean | string => v.trim().length > 0 || 'Required',
         },
       ].filter(Boolean) as Parameters<typeof inquirer.prompt>[0],
     );
@@ -178,13 +178,13 @@ async function runFire(
           type: 'input',
           name: 'teamName',
           message: 'Team name:',
-          validate: (v: string) => v.trim().length > 0 || 'Required',
+          validate: (v: string): boolean | string => v.trim().length > 0 || 'Required',
         },
         !email && {
           type: 'input',
           name: 'email',
           message: 'Member email to terminate:',
-          validate: (v: string) => v.trim().length > 0 || 'Required',
+          validate: (v: string): boolean | string => v.trim().length > 0 || 'Required',
         },
       ].filter(Boolean) as Parameters<typeof inquirer.prompt>[0],
     );
