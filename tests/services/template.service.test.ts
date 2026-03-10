@@ -99,6 +99,38 @@ describe('TemplateService', () => {
     });
   });
 
+  describe('getLeadership1on1Template', () => {
+    it('returns content with correct frontmatter', () => {
+      const result = svc.getLeadership1on1Template(DATE, EMAIL);
+      expect(result).toContain(`date: ${DATE}`);
+      expect(result).toContain(`member: ${EMAIL}`);
+      expect(result).toContain('type: leadership-1on1');
+    });
+
+    it('includes leadership-specific sections', () => {
+      const result = svc.getLeadership1on1Template(DATE, EMAIL);
+      expect(result).toContain('## Alignment Topics');
+      expect(result).toContain('## Support Needed');
+      expect(result).toContain('## Feedback Requested');
+      expect(result).toContain('## Notes');
+    });
+
+    it('does NOT include team member 1on1-specific sections', () => {
+      const result = svc.getLeadership1on1Template(DATE, EMAIL);
+      expect(result).not.toContain('## Check-in');
+      expect(result).not.toContain('## Discussion Topics');
+      expect(result).not.toContain('## Action Items');
+    });
+
+    it('uses type: leadership-1on1, distinct from relationship type: 1on1', () => {
+      const leadership = svc.getLeadership1on1Template(DATE, EMAIL);
+      const relationship = svc.getRelationship1on1Template(DATE, EMAIL);
+      expect(leadership).toContain('type: leadership-1on1');
+      expect(relationship).toContain('type: 1on1');
+      expect(leadership).not.toContain('type: 1on1');
+    });
+  });
+
   it('substitutes different dates and emails correctly', () => {
     const result = svc.getTemplate('1on1', '2025-12-01', 'alice@example.com');
     expect(result).toContain('date: 2025-12-01');

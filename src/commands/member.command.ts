@@ -58,7 +58,7 @@ export async function runMemberAdd(
         type: 'input',
         name: 'resolvedEmail',
         message: 'Member email:',
-        validate: (v: string) =>
+        validate: (v: string): boolean | string =>
           /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) || 'Valid email required',
       },
     ]);

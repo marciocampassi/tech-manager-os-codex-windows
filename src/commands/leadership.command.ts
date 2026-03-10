@@ -2,8 +2,8 @@ import { exec } from 'node:child_process';
 import { Command } from 'commander';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
-import { relationshipService, RelationshipService } from '../services/relationship.service.js';
-import type { IAddRelationshipOptions } from '../types/relationship.types.js';
+import { leadershipService, LeadershipService } from '../services/leadership.service.js';
+import type { IAddLeadershipOptions } from '../types/leadership.types.js';
 
 // ── Formatting helpers ────────────────────────────────────────────────────────
 
@@ -28,30 +28,21 @@ function openInEditor(filePath: string): void {
 
 // ── Sub-command handlers ──────────────────────────────────────────────────────
 
-export async function runRelationshipAdd(
-  svc: RelationshipService,
-  emailOrListArg: string | undefined,
-  opts: IAddRelationshipOptions,
+export async function runLeadershipAdd(
+  svc: LeadershipService,
+  emailArg: string | undefined,
+  opts: IAddLeadershipOptions,
 ): Promise<void> {
   const ws = svc.getWorkspaceRoot();
 
-  // Parse email(s)
-  let emails: string[] = [];
-  if (emailOrListArg) {
-    emails = emailOrListArg
-      .split(',')
-      .map((e) => e.trim().toLowerCase())
-      .filter(Boolean);
-  }
+  let email = emailArg?.trim().toLowerCase() ?? '';
 
-  // Interactive mode — single email with prompts
-  if (emails.length === 0) {
+  if (!email) {
     const answers = await inquirer.prompt<{
       email: string;
       name: string;
       role: string;
-      department: string;
-      relationship_type: string;
+      areas_of_responsibility: string;
     }>([
       {
         type: 'input',
@@ -62,51 +53,42 @@ export async function runRelationshipAdd(
       },
       { type: 'input', name: 'name', message: 'Name (optional):' },
       { type: 'input', name: 'role', message: 'Role (optional):' },
-      { type: 'input', name: 'department', message: 'Department (optional):' },
-      { type: 'input', name: 'relationship_type', message: 'Relationship type (optional):' },
+      {
+        type: 'input',
+        name: 'areas_of_responsibility',
+        message: 'Areas of responsibility (optional):',
+      },
     ]);
-    emails = [answers.email.trim().toLowerCase()];
+    email = answers.email.trim().toLowerCase();
     opts = {
       ...opts,
       name: answers.name || opts.name,
       role: answers.role || opts.role,
-      department: answers.department || opts.department,
-      relationship_type: answers.relationship_type || opts.relationship_type,
+      areas_of_responsibility: answers.areas_of_responsibility || opts.areas_of_responsibility,
     };
   }
 
-  // Batch mode
-  if (emails.length > 1) {
-    process.stdout.write(`Processing ${emails.length} relationships…\n`);
-    const result = await svc.addBatch(emails, opts, ws);
-    process.stdout.write(
-      `${chalk.green('✔')} Done — ${result.created} created, ${result.existed} already existed\n`,
-    );
-    return;
-  }
-
-  // Single mode
-  const email = emails[0] as string;
-  const result = await svc.addRelationship(email, opts, ws);
+  const result = await svc.addLeadership(email, opts, ws);
   if (result.created) {
-    process.stdout.write(`${chalk.green('✔')} Relationship "${email}" created\n`);
+    process.stdout.write(`${chalk.green('✔')} Leadership "${email}" created\n`);
   } else {
-    process.stdout.write(`${chalk.dim('ℹ')} Relationship "${email}" already exists\n`);
+    process.stdout.write(`${chalk.dim('ℹ')} Leadership "${email}" already exists\n`);
   }
 }
 
-export async function runRelationship1on1(
-  svc: RelationshipService,
+export async function runLeadership1on1(
+  svc: LeadershipService,
   emailArg: string | undefined,
   opts: { date?: string; noEdit?: boolean },
 ): Promise<void> {
   let email = emailArg?.trim().toLowerCase() ?? '';
+
   if (!email) {
     const { resolvedEmail } = await inquirer.prompt<{ resolvedEmail: string }>([
       {
         type: 'input',
         name: 'resolvedEmail',
-        message: 'Relationship email:',
+        message: 'Leadership email:',
         validate: (v: string): boolean | string =>
           /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) || 'Valid email required',
       },
@@ -134,70 +116,68 @@ export async function runRelationship1on1(
   }
 }
 
-export async function runRelationshipList(svc: RelationshipService): Promise<void> {
+export async function runLeadershipList(svc: LeadershipService): Promise<void> {
   const ws = svc.getWorkspaceRoot();
-  const rows = await svc.listRelationships(ws);
+  const rows = await svc.listLeadership(ws);
 
   if (rows.length === 0) {
     process.stdout.write(
-      'No relationships found. Run `tmr relationship add <email>` to create one.\n',
+      'No leadership contacts found. Run `tmr leadership add <email>` to create one.\n',
     );
     return;
   }
 
-  const header = `${padEnd('Email', 30)}  ${padEnd('Name', 20)}  ${padEnd('Department', 18)}  ${padEnd('Type', 16)}  Last 1on1`;
+  const header = `${padEnd('Email', 30)}  ${padEnd('Name', 20)}  ${padEnd('Role', 20)}  Last 1on1`;
   const divider = '─'.repeat(header.length);
   process.stdout.write(`${chalk.bold(header)}\n${divider}\n`);
 
   for (const row of rows) {
     process.stdout.write(
-      `${padEnd(row.email, 30)}  ${padEnd(row.name, 20)}  ${padEnd(row.department, 18)}  ${padEnd(row.relationship_type, 16)}  ${row.lastInteraction}\n`,
+      `${padEnd(row.email, 30)}  ${padEnd(row.name, 20)}  ${padEnd(row.role, 20)}  ${row.lastInteraction}\n`,
     );
   }
 }
 
 // ── Command factory ───────────────────────────────────────────────────────────
 
-export function createRelationshipCommand(): Command {
-  const svc = relationshipService;
+export function createLeadershipCommand(): Command {
+  const svc = leadershipService;
 
-  const cmd = new Command('relationship').description('manage company relationships');
+  const cmd = new Command('leadership').description('manage leadership relationships');
 
   cmd
-    .command('add [email-or-list]')
-    .description('add one or more relationships (comma-separated for batch)')
+    .command('add [email]')
+    .description('add a leadership contact')
     .option('--name <name>', 'contact name')
     .option('--role <role>', 'contact role')
-    .option('--department <department>', 'contact department')
-    .option('--type <type>', 'relationship type (e.g. collaborator, stakeholder)')
+    .option('--areas <areas>', 'areas of responsibility')
     .action(
       async (
-        emailOrList: string | undefined,
-        opts: { name?: string; role?: string; department?: string; type?: string },
+        emailArg: string | undefined,
+        opts: { name?: string; role?: string; areas?: string },
       ) => {
-        await runRelationshipAdd(svc, emailOrList, {
+        await runLeadershipAdd(svc, emailArg, {
           name: opts.name,
           role: opts.role,
-          department: opts.department,
-          relationship_type: opts.type,
+          areas_of_responsibility: opts.areas,
         });
       },
     );
 
   cmd
     .command('1on1 [email]')
-    .description('create a 1on1 note for a relationship')
+    .description('create a 1on1 note for a leadership contact')
     .option('--date <date>', 'date for the file (YYYY-MM-DD), defaults to today')
     .option('--no-edit', 'do not open the created file in editor')
     .action(async (email: string | undefined, opts: { date?: string; noEdit?: boolean }) => {
-      await runRelationship1on1(svc, email, opts);
+      await runLeadership1on1(svc, email, opts);
     });
 
   cmd
     .command('list')
-    .description('list all relationships sorted by most recent 1on1')
+    .description('list all leadership contacts sorted by most recent 1on1')
     .action(async () => {
-      await runRelationshipList(svc);
+      await runLeadershipList(svc);
     });
 
   return cmd;

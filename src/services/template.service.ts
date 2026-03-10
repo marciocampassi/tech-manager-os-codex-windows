@@ -5,6 +5,25 @@ import type { FileType } from '../types/member.types.js';
  * Pure functions — no IO.
  */
 export class TemplateService {
+  getLeadership1on1Template(date: string, email: string): string {
+    return `---
+date: ${date}
+member: ${email}
+type: leadership-1on1
+---
+
+# 1:1 with ${email}
+
+## Alignment Topics
+
+## Support Needed
+
+## Feedback Requested
+
+## Notes
+`;
+  }
+
   getRelationship1on1Template(date: string, email: string): string {
     return `---
 date: ${date}
