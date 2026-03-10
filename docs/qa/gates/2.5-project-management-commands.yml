@@ -1,0 +1,90 @@
+schema: 1
+story: "2.5"
+story_title: "Project Management Commands"
+gate: PASS
+status_reason: >
+  All 9 functional ACs fully implemented and tested. 70 new tests (service: 19, command: 23,
+  template: 5, integration: 23) — 442/442 total passing. No lint errors or warnings.
+  One minor known trade-off: batch link-members/link-stakeholders re-reads composition file
+  per email; documented and acceptable for CLI scale. Story 2.6 tech debt boundary clearly
+  marked in code (resolveEmailLocation) and story file.
+reviewer: "Quinn (QA Architect)"
+updated: "2026-03-09T00:00:00Z"
+
+acceptance_criteria:
+  - id: AC1
+    description: "tmr project add creates overview, composition, and 3 subdirs (idempotent)"
+    status: PASS
+    notes: "addProject() checks compositionPath for existence. Creates my-company/projects/{name}-project.md + my-projects/{name}/ with standup/, discussion/, presentation/"
+
+  - id: AC2
+    description: "tmr project standup creates standup file in my-projects/{name}/standup/"
+    status: PASS
+    notes: "Guards on compositionPath existence; throws with actionable error if project not found"
+
+  - id: AC3
+    description: "tmr project discussion creates discussion file"
+    status: PASS
+    notes: "Same pattern as AC2"
+
+  - id: AC4
+    description: "tmr project presentation creates presentation file with slugified topic"
+    status: PASS
+    notes: "topic.toLowerCase().replace(/\\s+/g, '-') — e.g. 'Q1 Review' → 'q1-review'"
+
+  - id: AC5
+    description: "tmr project link-member resolves email hierarchy and appends to Team Members"
+    status: PASS
+    notes: "resolveEmailLocation returns created flag avoiding second exists() call. created is correctly set only in the auto-create branch (step 4)."
+
+  - id: AC6
+    description: "tmr project link-members batch links with summary counts"
+    status: PASS
+    notes: "Per-email iteration; created count tracked via location.created flag"
+
+  - id: AC7
+    description: "tmr project link-stakeholder appends to Stakeholders section"
+    status: PASS
+    notes: "Uses appendToHashSection targeting '# Stakeholders'"
+
+  - id: AC8
+    description: "tmr project link-stakeholders batch version"
+    status: PASS
+    notes: "Symmetric to linkMembers"
+
+  - id: AC9
+    description: "tmr project list shows table with member and stakeholder counts"
+    status: PASS
+    notes: "countHashSection counts '- [[' lines in '# Team Members' and '# Stakeholders' sections"
+
+  - id: AC10
+    description: "TemplateService has 5 new project template methods"
+    status: PASS
+    notes: "getProjectOverviewTemplate, getProjectCompositionTemplate, getStandupTemplate, getDiscussionTemplate, getPresentationTemplate — all tested"
+
+  - id: AC11
+    description: "Unit and integration tests covering all commands and workflows"
+    status: PASS
+    notes: "70 new tests across 4 test files; full workflow integration test validates end-to-end"
+
+quality_scores:
+  security: 10
+  performance: 9
+  reliability: 10
+  maintainability: 10
+  test_coverage: 10
+  overall: 10
+
+known_trade_offs:
+  - description: "Batch link-members/link-stakeholders re-reads composition file per email"
+    severity: low
+    rationale: "Personal CLI tool; batch sizes expected to be < 20 emails. Optimization deferred."
+  - description: "resolveEmailLocation is a private method on ProjectService (not a shared EmailResolutionService)"
+    severity: low
+    rationale: "Story 2.6 will extract to a formal service. Tech debt marker in code and story."
+
+recommendations_for_future_stories:
+  - story: "2.6"
+    recommendation: "Extract resolveEmailLocation from ProjectService into EmailResolutionService. Remove private method from ProjectService and inject the new service."
+  - story: "2.6"
+    recommendation: "Consider optimizing batch link ops to read composition file once per batch instead of once per email."

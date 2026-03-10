@@ -5,6 +5,86 @@ import type { FileType } from '../types/member.types.js';
  * Pure functions — no IO.
  */
 export class TemplateService {
+  getProjectOverviewTemplate(name: string, date: string): string {
+    return `---
+name: ${name}
+type: project
+date_created: ${date}
+---
+
+# ${name}
+
+## Overview
+
+## Goals
+
+## Timeline
+
+## Notes
+`;
+  }
+
+  getProjectCompositionTemplate(): string {
+    return `# Team Members
+
+# Stakeholders
+`;
+  }
+
+  getStandupTemplate(date: string, name: string): string {
+    return `---
+date: ${date}
+project: ${name}
+type: standup
+---
+
+# ${name} Standup — ${date}
+
+## Yesterday
+
+## Today
+
+## Blockers
+`;
+  }
+
+  getDiscussionTemplate(date: string, name: string): string {
+    return `---
+date: ${date}
+project: ${name}
+type: discussion
+---
+
+# ${name} Discussion — ${date}
+
+## Topic
+
+## Attendees
+
+## Decisions
+
+## Action Items
+`;
+  }
+
+  getPresentationTemplate(date: string, name: string, topic: string): string {
+    return `---
+date: ${date}
+project: ${name}
+topic: ${topic}
+type: presentation
+---
+
+# ${name} — ${topic}
+
+## Slides Outline
+
+## Talking Points
+
+## Q&A
+`;
+  }
+
   getLeadership1on1Template(date: string, email: string): string {
     return `---
 date: ${date}

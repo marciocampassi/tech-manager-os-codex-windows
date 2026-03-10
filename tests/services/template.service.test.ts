@@ -131,6 +131,63 @@ describe('TemplateService', () => {
     });
   });
 
+  describe('getProjectOverviewTemplate', () => {
+    it('returns correct frontmatter and sections', () => {
+      const result = svc.getProjectOverviewTemplate('platform', DATE);
+      expect(result).toContain('name: platform');
+      expect(result).toContain('type: project');
+      expect(result).toContain(`date_created: ${DATE}`);
+      expect(result).toContain('# platform');
+      expect(result).toContain('## Overview');
+      expect(result).toContain('## Goals');
+      expect(result).toContain('## Timeline');
+      expect(result).toContain('## Notes');
+    });
+  });
+
+  describe('getProjectCompositionTemplate', () => {
+    it('returns both single-hash section headers', () => {
+      const result = svc.getProjectCompositionTemplate();
+      expect(result).toContain('# Team Members');
+      expect(result).toContain('# Stakeholders');
+    });
+  });
+
+  describe('getStandupTemplate', () => {
+    it('returns correct frontmatter and sections', () => {
+      const result = svc.getStandupTemplate(DATE, 'platform');
+      expect(result).toContain(`date: ${DATE}`);
+      expect(result).toContain('project: platform');
+      expect(result).toContain('type: standup');
+      expect(result).toContain('## Yesterday');
+      expect(result).toContain('## Today');
+      expect(result).toContain('## Blockers');
+    });
+  });
+
+  describe('getDiscussionTemplate', () => {
+    it('returns correct frontmatter and sections', () => {
+      const result = svc.getDiscussionTemplate(DATE, 'platform');
+      expect(result).toContain('type: discussion');
+      expect(result).toContain('## Topic');
+      expect(result).toContain('## Attendees');
+      expect(result).toContain('## Decisions');
+      expect(result).toContain('## Action Items');
+    });
+  });
+
+  describe('getPresentationTemplate', () => {
+    it('returns correct frontmatter including topic', () => {
+      const result = svc.getPresentationTemplate(DATE, 'platform', 'Q1 Review');
+      expect(result).toContain('type: presentation');
+      expect(result).toContain('topic: Q1 Review');
+      expect(result).toContain('# platform — Q1 Review');
+      expect(result).toContain('## Slides Outline');
+      expect(result).toContain('## Talking Points');
+      expect(result).toContain('## Q&A');
+    });
+  });
+
   it('substitutes different dates and emails correctly', () => {
     const result = svc.getTemplate('1on1', '2025-12-01', 'alice@example.com');
     expect(result).toContain('date: 2025-12-01');
