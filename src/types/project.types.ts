@@ -31,7 +31,10 @@ export interface IProjectSummary {
   stakeholderCount: number;
 }
 
-/** Result of resolving an email to its location in the workspace */
+/**
+ * @deprecated Since Story 2.6. Use `IEntityLocation` from `email-resolution.types.ts` instead.
+ * Kept for backwards compatibility — no longer used internally by ProjectService.
+ */
 export interface IEmailLocation {
   type: 'team' | 'leadership' | 'relationship';
   /** Path relative from my-projects/{project-name}/ to the profile file */

@@ -1,7 +1,8 @@
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import { ProjectService } from '../../src/services/project.service.js';
 import type { FileSystemService } from '../../src/services/file-system.service.js';
-import type { RelationshipService } from '../../src/services/relationship.service.js';
+import type { EmailResolutionService } from '../../src/services/email-resolution.service.js';
+import type { IEntityLocation } from '../../src/types/email-resolution.types.js';
 import { TemplateService } from '../../src/services/template.service.js';
 
 // ── Mock FileSystemService ────────────────────────────────────────────────────
@@ -23,19 +24,25 @@ function createMockFS(): MockFS {
   };
 }
 
-// ── Mock RelationshipService ──────────────────────────────────────────────────
+// ── Mock EmailResolutionService ───────────────────────────────────────────────
 
-type MockRelationship = {
-  addRelationship: jest.MockedFunction<RelationshipService['addRelationship']>;
-  getWorkspaceRoot: jest.MockedFunction<RelationshipService['getWorkspaceRoot']>;
+type MockEmailResolution = {
+  resolve: jest.MockedFunction<EmailResolutionService['resolve']>;
+  generateWikiLink: jest.MockedFunction<EmailResolutionService['generateWikiLink']>;
 };
 
-function createMockRelationship(): MockRelationship {
+const DEFAULT_LOCATION: IEntityLocation = {
+  type: 'relationship',
+  absolutePath: '/fake/workspace/my-company/relationships/default@co.com/default@co.com.md',
+  created: false,
+};
+
+function createMockEmailResolution(): MockEmailResolution {
   return {
-    addRelationship: jest
-      .fn<RelationshipService['addRelationship']>()
-      .mockResolvedValue({ created: true }),
-    getWorkspaceRoot: jest.fn<RelationshipService['getWorkspaceRoot']>().mockReturnValue('/ws'),
+    resolve: jest.fn<EmailResolutionService['resolve']>().mockResolvedValue(DEFAULT_LOCATION),
+    generateWikiLink: jest
+      .fn<EmailResolutionService['generateWikiLink']>()
+      .mockImplementation((_email, _resolved, _from) => '[[fake-path|email]]'),
   };
 }
 
@@ -56,16 +63,16 @@ function compContent(members: string[] = [], stakeholders: string[] = []): strin
 describe('ProjectService', () => {
   let svc: ProjectService;
   let mockFS: MockFS;
-  let mockRel: MockRelationship;
+  let mockEmailResolution: MockEmailResolution;
   const realTemplate = new TemplateService();
 
   beforeEach(() => {
     mockFS = createMockFS();
-    mockRel = createMockRelationship();
+    mockEmailResolution = createMockEmailResolution();
     svc = new ProjectService(
       mockFS as unknown as FileSystemService,
       realTemplate,
-      mockRel as unknown as RelationshipService,
+      mockEmailResolution as unknown as EmailResolutionService,
     );
   });
 
@@ -211,61 +218,6 @@ describe('ProjectService', () => {
     });
   });
 
-  // ── resolveEmailLocation (tested via linkMember) ──────────────────────────────
-
-  describe('resolveEmailLocation (via linkMember)', () => {
-    beforeEach(() => {
-      // composition exists
-      mockFS.exists.mockImplementation(async (p: string) => p.includes('composition'));
-      mockFS.readFile.mockResolvedValue(compContent());
-    });
-
-    it('resolves to team when team profile exists', async () => {
-      mockFS.exists.mockImplementation(async (p: string) => {
-        if (p.includes('composition')) return true;
-        if (p.includes('_members')) return true;
-        return false;
-      });
-
-      const result = await svc.linkMember(NAME, 'alice@co.com', WS);
-      expect(result.wikiLink).toContain('my-teams/_members/alice@co.com');
-      expect(result.created).toBe(false);
-    });
-
-    it('resolves to leadership when leadership profile exists (no team)', async () => {
-      mockFS.exists.mockImplementation(async (p: string) => {
-        if (p.includes('composition')) return true;
-        if (p.includes('_members')) return false;
-        if (p.includes('my-leadership')) return true;
-        return false;
-      });
-
-      const result = await svc.linkMember(NAME, 'boss@co.com', WS);
-      expect(result.wikiLink).toContain('my-leadership/boss@co.com');
-      expect(result.created).toBe(false);
-    });
-
-    it('resolves to relationship when relationship exists (no team/leadership)', async () => {
-      mockFS.exists.mockImplementation(async (p: string) => {
-        if (p.includes('composition')) return true;
-        if (p.includes('relationships')) return true;
-        return false;
-      });
-
-      const result = await svc.linkMember(NAME, 'partner@co.com', WS);
-      expect(result.wikiLink).toContain('my-company/relationships/partner@co.com');
-      expect(result.created).toBe(false);
-    });
-
-    it('auto-creates relationship and returns created: true when email not found', async () => {
-      mockFS.exists.mockImplementation(async (p: string) => p.includes('composition'));
-
-      const result = await svc.linkMember(NAME, 'newguy@co.com', WS);
-      expect(mockRel.addRelationship).toHaveBeenCalledWith('newguy@co.com', {}, WS);
-      expect(result.created).toBe(true);
-    });
-  });
-
   // ── linkMember ────────────────────────────────────────────────────────────────
 
   describe('linkMember', () => {
@@ -280,18 +232,33 @@ describe('ProjectService', () => {
     });
 
     it('appends wiki-link to composition file', async () => {
+      mockEmailResolution.generateWikiLink.mockReturnValue('[[fake/path|alice@co.com]]');
+
       await svc.linkMember(NAME, 'alice@co.com', WS);
 
       expect(mockFS.writeFile).toHaveBeenCalledWith(COMP_PATH, expect.stringContaining('[['));
     });
 
-    it('normalizes email to lowercase in wiki-link', async () => {
+    it('normalizes email to lowercase before calling resolve', async () => {
       await svc.linkMember(NAME, 'ALICE@CO.COM', WS);
 
-      expect(mockFS.writeFile).toHaveBeenCalledWith(
-        COMP_PATH,
-        expect.stringContaining('alice@co.com'),
-      );
+      expect(mockEmailResolution.resolve).toHaveBeenCalledWith('alice@co.com', WS);
+    });
+
+    it('returns created: true when email resolution auto-creates a relationship', async () => {
+      mockEmailResolution.resolve.mockResolvedValue({ ...DEFAULT_LOCATION, created: true });
+
+      const result = await svc.linkMember(NAME, 'new@co.com', WS);
+
+      expect(result.created).toBe(true);
+    });
+
+    it('returns created: false when email already existed', async () => {
+      mockEmailResolution.resolve.mockResolvedValue({ ...DEFAULT_LOCATION, created: false });
+
+      const result = await svc.linkMember(NAME, 'existing@co.com', WS);
+
+      expect(result.created).toBe(false);
     });
   });
 
@@ -309,11 +276,7 @@ describe('ProjectService', () => {
     });
 
     it('appends to Stakeholders section', async () => {
-      // Make relationship exist so we can verify section targeting
-      mockFS.exists.mockImplementation(async (p: string) => {
-        if (p.includes('composition') || p.includes('relationships')) return true;
-        return false;
-      });
+      mockEmailResolution.generateWikiLink.mockReturnValue('[[fake/path|stake@co.com]]');
 
       await svc.linkStakeholder(NAME, 'stake@co.com', WS);
 
@@ -322,6 +285,12 @@ describe('ProjectService', () => {
       const linkIdx = written.indexOf('stake@co.com');
       expect(stakeholderIdx).toBeGreaterThanOrEqual(0);
       expect(linkIdx).toBeGreaterThan(stakeholderIdx);
+    });
+
+    it('normalizes email to lowercase before calling resolve', async () => {
+      await svc.linkStakeholder(NAME, 'STAKE@CO.COM', WS);
+
+      expect(mockEmailResolution.resolve).toHaveBeenCalledWith('stake@co.com', WS);
     });
   });
 
@@ -339,7 +308,7 @@ describe('ProjectService', () => {
     });
 
     it('counts created when relationships are auto-created', async () => {
-      mockRel.addRelationship.mockResolvedValue({ created: true });
+      mockEmailResolution.resolve.mockResolvedValue({ ...DEFAULT_LOCATION, created: true });
 
       const result = await svc.linkMembers(NAME, ['new1@co.com', 'new2@co.com'], WS);
       expect(result.created).toBe(2);
