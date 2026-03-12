@@ -28,6 +28,7 @@ const { FileSystemService } = await import('../../src/services/file-system.servi
 const { SectionParserService } = await import('../../src/services/section-parser.service.js');
 const { TemplateService } = await import('../../src/services/template.service.js');
 const { RelationshipService } = await import('../../src/services/relationship.service.js');
+const { EmailResolutionService } = await import('../../src/services/email-resolution.service.js');
 const { ProjectService } = await import('../../src/services/project.service.js');
 
 describe('Project Integration', () => {
@@ -39,8 +40,10 @@ describe('Project Integration', () => {
     workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'tmr-project-test-'));
     const realFS = new FileSystemService();
     const realTemplate = new TemplateService();
-    relSvc = new RelationshipService(realFS, new SectionParserService(realFS), realTemplate);
-    svc = new ProjectService(realFS, realTemplate, relSvc);
+    const realSection = new SectionParserService(realFS);
+    relSvc = new RelationshipService(realFS, realSection, realTemplate);
+    const emailResolution = new EmailResolutionService(realFS, relSvc);
+    svc = new ProjectService(realFS, realTemplate, emailResolution);
   });
 
   afterEach(() => {

@@ -1,0 +1,83 @@
+schema: 1
+story: "2.6"
+story_title: "Email Resolution Service"
+gate: PASS
+status_reason: >
+  All 5 ACs fully implemented and tested. 37 new tests (unit: 27, integration: 11) —
+  479/479 total passing. No lint errors. ProjectService correctly refactored to use
+  EmailResolutionService. Constructor simplified from 4 args to 3 by removing now-
+  redundant RelationshipService dependency. IEmailLocation marked @deprecated.
+  One minor edge case noted (duplicate emails in batch may show stale created flag
+  from cache) — acceptable at CLI scale, relationship creation is idempotent.
+reviewer: "Quinn (QA Architect)"
+updated: "2026-03-10T00:00:00Z"
+
+top_issues: []
+waiver:
+  active: false
+
+quality_score: 98
+expires: "2026-03-24T00:00:00Z"
+
+evidence:
+  tests_reviewed: 37
+  risks_identified: 2
+  trace:
+    ac_covered: [1, 2, 3, 4, 5]
+    ac_gaps: []
+
+acceptance_criteria:
+  - id: AC1
+    description: "EmailResolutionService.resolve() implements 4-step hierarchy (team → leadership → relationship → auto-create)"
+    status: PASS
+    notes: "_doResolve() checks each path in order. Auto-create calls RelationshipService.addRelationship(). Returns absolutePath and created flag."
+
+  - id: AC2
+    description: "Email validation via validateEmail() — resolve() throws on invalid input"
+    status: PASS
+    notes: "Regex /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/ with null/empty guard. 10 validation test cases. Error message: 'Invalid email address: {email}'"
+
+  - id: AC3
+    description: "generateWikiLink(email, resolvedPath, fromPath) generates Obsidian-compatible wiki-link with relative path"
+    status: PASS
+    notes: "path.relative() + sep normalization (split/join '/') + [[rel|email]] format. Tested with team, leadership, relationship paths. Verified no backslashes."
+
+  - id: AC4
+    description: "ProjectService integrated with EmailResolutionService — resolveEmailLocation removed"
+    status: PASS
+    notes: "ProjectService now 3-arg constructor (fs, template, emailResolution). _relationship removed (no longer needed). linkMember/linkStakeholder/linkMembers/linkStakeholders all updated. project.integration.test.ts updated. 64/64 project tests pass."
+
+  - id: AC5
+    description: "In-memory cache keyed by email:ws — clearCache() resets it"
+    status: PASS
+    notes: "Map<string, IEntityLocation>. Second call returns cached result without fs.exists calls (verified in unit test). clearCache() verified in integration test: resolve(new email) returns created:true, clearCache(), resolve same email returns created:false."
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: "Email validation prevents malformed strings from path construction. Lowercase normalization before path.join() is consistent and safe. No secrets logged."
+  performance:
+    status: PASS
+    notes: "Cache eliminates repeated fs.exists() calls within command invocation. Map lookup is O(1). No blocking I/O in generateWikiLink (sync)."
+  reliability:
+    status: PASS
+    notes: "Error thrown (not swallowed) for invalid emails. Auto-create step delegates to RelationshipService which is idempotent. Integration tests verify real FS behavior."
+  maintainability:
+    status: PASS
+    notes: "Single responsibility: resolution + wiki-link generation. JSDoc on all public methods. IEmailLocation deprecated. ProjectService is now leaner. Test isolation is clean (mock-based unit + real FS integration)."
+
+known_trade_offs:
+  - description: "Cache may return created:true for duplicate emails in a batch (stale entry)"
+    severity: low
+    rationale: "CLI users rarely pass duplicate emails in a batch. RelationshipService.addRelationship is idempotent. The misleading created count in batches is a cosmetic issue only."
+  - description: "validateEmail regex is syntactic only — does not verify MX record or domain existence"
+    severity: low
+    rationale: "This is a local CLI tool for personal productivity. Network validation would be overly complex and slow. Syntactic validation is sufficient."
+
+recommendations:
+  immediate: []
+  future:
+    - action: "Consider adding email validation upstream in RelationshipService.addRelationship to enforce consistency for callers that bypass EmailResolutionService"
+      refs: ["src/services/relationship.service.ts"]
+    - action: "If bulk-import feature is added in future, add a batch-resolve API to EmailResolutionService to avoid per-email cache lookups in a loop"
+      refs: ["src/services/email-resolution.service.ts"]

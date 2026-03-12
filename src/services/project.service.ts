@@ -1,11 +1,10 @@
 import path from 'node:path';
 import { FileSystemService, fileSystemService } from './file-system.service.js';
 import { TemplateService, templateService } from './template.service.js';
-import { RelationshipService, relationshipService } from './relationship.service.js';
+import { emailResolutionService, EmailResolutionService } from './email-resolution.service.js';
 import { getWorkspaceRoot as resolveWorkspaceRoot } from '../utils/workspace.js';
 import type {
   IBatchLinkResult,
-  IEmailLocation,
   ILinkResult,
   IProjectFileOptions,
   IProjectSummary,
@@ -47,7 +46,7 @@ export class ProjectService {
   constructor(
     private readonly _fs: FileSystemService,
     private readonly _template: TemplateService,
-    private readonly _relationship: RelationshipService,
+    private readonly _emailResolution: EmailResolutionService,
   ) {}
 
   getWorkspaceRoot(): string {
@@ -90,55 +89,6 @@ export class ProjectService {
     if (nextSecIdx === -1) nextSecIdx = lines.length;
 
     return lines.slice(secIdx + 1, nextSecIdx).filter((l) => l.startsWith('- [[')).length;
-  }
-
-  /**
-   * Resolves an email to its location in the workspace (team → leadership → relationship).
-   * Auto-creates as a relationship if not found anywhere.
-   * Returns `created: true` when a new relationship was auto-created (step 4).
-   *
-   * Tech Debt: Story 2.6 will extract this into a formal EmailResolutionService.
-   * When that story is implemented, replace calls to this method with EmailResolutionService.resolve().
-   */
-  private async resolveEmailLocation(
-    email: string,
-    ws: string,
-  ): Promise<IEmailLocation & { created: boolean }> {
-    const e = email.toLowerCase();
-
-    // 1. Team member
-    const teamProfile = path.join(ws, 'my-teams', '_members', e, `${e}.md`);
-    if (await this._fs.exists(teamProfile)) {
-      return { type: 'team', relativePath: `../../my-teams/_members/${e}/${e}.md`, created: false };
-    }
-
-    // 2. Leadership
-    const leaderProfile = path.join(ws, 'my-leadership', e, `${e}.md`);
-    if (await this._fs.exists(leaderProfile)) {
-      return {
-        type: 'leadership',
-        relativePath: `../../my-leadership/${e}/${e}.md`,
-        created: false,
-      };
-    }
-
-    // 3. Relationship (already exists)
-    const relProfile = path.join(ws, 'my-company', 'relationships', e, `${e}.md`);
-    if (await this._fs.exists(relProfile)) {
-      return {
-        type: 'relationship',
-        relativePath: `../../my-company/relationships/${e}/${e}.md`,
-        created: false,
-      };
-    }
-
-    // 4. Not found — auto-create as relationship
-    await this._relationship.addRelationship(e, {}, ws);
-    return {
-      type: 'relationship',
-      relativePath: `../../my-company/relationships/${e}/${e}.md`,
-      created: true,
-    };
   }
 
   // ── Public API ──────────────────────────────────────────────────────────────
@@ -249,14 +199,14 @@ export class ProjectService {
       throw new Error(`Project '${name}' not found. Run 'tmr project add ${name}' first.`);
     }
 
-    const location = await this.resolveEmailLocation(normalizedEmail, ws);
-    const wikiLink = `- [[${location.relativePath}|${normalizedEmail}]]`;
+    const resolved = await this._emailResolution.resolve(normalizedEmail, ws);
+    const wikiLink = `- ${this._emailResolution.generateWikiLink(normalizedEmail, resolved.absolutePath, compPath)}`;
 
     const content = await this._fs.readFile(compPath);
     const updated = this.appendToHashSection(content, 'Team Members', wikiLink);
     await this._fs.writeFile(compPath, updated);
 
-    return { wikiLink, created: location.created };
+    return { wikiLink, created: resolved.created };
   }
 
   /**
@@ -270,14 +220,14 @@ export class ProjectService {
       throw new Error(`Project '${name}' not found. Run 'tmr project add ${name}' first.`);
     }
 
-    const location = await this.resolveEmailLocation(normalizedEmail, ws);
-    const wikiLink = `- [[${location.relativePath}|${normalizedEmail}]]`;
+    const resolved = await this._emailResolution.resolve(normalizedEmail, ws);
+    const wikiLink = `- ${this._emailResolution.generateWikiLink(normalizedEmail, resolved.absolutePath, compPath)}`;
 
     const content = await this._fs.readFile(compPath);
     const updated = this.appendToHashSection(content, 'Stakeholders', wikiLink);
     await this._fs.writeFile(compPath, updated);
 
-    return { wikiLink, created: location.created };
+    return { wikiLink, created: resolved.created };
   }
 
   /**
@@ -291,10 +241,10 @@ export class ProjectService {
       const normalizedEmail = email.trim().toLowerCase();
       if (!normalizedEmail) continue;
 
-      const location = await this.resolveEmailLocation(normalizedEmail, ws);
-      const wikiLink = `- [[${location.relativePath}|${normalizedEmail}]]`;
-
       const compPath = compositionPath(ws, name);
+      const resolved = await this._emailResolution.resolve(normalizedEmail, ws);
+      const wikiLink = `- ${this._emailResolution.generateWikiLink(normalizedEmail, resolved.absolutePath, compPath)}`;
+
       const content = await this._fs.readFile(compPath);
       await this._fs.writeFile(
         compPath,
@@ -302,7 +252,7 @@ export class ProjectService {
       );
 
       linked++;
-      if (location.created) created++;
+      if (resolved.created) created++;
     }
 
     return { linked, created };
@@ -319,10 +269,10 @@ export class ProjectService {
       const normalizedEmail = email.trim().toLowerCase();
       if (!normalizedEmail) continue;
 
-      const location = await this.resolveEmailLocation(normalizedEmail, ws);
-      const wikiLink = `- [[${location.relativePath}|${normalizedEmail}]]`;
-
       const compPath = compositionPath(ws, name);
+      const resolved = await this._emailResolution.resolve(normalizedEmail, ws);
+      const wikiLink = `- ${this._emailResolution.generateWikiLink(normalizedEmail, resolved.absolutePath, compPath)}`;
+
       const content = await this._fs.readFile(compPath);
       await this._fs.writeFile(
         compPath,
@@ -330,7 +280,7 @@ export class ProjectService {
       );
 
       linked++;
-      if (location.created) created++;
+      if (resolved.created) created++;
     }
 
     return { linked, created };
@@ -366,5 +316,5 @@ export class ProjectService {
 export const projectService = new ProjectService(
   fileSystemService,
   templateService,
-  relationshipService,
+  emailResolutionService,
 );
