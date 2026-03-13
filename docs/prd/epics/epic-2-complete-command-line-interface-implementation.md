@@ -1,6 +1,6 @@
 # Epic 2: Complete Command-Line Interface Implementation
 
-**Expanded Goal:** Build comprehensive CLI commands that establish the CRUD foundation for the entire system. Implement team management with multi-team structure (Option A: separate _members/ and _teams/ directories), member file operations (1on1s, feedback, assessments, performance reviews), relationship tracking, leadership tracking, and project management. All commands support both parameter-passing and interactive modes, implement hierarchical email resolution (team → leadership → relationships), auto-create structures as needed, generate Obsidian-compatible wiki-links, and include complete unit test coverage. This epic enables token-optimized agent implementation where agents invoke CLI commands for file manipulation instead of reading/parsing files directly.
+**Expanded Goal:** Build comprehensive CLI commands that establish the CRUD foundation for the entire system. Implement team management with multi-team structure (Option A: separate _members/ and _teams/ directories), member file operations (1on1s, feedback, assessments, performance reviews), relationship tracking, leadership tracking, and project management. All commands support both parameter-passing and interactive modes, implement hierarchical email resolution (team → leadership → relationships), auto-create structures as needed, generate Obsidian-compatible wiki-links, and include complete unit test coverage. This epic also aligns `tmr init` with the canonical Epic 2 workspace structure (Story 2.8) and installs Obsidian plugins automatically during init (Story 2.7). This epic enables token-optimized agent implementation where agents invoke CLI commands for file manipulation instead of reading/parsing files directly.
 
 ## Story 2.1: Team Management Commands
 
@@ -27,7 +27,7 @@
    - If no team-name provided, prompts interactively
    - Returns success message with created paths
 
-3. **`tmr team add <team-name> <email> [--role=<role>] [--location=<location>]` Command:**
+3. **`tmr team add <team-name> <email> [--role=<role>] [--gender=<gender>] [--location=<location>]` Command:**
    - Auto-creates team if doesn't exist
    - If no parameters provided, prompts interactively for: team-name, email, role, location
    - Creates member directory structure (if doesn't exist)
@@ -35,7 +35,9 @@
      ```yaml
      ---
      email: user@example.com
+     name: <collected-name>
      role: <collected-role>
+     gender: <collected-gender>
      location: <collected-location>
      teams: [<team-name>]
      date_added: <current-date>
@@ -276,6 +278,64 @@
 9. **`tmr project list` Command:**
    - Displays table: project-name, team member count, stakeholder count
    - Unit tests cover: listing
+
+## Story 2.7: Obsidian Plugin Setup in `tmr init`
+
+**As a** manager setting up my workspace,
+**I want** `tmr init` to automatically install Obsidian plugins into the workspace vault,
+**so that** when I open the folder as an Obsidian vault, the plugins are already configured and ready to use without manual installation.
+
+**Acceptance Criteria:**
+
+1. **`.obsidian/plugins/` directory structure created** for three plugins: `obsidian-git`, `obsidian-granola-sync`, `obsidian-terminal`
+
+2. **Plugin files downloaded from GitHub latest releases** using the URL pattern `https://github.com/{owner}/{repo}/releases/latest/download/{file}`:
+   - `obsidian-git`: `https://github.com/Vinzent03/obsidian-git`
+   - `obsidian-granola-sync`: `https://github.com/tomelliot/obsidian-granola-sync`
+   - `obsidian-terminal`: `https://github.com/polyipseity/obsidian-terminal`
+   - Files per plugin: `main.js`, `manifest.json`, `styles.css` (skip 404s silently)
+
+3. **`.obsidian/community-plugins.json`** created enabling all three plugins
+
+4. **`.obsidian/app.json`** created with minimal `{}` content
+
+5. **Download behavior:** concurrent, non-fatal on failure, 30s timeout per file, spinner progress
+
+6. **`ObsidianPluginService`** class at `src/services/obsidian-plugin.service.ts` with `installPlugins(workspacePath)` and `downloadPluginFile(pluginDir, url, filename)` methods; full unit test coverage
+
+7. **Integration with `InitCommand`:** called after `buildWorkspaceStructure()`; next steps message updated
+
+## Story 2.8: `tmr init` Workspace Structure Alignment with Epic 2
+
+**As a** manager running `tmr init`,
+**I want** the workspace structure and generated files to exactly match the folder/file conventions established by Epic 2 commands,
+**so that** all subsequent `tmr team`, `tmr member`, `tmr leadership`, `tmr relationship`, and `tmr project` commands work correctly against the initialized workspace without any structural conflicts.
+
+**Acceptance Criteria:**
+
+1. **Workspace directories** updated to Epic 2 canonical paths:
+   - Add: `my-teams/_members/`, `my-teams/_teams/`, `my-teams/_archived/`, `my-company/projects/`
+   - Remove: `my-team/` (old path)
+
+2. **Manager career profile** path changed to `my-career/{email}/{email}.md`; frontmatter aligned with Epic 2 schema; body includes `## Current Manager`, `## Previous Managers`, `## Performance Reviews`, `## 1on1s`, `## Assessments`, `## Feedbacks` sections
+
+3. **Manager PDP** path changed to `my-career/{email}/pdp.md`
+
+4. **Leadership profile** path changed to `my-leadership/{managerEmail}/{managerEmail}.md` with `1on1s/` subdirectory; frontmatter aligned with Story 2.4 schema
+
+5. **Team member profiles** path changed to `my-teams/_members/{email}/{email}.md`; subdirectories `1on1s/`, `feedback/`, `assessments/`, `performance-reviews/` created per member; frontmatter aligned with Story 2.1 schema; `gender` field **kept**, `location` field added
+
+6. **Default team** created when members collected: `my-teams/_teams/default/default-context.md` and `my-teams/_teams/default/default-members.md` with wiki-links
+
+7. **Obsidian wiki-link notation** applied to all email references in generated files: `[[email]]` in frontmatter, `[[relative/path/to/file|display]]` in body links
+
+8. **`TeamMember` type** updated: remove `gender`, add `location?: string`
+
+9. **`promptTeamMembers`** updated: remove gender prompt, add optional location prompt
+
+10. **All tests** updated to reflect new paths, new frontmatter, wiki-link assertions, and updated mock data
+
+11. **Architectural debts resolved:** ARCH-1.6-04 (leadership flat path) and QA-1.6R-05 (career profile schema drift)
 
 ## Story 2.6: Email Resolution Service
 
