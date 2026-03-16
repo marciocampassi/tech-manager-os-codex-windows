@@ -28,6 +28,9 @@ const WORKSPACE_DIRS = [
   '.tmr-core/tasks',
   '.tmr-core/templates',
   '.tmr-core/packs',
+  '.obsidian/plugins/obsidian-git',
+  '.obsidian/plugins/obsidian-granola-sync',
+  '.obsidian/plugins/obsidian-terminal',
 ];
 
 export async function buildWorkspaceStructure(workspacePath: string): Promise<void> {

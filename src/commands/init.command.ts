@@ -15,6 +15,7 @@ import {
   promptTeamMembers,
 } from '../workflows/onboarding.prompts.js';
 import { buildWorkspaceStructure } from '../workflows/workspace-builder.js';
+import { obsidianPluginService } from '../services/obsidian-plugin.service.js';
 import {
   generateCareerProfile,
   generatePdp,
@@ -109,10 +110,12 @@ export class InitCommand {
       chalk.bold.green(`\n✓ Workspace created at ${workspacePath}`),
       '',
       chalk.bold('Next steps:'),
-      `  ${chalk.cyan('1.')} Open ${chalk.bold(workspacePath)} as your Obsidian vault`,
+      `  ${chalk.cyan('1.')} Open ${chalk.bold(workspacePath)} as your Obsidian vault — plugins are ready`,
       `  ${chalk.cyan('2.')} Add meeting notes to ${chalk.bold('inbox/')} (via Granola or manually)`,
       `  ${chalk.cyan('3.')} Run ${chalk.bold('tmr process')} to process inbox files`,
       `  ${chalk.cyan('4.')} Run ${chalk.bold('tmr --help')} to explore all available commands`,
+      '',
+      chalk.dim('Obsidian plugins installed (obsidian-git, granola-sync, terminal)'),
       '',
     ];
     process.stdout.write(lines.join('\n') + '\n');
@@ -191,6 +194,10 @@ export class InitCommand {
     await this.writeWorkspaceFiles(workspacePath, data);
     await this.writeTeamMemberFiles(workspacePath, teamMembers);
     spinner.succeed('Workspace ready');
+
+    const pluginSpinner = ora('Downloading Obsidian plugins…').start();
+    await obsidianPluginService.installPlugins(workspacePath);
+    pluginSpinner.succeed('Obsidian plugins installed');
 
     this.displayNextSteps(workspacePath);
   }

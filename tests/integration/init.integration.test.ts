@@ -72,11 +72,21 @@ const mockWriteFile = jest
   .mockImplementation(async (filePath, content) => {
     writtenFiles.set(filePath, content);
   });
+const mockFsExists = jest.fn<(path: string) => Promise<boolean>>().mockResolvedValue(false);
 
 jest.unstable_mockModule('../../src/services/file-system.service.js', () => ({
   fileSystemService: {
     createDirectory: mockCreateDirectory,
     writeFile: mockWriteFile,
+    exists: mockFsExists,
+  },
+}));
+
+jest.unstable_mockModule('../../src/services/obsidian-plugin.service.js', () => ({
+  obsidianPluginService: {
+    installPlugins: jest
+      .fn<(workspacePath: string) => Promise<void>>()
+      .mockResolvedValue(undefined),
   },
 }));
 
