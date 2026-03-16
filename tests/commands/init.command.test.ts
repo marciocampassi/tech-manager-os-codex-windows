@@ -69,6 +69,12 @@ jest.unstable_mockModule('../../src/services/file-system.service.js', () => ({
   fileSystemService: { createDirectory: mockCreateDirectory, writeFile: mockWriteFile },
 }));
 
+const mockInstallPlugins = jest.fn<(workspacePath: string) => Promise<void>>();
+
+jest.unstable_mockModule('../../src/services/obsidian-plugin.service.js', () => ({
+  obsidianPluginService: { installPlugins: mockInstallPlugins },
+}));
+
 // ── Dynamic import (after all mocks) ─────────────────────────────────────────
 
 const { InitCommand } = await import('../../src/commands/init.command.js');
@@ -114,6 +120,7 @@ describe('InitCommand', () => {
     mockCreateDirectory.mockResolvedValue(undefined);
     mockWriteFile.mockResolvedValue(undefined);
     mockTestConnection.mockResolvedValue(true);
+    mockInstallPlugins.mockResolvedValue(undefined);
     // By default no existing key — no reuse prompt shown
     mockConfigGetProviderConfig.mockReturnValue(undefined);
     stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
@@ -146,6 +153,12 @@ describe('InitCommand', () => {
       await new InitCommand().run();
       expect(mockConfigSetActiveProvider).toHaveBeenCalledWith('openai');
       expect(mockConfigAddProvider).toHaveBeenCalledWith('openai', 'sk-test-key', '');
+    });
+
+    it('calls obsidianPluginService.installPlugins with the workspace path', async () => {
+      setupHappyPath();
+      await new InitCommand().run();
+      expect(mockInstallPlugins).toHaveBeenCalledWith('/tmp/test-workspace');
     });
 
     it('calls AIProviderFactory.create with correct provider and apiKey', async () => {
