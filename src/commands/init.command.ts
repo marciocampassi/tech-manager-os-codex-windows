@@ -21,6 +21,8 @@ import {
   generatePdp,
   generateLeadershipProfile,
   generateTeamMemberProfile,
+  generateDefaultTeamContext,
+  generateDefaultTeamMembers,
   generateCursorRule,
   generateAgentStub,
 } from '../templates/onboarding.templates.js';
@@ -69,16 +71,22 @@ export class InitCommand {
   }
 
   private async writeWorkspaceFiles(workspacePath: string, data: OnboardingData): Promise<void> {
+    const { profile, leadershipContext } = data;
+    const leadershipDir = join(workspacePath, 'my-leadership', leadershipContext.managerEmail);
     await Promise.all([
       fileSystemService.writeFile(
-        join(workspacePath, 'my-career', 'profile.md'),
+        join(workspacePath, 'my-career', profile.email, `${profile.email}.md`),
         generateCareerProfile(data),
       ),
-      fileSystemService.writeFile(join(workspacePath, 'my-career', 'pdp.md'), generatePdp(data)),
       fileSystemService.writeFile(
-        join(workspacePath, 'my-leadership', 'profile.md'),
+        join(workspacePath, 'my-career', profile.email, 'pdp.md'),
+        generatePdp(data),
+      ),
+      fileSystemService.writeFile(
+        join(leadershipDir, `${leadershipContext.managerEmail}.md`),
         generateLeadershipProfile(data),
       ),
+      fileSystemService.createDirectory(join(leadershipDir, '1on1s')),
       fileSystemService.writeFile(
         join(workspacePath, '.cursor', 'rules', 'tmr', 'process-agent.mdc'),
         generateCursorRule('process-agent'),
@@ -94,15 +102,41 @@ export class InitCommand {
     ]);
   }
 
-  private async writeTeamMemberFiles(workspacePath: string, members: TeamMember[]): Promise<void> {
+  private async writeTeamMemberFiles(
+    workspacePath: string,
+    members: TeamMember[],
+    managerEmail: string,
+  ): Promise<void> {
     await Promise.all(
-      members.map((member) =>
-        fileSystemService.writeFile(
-          join(workspacePath, 'my-team', member.email, 'profile.md'),
-          generateTeamMemberProfile(member),
-        ),
-      ),
+      members.map(async (member) => {
+        const memberDir = join(workspacePath, 'my-teams', '_members', member.email);
+        await Promise.all([
+          fileSystemService.createDirectory(join(memberDir, '1on1s')),
+          fileSystemService.createDirectory(join(memberDir, 'feedback')),
+          fileSystemService.createDirectory(join(memberDir, 'assessments')),
+          fileSystemService.createDirectory(join(memberDir, 'performance-reviews')),
+          fileSystemService.writeFile(
+            join(memberDir, `${member.email}.md`),
+            generateTeamMemberProfile(member, managerEmail),
+          ),
+        ]);
+      }),
     );
+  }
+
+  private async writeDefaultTeam(workspacePath: string, members: TeamMember[]): Promise<void> {
+    if (members.length === 0) return;
+    const defaultTeamDir = join(workspacePath, 'my-teams', '_teams', 'default');
+    await Promise.all([
+      fileSystemService.writeFile(
+        join(defaultTeamDir, 'default-context.md'),
+        generateDefaultTeamContext(),
+      ),
+      fileSystemService.writeFile(
+        join(defaultTeamDir, 'default-members.md'),
+        generateDefaultTeamMembers(members),
+      ),
+    ]);
   }
 
   private displayNextSteps(workspacePath: string): void {
@@ -192,7 +226,8 @@ export class InitCommand {
     const spinner = ora('Creating workspace…').start();
     await buildWorkspaceStructure(workspacePath);
     await this.writeWorkspaceFiles(workspacePath, data);
-    await this.writeTeamMemberFiles(workspacePath, teamMembers);
+    await this.writeTeamMemberFiles(workspacePath, teamMembers, leadershipContext.managerEmail);
+    await this.writeDefaultTeam(workspacePath, teamMembers);
     spinner.succeed('Workspace ready');
 
     const pluginSpinner = ora('Downloading Obsidian plugins…').start();

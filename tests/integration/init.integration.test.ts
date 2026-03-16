@@ -128,8 +128,13 @@ describe('InitCommand integration', () => {
         })
         // promptTeamMembers — loop iteration 1: email
         .mockResolvedValueOnce({ email: TEAM_MEMBER_EMAIL })
-        // loop iteration 1: name/gender/role
-        .mockResolvedValueOnce({ name: 'Dev One', gender: 'Female', role: 'Software Engineer' })
+        // loop iteration 1: name/gender/role/location
+        .mockResolvedValueOnce({
+          name: 'Dev One',
+          gender: 'Female',
+          role: 'Software Engineer',
+          location: '',
+        })
         // loop iteration 2: email (empty → exits)
         .mockResolvedValueOnce({ email: '' });
 
@@ -148,22 +153,27 @@ describe('InitCommand integration', () => {
   describe('directory structure', () => {
     it('creates my-career/ directory', () => {
       const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
-      expect(dirs.some((d) => d.endsWith('my-career'))).toBe(true);
+      expect(dirs.some((d) => d.includes('my-career'))).toBe(true);
     });
 
     it('creates my-leadership/ directory', () => {
       const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
-      expect(dirs.some((d) => d.endsWith('my-leadership'))).toBe(true);
+      expect(dirs.some((d) => d.includes('my-leadership'))).toBe(true);
     });
 
-    it('creates my-team/ directory', () => {
+    it('creates my-teams/_members/ directory', () => {
       const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
-      expect(dirs.some((d) => d.endsWith('my-team'))).toBe(true);
+      expect(dirs.some((d) => d.includes('my-teams/_members'))).toBe(true);
     });
 
-    it('creates my-teams/ directory', () => {
+    it('creates my-teams/_teams/ directory', () => {
       const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
-      expect(dirs.some((d) => d.endsWith('my-teams'))).toBe(true);
+      expect(dirs.some((d) => d.includes('my-teams/_teams'))).toBe(true);
+    });
+
+    it('does NOT create my-team/ (old path removed)', () => {
+      const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
+      expect(dirs.some((d) => /[/\\]my-team[/\\]?$/.test(d))).toBe(false);
     });
 
     it('creates inbox/ directory', () => {
@@ -185,22 +195,31 @@ describe('InitCommand integration', () => {
       const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
       expect(dirs.some((d) => d.includes('.gemini'))).toBe(true);
     });
+
+    it('creates my-leadership/{managerEmail}/1on1s/ directory', () => {
+      const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
+      expect(dirs.some((d) => d.includes('1on1s'))).toBe(true);
+    });
   });
 
   describe('generated files — paths', () => {
-    it('writes my-career/profile.md', () => {
+    it('writes my-career/{email}/{email}.md (Epic-2 path)', () => {
       const paths = Array.from(writtenFiles.keys());
-      expect(paths.some((p) => p.endsWith('my-career/profile.md'))).toBe(true);
+      expect(paths.some((p) => p.includes(`my-career/${MANAGER_EMAIL}/${MANAGER_EMAIL}.md`))).toBe(
+        true,
+      );
     });
 
-    it('writes my-career/pdp.md', () => {
+    it('writes my-career/{email}/pdp.md', () => {
       const paths = Array.from(writtenFiles.keys());
-      expect(paths.some((p) => p.endsWith('my-career/pdp.md'))).toBe(true);
+      expect(paths.some((p) => p.includes(`my-career/${MANAGER_EMAIL}/pdp.md`))).toBe(true);
     });
 
-    it('writes my-leadership/profile.md', () => {
+    it('writes my-leadership/{managerEmail}/{managerEmail}.md (Epic-2 path)', () => {
       const paths = Array.from(writtenFiles.keys());
-      expect(paths.some((p) => p.endsWith('my-leadership/profile.md'))).toBe(true);
+      expect(
+        paths.some((p) => p.includes('my-leadership/dana@example.com/dana@example.com.md')),
+      ).toBe(true);
     });
 
     it('writes .cursor process-agent.mdc', () => {
@@ -213,44 +232,72 @@ describe('InitCommand integration', () => {
       expect(paths.filter((p) => p.endsWith('process-agent.md'))).toHaveLength(2);
     });
 
-    it('writes team member profile under my-team/{email}/', () => {
+    it('writes team member profile under my-teams/_members/{email}/{email}.md', () => {
       const paths = Array.from(writtenFiles.keys());
-      expect(paths.some((p) => p.includes(`my-team/${TEAM_MEMBER_EMAIL}/profile.md`))).toBe(true);
+      expect(
+        paths.some((p) =>
+          p.includes(`my-teams/_members/${TEAM_MEMBER_EMAIL}/${TEAM_MEMBER_EMAIL}.md`),
+        ),
+      ).toBe(true);
+    });
+
+    it('writes default-context.md and default-members.md for default team', () => {
+      const paths = Array.from(writtenFiles.keys());
+      expect(paths.some((p) => p.endsWith('_teams/default/default-context.md'))).toBe(true);
+      expect(paths.some((p) => p.endsWith('_teams/default/default-members.md'))).toBe(true);
     });
   });
 
   describe('generated files — content', () => {
-    it('my-career/profile.md contains the manager name', () => {
+    it('career profile contains the manager name', () => {
       const profilePath = Array.from(writtenFiles.keys()).find((p) =>
-        p.endsWith('my-career/profile.md'),
+        p.includes(`my-career/${MANAGER_EMAIL}/${MANAGER_EMAIL}.md`),
       );
       expect(profilePath).toBeDefined();
       const content = writtenFiles.get(profilePath!)!;
       expect(content).toContain(MANAGER_NAME);
     });
 
-    it('my-career/profile.md contains the manager email', () => {
+    it('career profile uses [[email]] wiki-link notation', () => {
       const profilePath = Array.from(writtenFiles.keys()).find((p) =>
-        p.endsWith('my-career/profile.md'),
+        p.includes(`my-career/${MANAGER_EMAIL}/${MANAGER_EMAIL}.md`),
       );
       const content = writtenFiles.get(profilePath!)!;
-      expect(content).toContain(MANAGER_EMAIL);
+      expect(content).toContain(`[[${MANAGER_EMAIL}]]`);
     });
 
-    it('my-career/pdp.md contains ## Career Goals section', () => {
-      const pdpPath = Array.from(writtenFiles.keys()).find((p) => p.endsWith('my-career/pdp.md'));
+    it('career profile has reports_to as [[managerEmail]] wiki-link', () => {
+      const profilePath = Array.from(writtenFiles.keys()).find((p) =>
+        p.includes(`my-career/${MANAGER_EMAIL}/${MANAGER_EMAIL}.md`),
+      );
+      const content = writtenFiles.get(profilePath!)!;
+      expect(content).toContain('reports_to: [[dana@example.com]]');
+    });
+
+    it('pdp contains ## Career Goals section', () => {
+      const pdpPath = Array.from(writtenFiles.keys()).find((p) =>
+        p.includes(`my-career/${MANAGER_EMAIL}/pdp.md`),
+      );
       expect(pdpPath).toBeDefined();
       const content = writtenFiles.get(pdpPath!)!;
       expect(content).toContain('## Career Goals');
     });
 
-    it('my-leadership/profile.md contains the manager name', () => {
+    it('leadership profile contains the manager name', () => {
       const leaderPath = Array.from(writtenFiles.keys()).find((p) =>
-        p.endsWith('my-leadership/profile.md'),
+        p.includes('my-leadership/dana@example.com/dana@example.com.md'),
       );
       expect(leaderPath).toBeDefined();
       const content = writtenFiles.get(leaderPath!)!;
       expect(content).toContain('Director Dana');
+    });
+
+    it('leadership profile uses [[email]] wiki-link notation', () => {
+      const leaderPath = Array.from(writtenFiles.keys()).find((p) =>
+        p.includes('my-leadership/dana@example.com/dana@example.com.md'),
+      );
+      const content = writtenFiles.get(leaderPath!)!;
+      expect(content).toContain('[[dana@example.com]]');
     });
 
     it('process-agent.mdc contains placeholder notice', () => {
@@ -260,14 +307,44 @@ describe('InitCommand integration', () => {
       expect(content).toContain('sync-agents');
     });
 
-    it('team member profile.md contains the member email and role', () => {
+    it('team member profile contains the member email and role', () => {
       const memberPath = Array.from(writtenFiles.keys()).find((p) =>
-        p.includes(`my-team/${TEAM_MEMBER_EMAIL}/profile.md`),
+        p.includes(`my-teams/_members/${TEAM_MEMBER_EMAIL}/${TEAM_MEMBER_EMAIL}.md`),
       );
       expect(memberPath).toBeDefined();
       const content = writtenFiles.get(memberPath!)!;
       expect(content).toContain(TEAM_MEMBER_EMAIL);
       expect(content).toContain('Software Engineer');
+    });
+
+    it('team member profile has [[email]] wiki-link notation and gender field', () => {
+      const memberPath = Array.from(writtenFiles.keys()).find((p) =>
+        p.includes(`my-teams/_members/${TEAM_MEMBER_EMAIL}/${TEAM_MEMBER_EMAIL}.md`),
+      );
+      const content = writtenFiles.get(memberPath!)!;
+      expect(content).toContain(`[[${TEAM_MEMBER_EMAIL}]]`);
+      expect(content).toContain('gender: Female');
+    });
+
+    it('team member profile has manager wiki-link in Current Manager section', () => {
+      const memberPath = Array.from(writtenFiles.keys()).find((p) =>
+        p.includes(`my-teams/_members/${TEAM_MEMBER_EMAIL}/${TEAM_MEMBER_EMAIL}.md`),
+      );
+      const content = writtenFiles.get(memberPath!)!;
+      expect(content).toContain(
+        '[[../../my-career/dana@example.com/dana@example.com|dana@example.com]]',
+      );
+    });
+
+    it('default-members.md contains wiki-links to team members', () => {
+      const defaultMembersPath = Array.from(writtenFiles.keys()).find((p) =>
+        p.endsWith('_teams/default/default-members.md'),
+      );
+      expect(defaultMembersPath).toBeDefined();
+      const content = writtenFiles.get(defaultMembersPath!)!;
+      expect(content).toContain(
+        `[[../../_members/${TEAM_MEMBER_EMAIL}/${TEAM_MEMBER_EMAIL}|${TEAM_MEMBER_EMAIL}]]`,
+      );
     });
   });
 });

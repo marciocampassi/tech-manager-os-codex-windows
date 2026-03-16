@@ -162,10 +162,11 @@ export async function promptTeamMembers(): Promise<TeamMember[]> {
       continue;
     }
 
-    const { name, gender, role } = await inquirer.prompt<{
+    const { name, gender, role, location } = await inquirer.prompt<{
       name: string;
       gender: string;
       role: string;
+      location: string;
     }>([
       {
         type: 'input',
@@ -187,10 +188,22 @@ export async function promptTeamMembers(): Promise<TeamMember[]> {
         validate: (v: string): ValidateResult =>
           v.trim().length > 0 ? true : 'Role cannot be empty',
       },
+      {
+        type: 'input',
+        name: 'location',
+        message: 'Location (optional):',
+        default: '',
+      },
     ]);
 
     seenEmails.add(trimmedEmail);
-    members.push({ email: trimmedEmail, name: name.trim(), gender, role: role.trim() });
+    members.push({
+      email: trimmedEmail,
+      name: name.trim(),
+      gender,
+      role: role.trim(),
+      ...(location.trim() ? { location: location.trim() } : {}),
+    });
   }
 
   return members;

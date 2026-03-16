@@ -15,6 +15,7 @@ export interface TeamMember {
   name: string;
   gender: string;
   role: string;
+  location?: string;
 }
 
 export interface OnboardingData {
