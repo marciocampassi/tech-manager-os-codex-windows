@@ -1,0 +1,46 @@
+schema: 1
+story: '2.8'
+story_title: 'tmr init Workspace Structure Alignment with Epic 2'
+gate: PASS
+status_reason: >
+  All 13 acceptance criteria are implemented and verified. Templates fully rewritten
+  with correct wiki-link notation, Epic-2 canonical paths, and proper directory
+  structure. 502 tests passing. One defensive coding improvement applied during review.
+reviewer: 'Quinn (Test Architect)'
+updated: '2026-03-16T00:00:00Z'
+
+top_issues: []
+waiver:
+  active: false
+
+quality_score: 95
+expires: '2026-03-30T00:00:00Z'
+
+evidence:
+  tests_reviewed: 50
+  risks_identified: 1
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'No security-sensitive changes. Email used as directory name is validated upstream (PATH_UNSAFE_RE regex in promptTeamMembers).'
+  performance:
+    status: PASS
+    notes: 'writeWorkspaceFiles, writeTeamMemberFiles, and writeDefaultTeam all use Promise.all for concurrent I/O. Member subdirs created in parallel per member.'
+  reliability:
+    status: PASS
+    notes: 'writeDefaultTeam guards with members.length === 0. No uncaught promise paths. fileSystemService.writeFile auto-creates parent dirs via ensureDir.'
+  maintainability:
+    status: PASS
+    notes: 'Clean template functions with single responsibility. New generators (generateDefaultTeamContext, generateDefaultTeamMembers) are pure string functions, easy to test and extend.'
+
+recommendations:
+  immediate: []
+  future:
+    - action: 'Consider adding a dedicated unit test file for onboarding.templates.ts covering each generator in isolation with snapshot or string-equality assertions.'
+      refs: ['src/templates/onboarding.templates.ts']
+    - action: 'The career profile manager link [[my-leadership/{email}/{email}|{email}]] uses vault-root style (correct). Add a comment in the template explaining this is vault-root relative, not filesystem relative, to prevent future confusion.'
+      refs: ['src/templates/onboarding.templates.ts']

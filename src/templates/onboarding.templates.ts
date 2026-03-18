@@ -4,22 +4,39 @@ function today(): string {
   return new Date().toISOString().split('T')[0];
 }
 
+// Wiki-links in this file use vault-root relative paths (no leading `../`).
+// Obsidian resolves `[[my-leadership/...]]` from the vault root, not from the file's directory.
 export function generateCareerProfile(data: OnboardingData): string {
-  const { profile } = data;
+  const { profile, leadershipContext } = data;
+  const date = today();
   const locationLine = profile.location ? `location: ${profile.location}\n` : '';
   return `---
+email: [[${profile.email}]]
 name: ${profile.name}
-email: ${profile.email}
 role: ${profile.role}
 ${locationLine}teams: []
-reports_to: []
-updated: ${today()}
+reports_to: [[${leadershipContext.managerEmail}]]
+date_added: ${date}
+updated: ${date}
 ---
 
 ## About
 
 ${profile.name} is a ${profile.role}.
 
+## Current Manager
+
+- [[my-leadership/${leadershipContext.managerEmail}/${leadershipContext.managerEmail}|${leadershipContext.managerEmail}]]
+
+## Previous Managers
+
+## Performance Reviews
+
+## 1on1s
+
+## Assessments
+
+## Feedbacks
 `;
 }
 
@@ -28,6 +45,7 @@ export function generatePdp(data: OnboardingData): string {
   const date = today();
   return `---
 name: ${profile.name}
+email: [[${profile.email}]]
 role: ${profile.role}
 created: ${date}
 updated: ${date}
@@ -58,18 +76,20 @@ export function generateLeadershipProfile(data: OnboardingData): string {
   const { leadershipContext } = data;
   const date = today();
   return `---
-manager_name: ${leadershipContext.managerName}
-manager_email: ${leadershipContext.managerEmail}
+email: [[${leadershipContext.managerEmail}]]
+name: ${leadershipContext.managerName}
+role: ''
+areas_of_responsibility: []
+date_added: ${date}
 updated: ${date}
-_note: >
-  Bootstrap file created by \`tmr init\`. Full email-anchored folder structure
-  (my-leadership/{email}/) is established in Epic 2.
 ---
 
-## Manager Overview
+## Overview
 
 **Name:** ${leadershipContext.managerName}
-**Email:** ${leadershipContext.managerEmail}
+**Email:** [[${leadershipContext.managerEmail}]]
+
+## 1on1s
 
 ## Alignment Notes
 
@@ -77,28 +97,54 @@ _Add alignment notes after 1:1s._
 `;
 }
 
-export function generateTeamMemberProfile(member: TeamMember): string {
+export function generateTeamMemberProfile(member: TeamMember, managerEmail: string): string {
   const date = today();
+  const locationLine = member.location ? `location: ${member.location}\n` : `location: ''\n`;
   return `---
+email: [[${member.email}]]
 name: ${member.name}
-email: ${member.email}
-gender: ${member.gender}
 role: ${member.role}
-created: ${date}
+gender: ${member.gender}
+${locationLine}teams: [default]
+date_added: ${date}
 updated: ${date}
 ---
 
-## Profile
+## Current Manager
 
-**Name:** ${member.name}
-**Email:** ${member.email}
-**Gender:** ${member.gender}
-**Role:** ${member.role}
+- [[../../my-career/${managerEmail}/${managerEmail}|${managerEmail}]]
 
-## Notes
+## Previous Managers
 
-_Add notes about this team member here._
+## Other Leaderships
+
+## Previous Leaderships
+
+## Performance Reviews
+
+## 1on1s
+
+## Assessments
+
+## Feedbacks
 `;
+}
+
+export function generateDefaultTeamContext(): string {
+  const date = today();
+  return `---
+team: default
+created: ${date}
+updated: ${date}
+---
+`;
+}
+
+export function generateDefaultTeamMembers(members: TeamMember[]): string {
+  const lines = members
+    .map((m) => `- [[../../_members/${m.email}/${m.email}|${m.email}]]`)
+    .join('\n');
+  return `# Team Members\n\n${lines.length > 0 ? lines + '\n' : ''}`;
 }
 
 export function generateCursorRule(agentName: string): string {

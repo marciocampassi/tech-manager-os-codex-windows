@@ -103,8 +103,8 @@ function setupHappyPath(): void {
     })
     // promptTeamMembers — loop iteration 1: email prompt
     .mockResolvedValueOnce({ email: 'member@example.com' })
-    // loop iteration 1: name/gender/role prompt
-    .mockResolvedValueOnce({ name: 'Member One', gender: 'Male', role: 'Developer' })
+    // loop iteration 1: name/gender/role/location prompt
+    .mockResolvedValueOnce({ name: 'Member One', gender: 'Male', role: 'Developer', location: '' })
     // loop iteration 2: email prompt (empty → exits loop)
     .mockResolvedValueOnce({ email: '' });
 }
@@ -375,24 +375,33 @@ describe('InitCommand', () => {
         .mockResolvedValueOnce({ managerName: 'Bob', managerEmail: 'bob@example.com' })
         // loop iteration 1
         .mockResolvedValueOnce({ email: 'dev1@example.com' })
-        .mockResolvedValueOnce({ name: 'Dev One', gender: 'Male', role: 'Engineer' })
+        .mockResolvedValueOnce({ name: 'Dev One', gender: 'Male', role: 'Engineer', location: '' })
         // loop iteration 2
         .mockResolvedValueOnce({ email: 'dev2@example.com' })
-        .mockResolvedValueOnce({ name: 'Dev Two', gender: 'Female', role: 'Designer' })
+        .mockResolvedValueOnce({
+          name: 'Dev Two',
+          gender: 'Female',
+          role: 'Designer',
+          location: '',
+        })
         // loop exit
         .mockResolvedValueOnce({ email: '' });
 
       await new InitCommand().run();
 
       const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) => c[0]);
-      // 6 base files + 2 team member profiles
-      expect(mockWriteFile).toHaveBeenCalledTimes(8);
-      expect(writtenPaths.some((p) => p.includes('my-team/dev1@example.com/profile.md'))).toBe(
-        true,
-      );
-      expect(writtenPaths.some((p) => p.includes('my-team/dev2@example.com/profile.md'))).toBe(
-        true,
-      );
+      // 6 base files + 2 member profiles + 2 default team files
+      expect(mockWriteFile).toHaveBeenCalledTimes(10);
+      expect(
+        writtenPaths.some((p) =>
+          p.includes('my-teams/_members/dev1@example.com/dev1@example.com.md'),
+        ),
+      ).toBe(true);
+      expect(
+        writtenPaths.some((p) =>
+          p.includes('my-teams/_members/dev2@example.com/dev2@example.com.md'),
+        ),
+      ).toBe(true);
     });
 
     it('skips duplicate emails without writing a second profile file', async () => {
@@ -409,7 +418,7 @@ describe('InitCommand', () => {
         .mockResolvedValueOnce({ managerName: 'Bob', managerEmail: 'bob@example.com' })
         // loop iteration 1 — first entry
         .mockResolvedValueOnce({ email: 'dup@example.com' })
-        .mockResolvedValueOnce({ name: 'Original', gender: 'Male', role: 'Engineer' })
+        .mockResolvedValueOnce({ name: 'Original', gender: 'Male', role: 'Engineer', location: '' })
         // loop iteration 2 — duplicate email, skipped (no name/gender/role prompt follows)
         .mockResolvedValueOnce({ email: 'dup@example.com' })
         // loop exit
@@ -418,57 +427,92 @@ describe('InitCommand', () => {
       await new InitCommand().run();
 
       const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) => c[0]);
-      // 6 base files + 1 team member profile (duplicate not written)
-      expect(mockWriteFile).toHaveBeenCalledTimes(7);
+      // 6 base files + 1 member profile + 2 default team files (duplicate not written)
+      expect(mockWriteFile).toHaveBeenCalledTimes(9);
       expect(writtenPaths.filter((p) => p.includes('dup@example.com'))).toHaveLength(1);
     });
   });
 
   describe('workspace files', () => {
-    it('writes profile.md, pdp.md, my-leadership/profile.md, and IDE stubs', async () => {
+    it('writes career profile, pdp, leadership profile, and IDE stubs at Epic-2 paths', async () => {
       setupHappyPath();
       await new InitCommand().run();
 
       const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) => c[0]);
 
-      expect(writtenPaths.some((p) => p.endsWith('my-career/profile.md'))).toBe(true);
-      expect(writtenPaths.some((p) => p.endsWith('my-career/pdp.md'))).toBe(true);
-      expect(writtenPaths.some((p) => p.endsWith('my-leadership/profile.md'))).toBe(true);
+      expect(
+        writtenPaths.some((p) => p.includes('my-career/alice@example.com/alice@example.com.md')),
+      ).toBe(true);
+      expect(writtenPaths.some((p) => p.endsWith('my-career/alice@example.com/pdp.md'))).toBe(true);
+      expect(
+        writtenPaths.some((p) => p.includes('my-leadership/bob@example.com/bob@example.com.md')),
+      ).toBe(true);
       expect(writtenPaths.some((p) => p.endsWith('process-agent.mdc'))).toBe(true);
       expect(writtenPaths.filter((p) => p.endsWith('process-agent.md'))).toHaveLength(2);
     });
 
-    it('writes 6 base files plus one file per team member', async () => {
+    it('writes 6 base files + 1 member profile + 2 default team files for 1 member', async () => {
       setupHappyPath();
       await new InitCommand().run();
-      // 6 base files + 1 team member profile
-      expect(mockWriteFile).toHaveBeenCalledTimes(7);
+      expect(mockWriteFile).toHaveBeenCalledTimes(9);
     });
 
-    it('writes team member profile under my-team/{email}/', async () => {
+    it('writes team member profile under my-teams/_members/{email}/{email}.md', async () => {
       setupHappyPath();
       await new InitCommand().run();
 
       const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) => c[0]);
-      expect(writtenPaths.some((p) => p.includes('my-team/member@example.com/profile.md'))).toBe(
-        true,
-      );
+      expect(
+        writtenPaths.some((p) =>
+          p.includes('my-teams/_members/member@example.com/member@example.com.md'),
+        ),
+      ).toBe(true);
+    });
+
+    it('writes default-context.md and default-members.md when team members exist', async () => {
+      setupHappyPath();
+      await new InitCommand().run();
+
+      const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) => c[0]);
+      expect(writtenPaths.some((p) => p.endsWith('_teams/default/default-context.md'))).toBe(true);
+      expect(writtenPaths.some((p) => p.endsWith('_teams/default/default-members.md'))).toBe(true);
+    });
+
+    it('does NOT write default team files when no members are added', async () => {
+      mockPrompt
+        .mockResolvedValueOnce({ workspacePath: '/tmp/test-workspace' })
+        .mockResolvedValueOnce({ provider: 'openai' })
+        .mockResolvedValueOnce({ apiKey: 'sk-test-key' })
+        .mockResolvedValueOnce({
+          name: 'Alice Example',
+          email: 'alice@example.com',
+          role: 'EM',
+          location: '',
+        })
+        .mockResolvedValueOnce({ managerName: 'Bob', managerEmail: 'bob@example.com' })
+        .mockResolvedValueOnce({ email: '' });
+
+      await new InitCommand().run();
+
+      const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) => c[0]);
+      expect(writtenPaths.some((p) => p.includes('default'))).toBe(false);
+      expect(mockWriteFile).toHaveBeenCalledTimes(6);
     });
   });
 
   describe('locality field (Story 1.9)', () => {
-    it('includes location in profile.md content when provided', async () => {
+    it('includes location in career profile content when provided', async () => {
       setupHappyPath();
       await new InitCommand().run();
 
       const profileCall = (mockWriteFile.mock.calls as [string, string][]).find(([p]) =>
-        p.endsWith('my-career/profile.md'),
+        p.includes('my-career/alice@example.com/alice@example.com.md'),
       );
       expect(profileCall).toBeDefined();
       expect(profileCall![1]).toContain('location: São Paulo, SP, Brasil');
     });
 
-    it('omits location key from profile.md when field is empty', async () => {
+    it('omits location key from career profile when field is empty', async () => {
       mockPrompt
         .mockResolvedValueOnce({ workspacePath: '/tmp/test-workspace' })
         .mockResolvedValueOnce({ provider: 'openai' })
@@ -485,7 +529,7 @@ describe('InitCommand', () => {
       await new InitCommand().run();
 
       const profileCall = (mockWriteFile.mock.calls as [string, string][]).find(([p]) =>
-        p.endsWith('my-career/profile.md'),
+        p.includes('my-career/alice@example.com/alice@example.com.md'),
       );
       expect(profileCall).toBeDefined();
       expect(profileCall![1]).not.toContain('location:');
