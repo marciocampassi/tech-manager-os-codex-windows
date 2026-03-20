@@ -492,6 +492,19 @@
 3. Unit tests cover: all fields populated, all fields skipped, CLI flags bypass prompts
 4. Integration tests assert correct frontmatter output for both commands
 
+### 2.11.7 — `my-teams/` directory: remove underscore prefixes
+
+1. **Rename directories** — underscore prefixes removed from all three `my-teams/` subdirectories:
+   - `my-teams/_members/` → `my-teams/members/`
+   - `my-teams/_teams/` → `my-teams/teams/`
+   - `my-teams/_archived/` → `my-teams/archived/`
+2. **`TeamService` path helpers** updated: `membersRoot()`, `teamsRoot()`, `archivedRoot()` return new paths
+3. **`EmailResolutionService._doResolve` step 1** updated: team member profile check uses `my-teams/members/<email>/<email>.md`
+4. **`WORKSPACE_DIRS`** in `workspace-builder.ts` updated: replace `my-teams/_members`, `my-teams/_teams`, `my-teams/_archived` with unprefixed equivalents
+5. **`ITeamMemberFrontmatter` doc comment** and any wiki-link templates that hard-code `_members` updated
+6. All tests referencing old underscore paths updated to new paths
+7. No migration tooling required (targets fresh `tmr init` workspaces)
+
 ### Cross-cutting
 
 - All 34 existing test files updated wherever paths, frontmatter schemas, or command signatures are affected
