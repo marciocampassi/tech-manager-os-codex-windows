@@ -411,3 +411,91 @@
 10. Integration test: `tmr team add` with `google_drive_enabled: false` — `.md` created, profile section updated, no `.gdoc`, no network calls
 
 ---
+
+## Story 2.11: Course Corrections — Bug Fixes, UX Improvements, and Structural Alignment
+
+**As a** manager using the CLI,
+**I want** a set of targeted fixes and improvements across the existing commands,
+**so that** file structures are consistent, Obsidian wiki-links work correctly, command ergonomics match my mental model, and data collected during member/leadership creation is complete.
+
+**Acceptance Criteria:**
+
+### 2.11.1 — `tmr team fire`: Termination note
+
+1. `runFire` handler prompts for an optional termination note before calling the service; pressing Enter with no input skips it
+2. `fireMember` service method accepts `note?: string`; if provided, writes `termination_note: <value>` to the archived member's frontmatter
+3. `ITeamMemberFrontmatter` gains `termination_note?: string`
+4. Unit tests cover: note provided, note skipped
+
+### 2.11.2 — `tmr member add`: Member creation from scratch
+
+1. `tmr member add [email]` — when the first argument is a valid email address (not a type keyword), the command enters **member-creation mode**: prompts for name, gender, role (all optional; empty = skip), then creates the full `my-teams/_members/<email>/` directory tree (with `1on1s/`, `feedback/`, `assessments/`, `performance-reviews/` subdirs) and a profile file matching the Epic 2 schema
+2. When the first argument is a valid type keyword (`1on1`, `feedback`, `assessment`, `performance-review`), existing artifact-creation behavior is preserved unchanged
+3. `MemberService` gains a `createMember(email, opts, ws)` method; `ICreateMemberOptions` type added to `member.types.ts`
+4. The generated profile's frontmatter `email` field uses quoted Obsidian notation: `"[[email]]"`
+5. Unit tests cover: email-first routing, type-first routing, creation idempotency
+6. Integration test: `tmr member add user@example.com` → correct directory structure + profile file
+
+### 2.11.3 — `tmr init`: YAML frontmatter and manager reference fixes
+
+1. **YAML quoting:** All `[[...]]` values in frontmatter across `generateCareerProfile`, `generateLeadershipProfile`, `generatePdp`, and `generateTeamMemberProfile` are wrapped in double quotes (`"[[value]]"`), so YAML parsers do not misinterpret them as flow sequences
+2. **Wrong manager reference:** `writeTeamMemberFiles` is called with `profile.email` (the system user) instead of `leadershipContext.managerEmail` (the system user's boss); team member profiles' `## Current Manager` section now links to `my-career/<systemUserEmail>/<systemUserEmail>` — the person who actually runs `tmr`
+3. **`getManagerEmail()` path fix in `TeamService`:** currently reads from the legacy flat path `my-career/profile.md`; updated to resolve the manager profile from `my-career/<email>/<email>.md` using the email stored in config (or by scanning the `my-career/` directory)
+4. All affected unit and integration tests updated to assert correct YAML quoting and correct manager link target
+
+### 2.11.4 — `tmr project`: Structural overhaul
+
+1. **Single location:** `my-projects/` is removed entirely. All project files live under `my-company/projects/<name>-project/`
+   ```
+   my-company/projects/
+     <name>-project/
+       <name>-project.md        (overview)
+       <name>-composition.md
+       standup/
+       discussion/
+       presentation/
+   ```
+2. **`-project` suffix enforced:** `tmr project add <name>` normalizes the canonical project name by appending `-project` if not already present (e.g., `internship-program` → `internship-program-project`); folder name, overview file name, and composition file name all carry the suffix
+3. **No auto-open editor:** `openInEditor()` calls are removed from `runProjectStandup`, `runProjectDiscussion`, `runProjectPresentation`, and `runMemberAdd`; `--no-edit` flags removed; commands simply print the created file path
+4. **Restructured link commands:** project name comes before the action keyword:
+   - `tmr project <name> link-member <email>`
+   - `tmr project <name> link-members <email-list>`
+   - `tmr project <name> link-stakeholder <email>`
+   - `tmr project <name> link-stakeholders <email-list>`
+   - Implementation: Commander's project command uses `passThroughOptions()` with raw argv routing for the `<name> <link-action> <args>` pattern; `add` and `list` remain conventional subcommands
+5. `my-projects` removed from `WORKSPACE_DIRS` in `workspace-builder.ts`
+6. `listProjects` updated to enumerate directories under `my-company/projects/`
+7. All project service path helpers rewritten; all project tests updated
+
+### 2.11.5 — Email resolution bug + `relationships` → `members` rename
+
+1. **`my-career` self-check:** `EmailResolutionService._doResolve` adds a check between leadership and relationship steps: if `my-career/<email>/<email>.md` exists, return `{ type: 'self', ... }` — preventing the system user's own email from triggering auto-creation of a company member profile
+2. **`IEntityLocation.type`** gains `'self'` as a valid value
+3. **Folder rename:** `my-company/relationships/` → `my-company/members/` everywhere:
+   - `RelationshipService.relationshipsRoot()` returns `my-company/members`
+   - `EmailResolutionService._doResolve` path for step 3 and 4 updated
+   - `workspace-builder.ts` `WORKSPACE_DIRS` updated
+   - `TeamService` (used by `tmr show`) updated
+4. **`tmr relationship add` — optional project linking:** after collecting name/role/department/relationship_type, prompt for an optional project name; if provided: (a) create the project via `ProjectService.addProject()` if it doesn't exist, (b) auto-link the person via `ProjectService.linkMember()` respecting Obsidian wiki-link notation; project prompt is skippable (empty = skip)
+5. All tests referencing `my-company/relationships` updated to `my-company/members`; new tests for self-check and project auto-link
+
+### 2.11.6 — `tmr leadership add` + `tmr team add`: Optional data collection
+
+1. **`tmr leadership add`:**
+   - `gender` field added to `ILeadershipFrontmatter` and `IAddLeadershipOptions`; written to profile frontmatter by `buildLeadershipProfileMd`
+   - When email is passed as a CLI argument (not in interactive mode), the command still prompts for name, role, and gender as optional fields (empty input = field left blank); `--name`, `--role`, `--gender` flags can pre-fill and bypass individual prompts
+   - `--gender <gender>` CLI option added to `leadership add`
+2. **`tmr team add`:**
+   - `name` and `gender` fields added to `ITeamMemberFrontmatter` and `IAddMemberOptions`; written to profile frontmatter by `buildMemberProfileMd`
+   - After resolving teamName and email (whether from CLI args or interactive prompts), the command always prompts for name, role, gender, and location as optional fields (empty input = field left blank)
+   - `--name <name>` and `--gender <gender>` CLI options added to `team add`
+3. Unit tests cover: all fields populated, all fields skipped, CLI flags bypass prompts
+4. Integration tests assert correct frontmatter output for both commands
+
+### Cross-cutting
+
+- All 34 existing test files updated wherever paths, frontmatter schemas, or command signatures are affected
+- `src/cli.ts` updated if argv pre-processing is needed for project command routing
+- No migration tooling required for this story (targets fresh `tmr init` workspaces)
+
+---
