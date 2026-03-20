@@ -1,6 +1,6 @@
 # Epic 2: Complete Command-Line Interface Implementation
 
-**Expanded Goal:** Build comprehensive CLI commands that establish the CRUD foundation for the entire system. Implement team management with multi-team structure (Option A: separate _members/ and _teams/ directories), member file operations (1on1s, feedback, assessments, performance reviews), relationship tracking, leadership tracking, and project management. All commands support both parameter-passing and interactive modes, implement hierarchical email resolution (team → leadership → relationships), auto-create structures as needed, generate Obsidian-compatible wiki-links, and include complete unit test coverage. This epic also aligns `tmr init` with the canonical Epic 2 workspace structure (Story 2.8) and installs Obsidian plugins automatically during init (Story 2.7). This epic enables token-optimized agent implementation where agents invoke CLI commands for file manipulation instead of reading/parsing files directly.
+**Expanded Goal:** Build comprehensive CLI commands that establish the CRUD foundation for the entire system. Implement team management with multi-team structure (Option A: separate _members/ and _teams/ directories), member file operations (1on1s, feedback, assessments, performance reviews), relationship tracking, leadership tracking, and project management. All commands support both parameter-passing and interactive modes, implement hierarchical email resolution (team → leadership → relationships), auto-create structures as needed, generate Obsidian-compatible wiki-links, and include complete unit test coverage. This epic also aligns `tmr init` with the canonical Epic 2 workspace structure (Story 2.8), installs Obsidian plugins automatically during init (Story 2.7), provides time-based task view commands (Story 2.9), and creates an Action Items Tracker per team member with optional Google Docs sync (Story 2.10). This epic enables token-optimized agent implementation where agents invoke CLI commands for file manipulation instead of reading/parsing files directly.
 
 ## Story 2.1: Team Management Commands
 
@@ -279,6 +279,44 @@
    - Displays table: project-name, team member count, stakeholder count
    - Unit tests cover: listing
 
+## Story 2.6: Email Resolution Service
+
+**As a** developer,  
+**I want** a centralized service for hierarchical email resolution,  
+**so that** all commands consistently locate or create email profiles.
+
+**Acceptance Criteria:**
+
+1. **`EmailResolutionService` Class:**
+   - Method: `resolve(email: string): EntityLocation`
+   - Returns: `{ type: 'team' | 'leadership' | 'relationship', path: string }`
+   - Hierarchy order:
+     1. Check `/my-teams/_members/{email}/` (team member)
+     2. Check `/my-leadership/{email}/` (leadership)
+     3. Check `/my-company/relationships/{email}/` (relationship)
+     4. If not found, execute `tmr relationship add <email>` and return relationship path
+
+2. **Email Validation:**
+   - Validates email format before resolution
+   - Handles edge cases: empty, malformed, special characters
+   - Unit tests cover: valid emails, invalid formats
+
+3. **Path Generator:**
+   - Method: `generateWikiLink(email: string, fromPath: string): string`
+   - Generates correct Obsidian wiki-link with relative path
+   - Example: From `/my-projects/platform/composition.md` to `/my-teams/_members/user@example.com/user@example.com.md` → `[[../../my-teams/_members/user@example.com/user@example.com.md|user@example.com]]`
+   - Unit tests cover: various path combinations
+
+4. **Integration with All Commands:**
+   - All `link-*` commands use EmailResolutionService
+   - Consistent resolution logic across project, team, relationship commands
+   - Integration tests validate resolution from each command
+
+5. **Performance Optimization:**
+   - Caches email locations during command execution
+   - Avoids repeated filesystem checks
+   - Unit tests cover: caching behavior
+
 ## Story 2.7: Obsidian Plugin Setup in `tmr init`
 
 **As a** manager setting up my workspace,
@@ -337,42 +375,39 @@
 
 11. **Architectural debts resolved:** ARCH-1.6-04 (leadership flat path) and QA-1.6R-05 (career profile schema drift)
 
-## Story 2.6: Email Resolution Service
+## Story 2.9: Time-Based Task View Commands
 
-**As a** developer,  
-**I want** a centralized service for hierarchical email resolution,  
-**so that** all commands consistently locate or create email profiles.
+**As a** manager,
+**I want** CLI commands to view my tasks organized by time horizon (`tmr today`, `tmr this-week`, `tmr this-month`, `tmr this-quarter`),
+**so that** I can quickly see what needs my attention without opening Obsidian.
 
 **Acceptance Criteria:**
 
-1. **`EmailResolutionService` Class:**
-   - Method: `resolve(email: string): EntityLocation`
-   - Returns: `{ type: 'team' | 'leadership' | 'relationship', path: string }`
-   - Hierarchy order:
-     1. Check `/my-teams/_members/{email}/` (team member)
-     2. Check `/my-leadership/{email}/` (leadership)
-     3. Check `/my-company/relationships/{email}/` (relationship)
-     4. If not found, execute `tmr relationship add <email>` and return relationship path
+1. `tmr today` reads `my-tasks/today.md` and displays content with color-coded header `📅 Today — {date}`; empty state message if file missing or blank; `--plain` and `--json` flags supported
+2. `tmr this-week` reads `my-tasks/this-week.md`; header shows week date range
+3. `tmr this-month` reads `my-tasks/this-month.md`; header shows month and year
+4. `tmr this-quarter` reads `my-tasks/this-quarter.md`; header shows Q{N} {year}
+5. `tmr init` creates all four task files with default empty template (`# Tasks — {period}\n\n_Run \`tmr process\` to populate..._`)
+6. `TaskViewService` class with `readTaskFile(period, ws)`, `formatHeader(period)`, `renderContent(content, plain)` methods; `TaskPeriod` type union
+7. All four commands registered in `src/cli.ts`; unit and integration tests
 
-2. **Email Validation:**
-   - Validates email format before resolution
-   - Handles edge cases: empty, malformed, special characters
-   - Unit tests cover: valid emails, invalid formats
+## Story 2.10: Action Items Tracker with Google Docs Sync
 
-3. **Path Generator:**
-   - Method: `generateWikiLink(email: string, fromPath: string): string`
-   - Generates correct Obsidian wiki-link with relative path
-   - Example: From `/my-projects/platform/composition.md` to `/my-teams/_members/user@example.com/user@example.com.md` → `[[../../my-teams/_members/user@example.com/user@example.com.md|user@example.com]]`
-   - Unit tests cover: various path combinations
+**As a** manager,
+**I want** an action items tracker file auto-created for each team member — with an optional linked Google Doc — whenever I add a team member via `tmr init` or `tmr team add`,
+**so that** I have a structured follow-up template in Obsidian locally and a shared collaborative document with the team member that stays in sync via Google AppScript.
 
-4. **Integration with All Commands:**
-   - All `link-*` commands use EmailResolutionService
-   - Consistent resolution logic across project, team, relationship commands
-   - Integration tests validate resolution from each command
+**Acceptance Criteria:**
 
-5. **Performance Optimization:**
-   - Caches email locations during command execution
-   - Avoids repeated filesystem checks
-   - Unit tests cover: caching behavior
+1. `action-items-{email}.md` created in `my-teams/_members/{email}/` during `tmr team add` and `tmr init` using the standard Action Items Tracker template; idempotent (skip if exists)
+2. `## Action Items` section added to `{email}.md` with wiki-link `[[action-items-{email}|Action Items Tracker]]` after `## Feedbacks`; uses existing `SectionParserService`
+3. All Google API calls config-gated (`google_drive_enabled: false` by default); when disabled, only `.md` is created — no network calls
+4. During `tmr init`, optional Google Docs setup prompt: collect Drive folder ID, run OAuth2 flow, store token encrypted in config
+5. When enabled: Google Doc `action-items-{email}` created in Drive via `GoogleDriveService`; shared with `{email}` as Editor; GDoc URL stored in member profile frontmatter as `action_items_gdoc`
+6. `action-items-{email}.gdoc` pointer file (JSON shortcut) created alongside `.md` when integration enabled
+7. `utils/sync-action-items.gs` AppScript always generated with actual Drive folder ID; `utils/sync-action-items-setup.md` comprehensive setup guide always generated
+8. clasp is the **recommended and default-Yes** deployment path: when `clasp` is detected, prompt defaults to Yes; if not detected, display Option A (install clasp) + Option B (manual web editor) instructions referencing the setup guide; clasp failure falls back gracefully to manual instructions
+9. Unit tests: template generation, `GoogleDriveService` (mocked), clasp detection/prompt scenarios, config-gated skip behavior, section update
+10. Integration test: `tmr team add` with `google_drive_enabled: false` — `.md` created, profile section updated, no `.gdoc`, no network calls
 
 ---

@@ -32,6 +32,7 @@
 | **CLI Styling** | chalk | 5.x | Terminal colors and styling | De facto standard, excellent compatibility, readable output |
 | **CLI Progress** | ora | 8.x | Spinners and progress indicators | Beautiful UX, minimal overhead, widely used |
 | **CLI Prompts** | inquirer | 9.x | Interactive prompts for `tmr init` | Rich prompt types, validation, well-tested |
+| **Google API Client** | googleapis | 144.x | Google Drive & Docs API (optional integration) | Official Node.js client, OAuth2 support, Drive file/folder management, Docs content insertion |
 | **Linting** | ESLint + @typescript-eslint | 8.x + 6.x | Code quality and consistency | TypeScript-aware linting, catches common errors |
 | **Formatting** | Prettier | 3.x | Code formatting | Consistent style, zero-config for TypeScript, team standard |
 | **Git Hooks** | husky | 9.x | Pre-commit code quality checks | Enforce linting/testing before commits, team discipline |
