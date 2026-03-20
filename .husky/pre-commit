@@ -1,2 +1,2 @@
-export PATH="/Users/2566dtidigital/.nvm/versions/node/v20.19.6/bin:$PATH"
+. ~/.nvm/nvm.sh
 npx lint-staged
