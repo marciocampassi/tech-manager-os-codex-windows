@@ -11,10 +11,13 @@
             "id": "88f5a242556b5a60",
             "type": "leaf",
             "state": {
-              "type": "empty",
-              "state": {},
-              "icon": "lucide-file",
-              "title": "Nova aba"
+              "type": "bases",
+              "state": {
+                "file": "Sem título.base",
+                "viewName": "Tabela"
+              },
+              "icon": "lucide-table",
+              "title": "Sem título"
             }
           }
         ]
@@ -177,5 +180,7 @@
     }
   },
   "active": "88f5a242556b5a60",
-  "lastOpenFiles": []
+  "lastOpenFiles": [
+    "Sem título.base"
+  ]
 }

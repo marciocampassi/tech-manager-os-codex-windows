@@ -1,4 +1,5 @@
 import type { OnboardingData, TeamMember } from '../types/onboarding.types.js';
+import type { TaskPeriod } from '../types/task.types.js';
 
 function today(): string {
   return new Date().toISOString().split('T')[0];
@@ -155,6 +156,18 @@ description: Tech Manager OS — ${agentName}
 > **Placeholder**: This agent definition is populated by \`tmr sync-agents\` (coming in Epic 2).
 > Do not edit manually.
 `;
+}
+
+const TASK_PERIOD_LABELS: Record<TaskPeriod, string> = {
+  today: 'Today',
+  'this-week': 'This Week',
+  'this-month': 'This Month',
+  'this-quarter': 'This Quarter',
+};
+
+export function generateTaskFileTemplate(period: TaskPeriod): string {
+  const label = TASK_PERIOD_LABELS[period];
+  return `# Tasks — ${label}\n\n_Run \`tmr process\` to populate this file from your inbox._\n`;
 }
 
 export function generateAgentStub(agentName: string): string {

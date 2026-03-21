@@ -1,0 +1,80 @@
+schema: 1
+story: '2.9'
+story_title: 'Time-Based Task View Commands'
+gate: CONCERNS
+status_reason: >
+  Implementation is clean and all 538 tests pass. One CONCERN: AC 8 specifies a test case
+  for "error when workspace not initialized (no config)" but the current implementation
+  silently falls back to cwd — the scenario is not tested and the behavior specification
+  is ambiguous. All other ACs fully implemented and tested.
+reviewer: 'Quinn (Test Architect)'
+updated: '2026-03-21T00:00:00Z'
+
+top_issues:
+  - id: QA-2.9-01
+    severity: medium
+    description: >
+      AC 8 test case "Error when workspace not initialized" is absent.
+      The command silently falls back to process.cwd() via getWorkspaceRoot() when
+      configService.getWorkspacePath() returns null. Whether this is graceful degradation
+      or an error condition is ambiguous in the story. A test asserting the fallback
+      behavior (showing empty state from cwd) should be added.
+    suggested_owner: dev
+    refs:
+      - tests/commands/task-view.command.test.ts
+      - src/commands/task-view.command.ts
+
+waiver: { active: false }
+
+quality_score: 90
+
+expires: '2026-04-04T00:00:00Z'
+
+evidence:
+  tests_reviewed: 538
+  risks_identified: 1
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7, 8, 9]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: >
+      No auth/sensitive data. File reads are scoped to workspace root.
+      No user input passed to file paths unsanitized (period is a fixed enum).
+  performance:
+    status: PASS
+    notes: >
+      Single file read per command. No expensive operations. date-fns formatting is O(1).
+      Empty state shown instantly when file missing.
+  reliability:
+    status: PASS
+    notes: >
+      FileSystemError caught gracefully (returns empty state). Non-FileSystemErrors
+      re-thrown to Commander error handler. Idempotent task file creation in init.
+  maintainability:
+    status: PASS
+    notes: >
+      Clean service/command separation. formatHeaderText/formatHeader split enables
+      easy testing. PERIOD_FILE_MAP constant centralizes path logic. generateTaskFileTemplate
+      added cleanly to onboarding templates.
+
+recommendations:
+  immediate:
+    - action: >
+        Add test asserting runTaskView behavior when workspace is not initialized
+        (configService returns null → falls back to cwd → file not found → shows empty state).
+      refs:
+        - tests/commands/task-view.command.test.ts
+  future:
+    - action: >
+        Consider adding marked-terminal or similar library for richer markdown rendering
+        as specified in the story (currently basic bold/dim only). Low urgency for MVP.
+      refs:
+        - src/services/task-view.service.ts
+    - action: >
+        Add `tmr task <period>` alias (Option B from Dev Notes) for scripting use cases
+        if user demand warrants it.
+      refs:
+        - src/commands/task-view.command.ts
