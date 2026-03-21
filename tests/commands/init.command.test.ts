@@ -64,9 +64,14 @@ jest.unstable_mockModule('../../src/services/config.service.js', () => ({
 
 const mockCreateDirectory = jest.fn<() => Promise<void>>();
 const mockWriteFile = jest.fn<(path: string, content: string) => Promise<void>>();
+const mockFsExists = jest.fn<(path: string) => Promise<boolean>>();
 
 jest.unstable_mockModule('../../src/services/file-system.service.js', () => ({
-  fileSystemService: { createDirectory: mockCreateDirectory, writeFile: mockWriteFile },
+  fileSystemService: {
+    createDirectory: mockCreateDirectory,
+    writeFile: mockWriteFile,
+    exists: mockFsExists,
+  },
 }));
 
 const mockInstallPlugins = jest.fn<(workspacePath: string) => Promise<void>>();
@@ -119,6 +124,7 @@ describe('InitCommand', () => {
     jest.clearAllMocks();
     mockCreateDirectory.mockResolvedValue(undefined);
     mockWriteFile.mockResolvedValue(undefined);
+    mockFsExists.mockResolvedValue(false);
     mockTestConnection.mockResolvedValue(true);
     mockInstallPlugins.mockResolvedValue(undefined);
     // By default no existing key — no reuse prompt shown
@@ -307,8 +313,8 @@ describe('InitCommand', () => {
       expect(allOutput).toContain('tmr config set-key');
       // Key must NOT be persisted when validation never succeeded
       expect(mockConfigAddProvider).not.toHaveBeenCalled();
-      // But workspace creation still completes
-      expect(mockWriteFile).toHaveBeenCalledTimes(6);
+      // But workspace creation still completes (6 base + 4 task files)
+      expect(mockWriteFile).toHaveBeenCalledTimes(10);
     });
 
     it('includes attempt counter in API key prompt message', async () => {
@@ -355,8 +361,8 @@ describe('InitCommand', () => {
         .mockResolvedValueOnce({ email: '' });
 
       await new InitCommand().run();
-      // Only 6 base files written (no team member files)
-      expect(mockWriteFile).toHaveBeenCalledTimes(6);
+      // 6 base files + 4 task files (no team member files)
+      expect(mockWriteFile).toHaveBeenCalledTimes(10);
     });
   });
 
@@ -390,8 +396,8 @@ describe('InitCommand', () => {
       await new InitCommand().run();
 
       const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) => c[0]);
-      // 6 base files + 2 member profiles + 2 default team files
-      expect(mockWriteFile).toHaveBeenCalledTimes(10);
+      // 6 base files + 2 member profiles + 2 default team files + 4 task files
+      expect(mockWriteFile).toHaveBeenCalledTimes(14);
       expect(
         writtenPaths.some((p) =>
           p.includes('my-teams/_members/dev1@example.com/dev1@example.com.md'),
@@ -427,8 +433,8 @@ describe('InitCommand', () => {
       await new InitCommand().run();
 
       const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) => c[0]);
-      // 6 base files + 1 member profile + 2 default team files (duplicate not written)
-      expect(mockWriteFile).toHaveBeenCalledTimes(9);
+      // 6 base files + 1 member profile + 2 default team files + 4 task files (duplicate not written)
+      expect(mockWriteFile).toHaveBeenCalledTimes(13);
       expect(writtenPaths.filter((p) => p.includes('dup@example.com'))).toHaveLength(1);
     });
   });
@@ -451,10 +457,10 @@ describe('InitCommand', () => {
       expect(writtenPaths.filter((p) => p.endsWith('process-agent.md'))).toHaveLength(2);
     });
 
-    it('writes 6 base files + 1 member profile + 2 default team files for 1 member', async () => {
+    it('writes 6 base files + 1 member profile + 2 default team files + 4 task files for 1 member', async () => {
       setupHappyPath();
       await new InitCommand().run();
-      expect(mockWriteFile).toHaveBeenCalledTimes(9);
+      expect(mockWriteFile).toHaveBeenCalledTimes(13);
     });
 
     it('writes team member profile under my-teams/_members/{email}/{email}.md', async () => {
@@ -495,8 +501,9 @@ describe('InitCommand', () => {
       await new InitCommand().run();
 
       const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) => c[0]);
-      expect(writtenPaths.some((p) => p.includes('default'))).toBe(false);
-      expect(mockWriteFile).toHaveBeenCalledTimes(6);
+      expect(writtenPaths.some((p) => p.includes('_teams/default'))).toBe(false);
+      // 6 base files + 4 task files (no team members)
+      expect(mockWriteFile).toHaveBeenCalledTimes(10);
     });
   });
 

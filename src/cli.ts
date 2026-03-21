@@ -7,6 +7,7 @@ import { createMemberCommand } from './commands/member.command.js';
 import { createRelationshipCommand } from './commands/relationship.command.js';
 import { createLeadershipCommand } from './commands/leadership.command.js';
 import { createProjectCommand } from './commands/project.command.js';
+import { createTaskViewCommands } from './commands/task-view.command.js';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json') as { version: string; description: string };
@@ -41,6 +42,10 @@ export function createProgram(): Command {
   p.addCommand(createRelationshipCommand());
   p.addCommand(createLeadershipCommand());
   p.addCommand(createProjectCommand());
+
+  for (const cmd of createTaskViewCommands()) {
+    p.addCommand(cmd);
+  }
 
   p.command('show <email>')
     .description('display profile for an email address (searches teams, leadership, relationships)')

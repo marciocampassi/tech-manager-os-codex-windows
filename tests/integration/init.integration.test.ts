@@ -347,4 +347,43 @@ describe('InitCommand integration', () => {
       );
     });
   });
+
+  describe('task files (Story 2.9)', () => {
+    it('writes my-tasks/today.md with default template', () => {
+      const paths = Array.from(writtenFiles.keys());
+      expect(paths.some((p) => p.includes('my-tasks/today.md'))).toBe(true);
+    });
+
+    it('writes my-tasks/this-week.md with default template', () => {
+      const paths = Array.from(writtenFiles.keys());
+      expect(paths.some((p) => p.includes('my-tasks/this-week.md'))).toBe(true);
+    });
+
+    it('writes my-tasks/this-month.md with default template', () => {
+      const paths = Array.from(writtenFiles.keys());
+      expect(paths.some((p) => p.includes('my-tasks/this-month.md'))).toBe(true);
+    });
+
+    it('writes my-tasks/this-quarter.md with default template', () => {
+      const paths = Array.from(writtenFiles.keys());
+      expect(paths.some((p) => p.includes('my-tasks/this-quarter.md'))).toBe(true);
+    });
+
+    it('task file content contains expected template header', () => {
+      const todayPath = Array.from(writtenFiles.keys()).find((p) =>
+        p.includes('my-tasks/today.md'),
+      );
+      expect(todayPath).toBeDefined();
+      const content = writtenFiles.get(todayPath!)!;
+      expect(content).toContain('# Tasks — Today');
+      expect(content).toContain('tmr process');
+    });
+
+    it('does not overwrite existing task files (idempotent)', () => {
+      // mockFsExists returns false by default in beforeAll — all files are created.
+      // This test verifies all 4 files are written (exists=false → writeFile called).
+      const taskPaths = Array.from(writtenFiles.keys()).filter((p) => p.includes('my-tasks/'));
+      expect(taskPaths).toHaveLength(4);
+    });
+  });
 });

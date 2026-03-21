@@ -25,7 +25,9 @@ import {
   generateDefaultTeamMembers,
   generateCursorRule,
   generateAgentStub,
+  generateTaskFileTemplate,
 } from '../templates/onboarding.templates.js';
+import type { TaskPeriod } from '../types/task.types.js';
 import type { OnboardingData, TeamMember } from '../types/onboarding.types.js';
 
 const MAX_API_KEY_ATTEMPTS = 3;
@@ -73,6 +75,14 @@ export class InitCommand {
   private async writeWorkspaceFiles(workspacePath: string, data: OnboardingData): Promise<void> {
     const { profile, leadershipContext } = data;
     const leadershipDir = join(workspacePath, 'my-leadership', leadershipContext.managerEmail);
+    const taskPeriods: TaskPeriod[] = ['today', 'this-week', 'this-month', 'this-quarter'];
+    const taskFileWrites = taskPeriods.map(async (period) => {
+      const filePath = join(workspacePath, 'my-tasks', `${period}.md`);
+      const exists = await fileSystemService.exists(filePath);
+      if (!exists) {
+        await fileSystemService.writeFile(filePath, generateTaskFileTemplate(period));
+      }
+    });
     await Promise.all([
       fileSystemService.writeFile(
         join(workspacePath, 'my-career', profile.email, `${profile.email}.md`),
@@ -99,6 +109,7 @@ export class InitCommand {
         join(workspacePath, '.gemini', 'agents', 'process-agent.md'),
         generateAgentStub('process-agent'),
       ),
+      ...taskFileWrites,
     ]);
   }
 
