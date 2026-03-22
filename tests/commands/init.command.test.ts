@@ -8,14 +8,9 @@ jest.unstable_mockModule('inquirer', () => ({
   default: { prompt: mockPrompt },
 }));
 
-jest.unstable_mockModule('which', () => ({
-  sync: jest
-    .fn<(cmd: string, opts?: { nothrow?: boolean }) => string | null>()
-    .mockReturnValue(null),
-}));
-
 jest.unstable_mockModule('node:child_process', () => ({
   execSync: jest.fn(),
+  spawnSync: jest.fn().mockReturnValue({ status: 1, stdout: '' }),
 }));
 
 jest.unstable_mockModule('../../src/services/google-drive.service.js', () => ({

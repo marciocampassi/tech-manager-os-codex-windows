@@ -4,9 +4,8 @@ import inquirer from 'inquirer';
 import ora from 'ora';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
-import { execSync } from 'node:child_process';
+import { execSync, spawnSync } from 'node:child_process';
 import matter from 'gray-matter';
-import { sync as whichSync } from 'which';
 import { AIProviderFactory } from '../providers/ai-provider-factory.js';
 import { configService } from '../services/config.service.js';
 import { fileSystemService } from '../services/file-system.service.js';
@@ -239,7 +238,8 @@ export class InitCommand {
     process.stdout.write(`The sync script was generated at:\n  ${gsFilePath}\n`);
     process.stdout.write('\nIt needs to be deployed to Google Apps Script to run daily.\n');
 
-    const claspPath = whichSync('clasp', { nothrow: true });
+    const whichResult = spawnSync('which', ['clasp'], { encoding: 'utf8' });
+    const claspPath = whichResult.status === 0 ? whichResult.stdout.trim() : null;
 
     if (claspPath) {
       process.stdout.write(chalk.green('\n✓ clasp detected.\n'));
