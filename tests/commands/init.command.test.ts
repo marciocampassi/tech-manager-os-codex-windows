@@ -8,17 +8,22 @@ jest.unstable_mockModule('inquirer', () => ({
   default: { prompt: mockPrompt },
 }));
 
-const mockSucceed = jest.fn();
-const mockFail = jest.fn();
-const mockStart = jest.fn(() => ({ succeed: mockSucceed, fail: mockFail }));
-const mockOra = jest.fn(() => ({ start: mockStart }));
-
-jest.unstable_mockModule('ora', () => ({
-  default: mockOra,
+jest.unstable_mockModule('node:child_process', () => ({
+  execSync: jest.fn(),
+  spawnSync: jest.fn().mockReturnValue({ status: 1, stdout: '' }),
 }));
 
-jest.unstable_mockModule('boxen', () => ({
-  default: jest.fn((_content: string) => '[boxen]'),
+jest.unstable_mockModule('../../src/services/google-drive.service.js', () => ({
+  googleDriveService: {
+    authenticate: jest.fn<() => Promise<Record<string, unknown>>>().mockResolvedValue({}),
+    createActionItemsDoc: jest
+      .fn<() => Promise<{ docId: string; url: string }>>()
+      .mockResolvedValue({ docId: 'doc-123', url: 'https://docs.google.com/d/doc-123' }),
+    shareDocument: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
+    createGdocPointerFile: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
+  },
+  generateSyncScript: jest.fn<(id: string) => string>().mockReturnValue('// sync script'),
+  generateSyncSetupGuide: jest.fn<() => string>().mockReturnValue('# setup guide'),
 }));
 
 // chalk.bold is both callable (chalk.bold('text')) and a property accessor (chalk.bold.cyan)
@@ -35,7 +40,29 @@ jest.unstable_mockModule('chalk', () => ({
     gray: (s: string) => s,
     dim: (s: string) => s,
     cyan: (s: string) => s,
+    green: (s: string) => s,
+    yellow: (s: string) => s,
   },
+}));
+
+jest.unstable_mockModule('boxen', () => ({
+  default: jest.fn((_content: string) => '[boxen]'),
+}));
+
+const mockSucceed = jest.fn();
+const mockFail = jest.fn();
+const mockInfo = jest.fn();
+const mockWarn = jest.fn();
+const mockStart = jest.fn(() => ({
+  succeed: mockSucceed,
+  fail: mockFail,
+  info: mockInfo,
+  warn: mockWarn,
+}));
+const mockOra = jest.fn(() => ({ start: mockStart }));
+
+jest.unstable_mockModule('ora', () => ({
+  default: mockOra,
 }));
 
 const mockTestConnection = jest.fn<() => Promise<boolean>>();
@@ -86,6 +113,7 @@ const { InitCommand } = await import('../../src/commands/init.command.js');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+/** Standard happy-path prompt sequence (Google Drive disabled by default). */
 function setupHappyPath(): void {
   mockPrompt
     // promptWorkspacePath
@@ -111,7 +139,9 @@ function setupHappyPath(): void {
     // loop iteration 1: name/gender/role/location prompt
     .mockResolvedValueOnce({ name: 'Member One', gender: 'Male', role: 'Developer', location: '' })
     // loop iteration 2: email prompt (empty → exits loop)
-    .mockResolvedValueOnce({ email: '' });
+    .mockResolvedValueOnce({ email: '' })
+    // promptGoogleDriveSetup — disabled
+    .mockResolvedValueOnce({ enabled: false });
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -197,7 +227,8 @@ describe('InitCommand', () => {
           location: '',
         })
         .mockResolvedValueOnce({ managerName: 'Bob', managerEmail: 'bob@example.com' })
-        .mockResolvedValueOnce({ email: '' });
+        .mockResolvedValueOnce({ email: '' })
+        .mockResolvedValueOnce({ enabled: false });
 
       await new InitCommand().run();
 
@@ -224,7 +255,8 @@ describe('InitCommand', () => {
           location: '',
         })
         .mockResolvedValueOnce({ managerName: 'Bob', managerEmail: 'bob@example.com' })
-        .mockResolvedValueOnce({ email: '' });
+        .mockResolvedValueOnce({ email: '' })
+        .mockResolvedValueOnce({ enabled: false });
 
       await new InitCommand().run();
 
@@ -249,7 +281,8 @@ describe('InitCommand', () => {
           location: '',
         })
         .mockResolvedValueOnce({ managerName: 'Bob', managerEmail: 'bob@example.com' })
-        .mockResolvedValueOnce({ email: '' });
+        .mockResolvedValueOnce({ email: '' })
+        .mockResolvedValueOnce({ enabled: false });
 
       mockTestConnection.mockRejectedValueOnce(new Error('Unauthorized')).mockResolvedValue(true);
 
@@ -275,7 +308,8 @@ describe('InitCommand', () => {
           location: '',
         })
         .mockResolvedValueOnce({ managerName: 'Bob', managerEmail: 'bob@example.com' })
-        .mockResolvedValueOnce({ email: '' });
+        .mockResolvedValueOnce({ email: '' })
+        .mockResolvedValueOnce({ enabled: false });
 
       mockTestConnection.mockResolvedValueOnce(false).mockResolvedValue(true);
 
@@ -302,7 +336,8 @@ describe('InitCommand', () => {
           location: '',
         })
         .mockResolvedValueOnce({ managerName: 'Bob', managerEmail: 'bob@example.com' })
-        .mockResolvedValueOnce({ email: '' });
+        .mockResolvedValueOnce({ email: '' })
+        .mockResolvedValueOnce({ enabled: false });
 
       mockTestConnection.mockResolvedValue(false);
 
@@ -313,7 +348,7 @@ describe('InitCommand', () => {
       expect(allOutput).toContain('tmr config set-key');
       // Key must NOT be persisted when validation never succeeded
       expect(mockConfigAddProvider).not.toHaveBeenCalled();
-      // But workspace creation still completes (6 base + 4 task files)
+      // But workspace creation still completes (6 base + 4 task files, no members)
       expect(mockWriteFile).toHaveBeenCalledTimes(10);
     });
 
@@ -331,7 +366,8 @@ describe('InitCommand', () => {
           location: '',
         })
         .mockResolvedValueOnce({ managerName: 'Bob', managerEmail: 'bob@example.com' })
-        .mockResolvedValueOnce({ email: '' });
+        .mockResolvedValueOnce({ email: '' })
+        .mockResolvedValueOnce({ enabled: false });
 
       mockTestConnection.mockResolvedValue(false);
 
@@ -358,7 +394,8 @@ describe('InitCommand', () => {
         })
         .mockResolvedValueOnce({ managerName: 'Bob', managerEmail: 'bob@example.com' })
         // team loop: immediately empty → exits
-        .mockResolvedValueOnce({ email: '' });
+        .mockResolvedValueOnce({ email: '' })
+        .mockResolvedValueOnce({ enabled: false });
 
       await new InitCommand().run();
       // 6 base files + 4 task files (no team member files)
@@ -367,7 +404,7 @@ describe('InitCommand', () => {
   });
 
   describe('team members — multiple members', () => {
-    it('writes one profile file per member and correct paths for 2 members', async () => {
+    it('writes one profile file and one action items file per member (2 members → 16 files)', async () => {
       mockPrompt
         .mockResolvedValueOnce({ workspacePath: '/tmp/test-workspace' })
         .mockResolvedValueOnce({ provider: 'openai' })
@@ -391,13 +428,14 @@ describe('InitCommand', () => {
           location: '',
         })
         // loop exit
-        .mockResolvedValueOnce({ email: '' });
+        .mockResolvedValueOnce({ email: '' })
+        .mockResolvedValueOnce({ enabled: false });
 
       await new InitCommand().run();
 
       const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) => c[0]);
-      // 6 base files + 2 member profiles + 2 default team files + 4 task files
-      expect(mockWriteFile).toHaveBeenCalledTimes(14);
+      // 6 base + 2 profiles + 2 action items + 2 default team + 4 task = 16
+      expect(mockWriteFile).toHaveBeenCalledTimes(16);
       expect(
         writtenPaths.some((p) =>
           p.includes('my-teams/_members/dev1@example.com/dev1@example.com.md'),
@@ -406,6 +444,16 @@ describe('InitCommand', () => {
       expect(
         writtenPaths.some((p) =>
           p.includes('my-teams/_members/dev2@example.com/dev2@example.com.md'),
+        ),
+      ).toBe(true);
+      expect(
+        writtenPaths.some((p) =>
+          p.includes('my-teams/_members/dev1@example.com/action-items-dev1@example.com.md'),
+        ),
+      ).toBe(true);
+      expect(
+        writtenPaths.some((p) =>
+          p.includes('my-teams/_members/dev2@example.com/action-items-dev2@example.com.md'),
         ),
       ).toBe(true);
     });
@@ -428,14 +476,18 @@ describe('InitCommand', () => {
         // loop iteration 2 — duplicate email, skipped (no name/gender/role prompt follows)
         .mockResolvedValueOnce({ email: 'dup@example.com' })
         // loop exit
-        .mockResolvedValueOnce({ email: '' });
+        .mockResolvedValueOnce({ email: '' })
+        .mockResolvedValueOnce({ enabled: false });
 
       await new InitCommand().run();
 
       const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) => c[0]);
-      // 6 base files + 1 member profile + 2 default team files + 4 task files (duplicate not written)
-      expect(mockWriteFile).toHaveBeenCalledTimes(13);
-      expect(writtenPaths.filter((p) => p.includes('dup@example.com'))).toHaveLength(1);
+      // 6 base + 1 profile + 1 action items + 2 default team + 4 task = 14 (duplicate not written)
+      expect(mockWriteFile).toHaveBeenCalledTimes(14);
+      // Exactly 1 profile file for dup@example.com
+      expect(
+        writtenPaths.filter((p) => p.endsWith('dup@example.com/dup@example.com.md')),
+      ).toHaveLength(1);
     });
   });
 
@@ -457,10 +509,23 @@ describe('InitCommand', () => {
       expect(writtenPaths.filter((p) => p.endsWith('process-agent.md'))).toHaveLength(2);
     });
 
-    it('writes 6 base files + 1 member profile + 2 default team files + 4 task files for 1 member', async () => {
+    it('writes 6 base + 1 profile + 1 action items + 2 default team + 4 task files for 1 member', async () => {
       setupHappyPath();
       await new InitCommand().run();
-      expect(mockWriteFile).toHaveBeenCalledTimes(13);
+      // 6 base + 1 member profile + 1 action items + 2 default team + 4 task = 14
+      expect(mockWriteFile).toHaveBeenCalledTimes(14);
+    });
+
+    it('writes action-items-{email}.md for team member during init', async () => {
+      setupHappyPath();
+      await new InitCommand().run();
+
+      const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) => c[0]);
+      expect(
+        writtenPaths.some((p) =>
+          p.includes('my-teams/_members/member@example.com/action-items-member@example.com.md'),
+        ),
+      ).toBe(true);
     });
 
     it('writes team member profile under my-teams/_members/{email}/{email}.md', async () => {
@@ -496,7 +561,8 @@ describe('InitCommand', () => {
           location: '',
         })
         .mockResolvedValueOnce({ managerName: 'Bob', managerEmail: 'bob@example.com' })
-        .mockResolvedValueOnce({ email: '' });
+        .mockResolvedValueOnce({ email: '' })
+        .mockResolvedValueOnce({ enabled: false });
 
       await new InitCommand().run();
 
@@ -504,6 +570,45 @@ describe('InitCommand', () => {
       expect(writtenPaths.some((p) => p.includes('_teams/default'))).toBe(false);
       // 6 base files + 4 task files (no team members)
       expect(mockWriteFile).toHaveBeenCalledTimes(10);
+    });
+  });
+
+  describe('action items file (Story 2.10)', () => {
+    it('action-items file content starts with expected frontmatter', async () => {
+      setupHappyPath();
+      await new InitCommand().run();
+
+      const actionItemsCall = (mockWriteFile.mock.calls as [string, string][]).find(([p]) =>
+        p.includes('action-items-member@example.com.md'),
+      );
+      expect(actionItemsCall).toBeDefined();
+      expect(actionItemsCall![1]).toContain('email: [[member@example.com]]');
+      expect(actionItemsCall![1]).toContain('type: action-items');
+    });
+
+    it('does not create action-items file when one already exists (idempotent)', async () => {
+      // Make the action items file "already exist"
+      mockFsExists.mockImplementation(async (p: string) => {
+        return p.includes('action-items-member@example.com.md');
+      });
+
+      setupHappyPath();
+      await new InitCommand().run();
+
+      const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) => c[0]);
+      // Should NOT write the action items file since it already exists
+      expect(writtenPaths.some((p) => p.includes('action-items-member@example.com.md'))).toBe(
+        false,
+      );
+    });
+
+    it('skips Google Drive calls when google_drive_enabled is false', async () => {
+      const { googleDriveService } = await import('../../src/services/google-drive.service.js');
+      setupHappyPath();
+      await new InitCommand().run();
+
+      expect(googleDriveService.createActionItemsDoc).not.toHaveBeenCalled();
+      expect(googleDriveService.shareDocument).not.toHaveBeenCalled();
     });
   });
 
@@ -531,7 +636,8 @@ describe('InitCommand', () => {
           location: '',
         })
         .mockResolvedValueOnce({ managerName: 'Bob', managerEmail: 'bob@example.com' })
-        .mockResolvedValueOnce({ email: '' });
+        .mockResolvedValueOnce({ email: '' })
+        .mockResolvedValueOnce({ enabled: false });
 
       await new InitCommand().run();
 

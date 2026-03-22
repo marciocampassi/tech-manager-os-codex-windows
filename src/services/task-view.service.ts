@@ -68,8 +68,16 @@ export class TaskViewService {
 
   /** Returns the empty-state display block when no tasks exist for the period. */
   formatEmptyState(period: TaskPeriod, plain: boolean): string {
-    const headerLine = plain ? this.formatHeaderText(period) : this.formatHeader(period);
     const filePath = PERIOD_FILE_MAP[period];
+    if (plain) {
+      return [
+        'No tasks yet for this period.',
+        '',
+        'Run `tmr process` to populate from your inbox,',
+        `or add tasks manually to ${filePath}`,
+      ].join('\n');
+    }
+    const headerLine = this.formatHeader(period);
     return [
       DIVIDER,
       headerLine,
@@ -85,8 +93,9 @@ export class TaskViewService {
 
   /** Formats the full display block (header + content) for a populated task file. */
   formatDisplay(period: TaskPeriod, content: string, plain: boolean): string {
-    const headerLine = plain ? this.formatHeaderText(period) : this.formatHeader(period);
     const rendered = this.renderContent(content, plain);
+    if (plain) return rendered;
+    const headerLine = this.formatHeader(period);
     return [DIVIDER, headerLine, DIVIDER, '', rendered].join('\n');
   }
 }

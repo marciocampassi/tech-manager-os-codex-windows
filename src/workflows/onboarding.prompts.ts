@@ -3,6 +3,13 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { LeadershipContext, ManagerProfile, TeamMember } from '../types/onboarding.types.js';
 
+export interface GoogleDriveSetupResult {
+  enabled: boolean;
+  folderDriveId: string;
+  clientId: string;
+  clientSecret: string;
+}
+
 type ValidateResult = boolean | string;
 
 function expandPath(p: string): string {
@@ -207,4 +214,70 @@ export async function promptTeamMembers(): Promise<TeamMember[]> {
   }
 
   return members;
+}
+
+export async function promptGoogleDriveSetup(): Promise<GoogleDriveSetupResult> {
+  process.stdout.write('\n─────────────────────────────────────────────\n');
+  process.stdout.write('Google Docs Integration (Optional)\n');
+  process.stdout.write('─────────────────────────────────────────────\n');
+  process.stdout.write('Would you like to enable Google Docs sync for\n');
+  process.stdout.write('action items? This will create a shared Google\n');
+  process.stdout.write('Doc for each team member and sync changes back\n');
+  process.stdout.write('to your local .md files.\n\n');
+  process.stdout.write('Requires: Google account + Drive folder ID\n');
+  process.stdout.write('─────────────────────────────────────────────\n');
+
+  const { enabled } = await inquirer.prompt<{ enabled: boolean }>([
+    {
+      type: 'confirm',
+      name: 'enabled',
+      message: 'Enable Google Docs sync for action items?',
+      default: false,
+    },
+  ]);
+
+  if (!enabled) {
+    return { enabled: false, folderDriveId: '', clientId: '', clientSecret: '' };
+  }
+
+  process.stdout.write(
+    '\nTo create OAuth2 credentials, visit:\n' +
+      'https://console.cloud.google.com/apis/credentials\n' +
+      'Create an "OAuth client ID" of type "Desktop app".\n\n',
+  );
+
+  const answers = await inquirer.prompt<{
+    folderDriveId: string;
+    clientId: string;
+    clientSecret: string;
+  }>([
+    {
+      type: 'input',
+      name: 'folderDriveId',
+      message: 'Google Drive Team Folder ID (the folder that mirrors my-teams/_members/):',
+      validate: (v: string): boolean | string =>
+        v.trim().length > 0 ? true : 'Drive folder ID is required',
+    },
+    {
+      type: 'input',
+      name: 'clientId',
+      message: 'Google OAuth2 Client ID:',
+      validate: (v: string): boolean | string =>
+        v.trim().length > 0 ? true : 'Client ID is required',
+    },
+    {
+      type: 'password',
+      name: 'clientSecret',
+      message: 'Google OAuth2 Client Secret:',
+      validate: (v: string): boolean | string =>
+        v.trim().length > 0 ? true : 'Client secret is required',
+    },
+  ]);
+
+  return {
+    enabled: true,
+    folderDriveId: answers.folderDriveId.trim(),
+    clientId: answers.clientId.trim(),
+    clientSecret: answers.clientSecret.trim(),
+  };
 }

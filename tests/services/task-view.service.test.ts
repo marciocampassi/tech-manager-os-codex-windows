@@ -194,27 +194,40 @@ describe('TaskViewService', () => {
       expect(msg).toContain('tmr process');
     });
 
-    it('includes the period header in the empty state', () => {
-      const msg = svc.formatEmptyState('today', true);
+    it('includes the period header in the empty state (color mode)', () => {
+      const msg = svc.formatEmptyState('today', false);
       expect(msg).toContain('Today');
     });
 
-    it('includes dividers in empty state', () => {
-      const msg = svc.formatEmptyState('today', true);
+    it('includes dividers in empty state (color mode)', () => {
+      const msg = svc.formatEmptyState('today', false);
       expect(msg).toContain('─');
+    });
+
+    it('omits dividers and header in plain mode', () => {
+      const msg = svc.formatEmptyState('today', true);
+      expect(msg).not.toContain('─');
+      expect(msg).toContain('No tasks yet for this period.');
     });
   });
 
   describe('formatDisplay', () => {
-    it('includes header and content in display', () => {
+    it('includes header and content in display (color mode)', () => {
       const display = svc.formatDisplay('today', '- [ ] Task one\n', false);
       expect(display).toContain('Today');
       expect(display).toContain('- [ ] Task one');
     });
 
-    it('includes divider in display', () => {
+    it('includes divider in display (color mode)', () => {
       const display = svc.formatDisplay('today', 'content', false);
       expect(display).toContain('─');
+    });
+
+    it('returns only rendered content without chrome in plain mode', () => {
+      const display = svc.formatDisplay('today', '- [ ] Task one\n', true);
+      expect(display).not.toContain('─');
+      expect(display).not.toContain('Today');
+      expect(display).toBe('- [ ] Task one\n');
     });
   });
 });

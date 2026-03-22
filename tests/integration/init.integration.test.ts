@@ -90,6 +90,24 @@ jest.unstable_mockModule('../../src/services/obsidian-plugin.service.js', () => 
   },
 }));
 
+jest.unstable_mockModule('node:child_process', () => ({
+  execSync: jest.fn(),
+  spawnSync: jest.fn().mockReturnValue({ status: 1, stdout: '' }),
+}));
+
+jest.unstable_mockModule('../../src/services/google-drive.service.js', () => ({
+  googleDriveService: {
+    authenticate: jest.fn<() => Promise<Record<string, unknown>>>().mockResolvedValue({}),
+    createActionItemsDoc: jest
+      .fn<() => Promise<{ docId: string; url: string }>>()
+      .mockResolvedValue({ docId: 'doc-123', url: 'https://docs.google.com/d/doc-123' }),
+    shareDocument: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
+    createGdocPointerFile: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
+  },
+  generateSyncScript: jest.fn<(id: string) => string>().mockReturnValue('// sync script'),
+  generateSyncSetupGuide: jest.fn<() => string>().mockReturnValue('# setup guide'),
+}));
+
 // ── Dynamic import (after all mocks) ─────────────────────────────────────────
 
 const { InitCommand } = await import('../../src/commands/init.command.js');
@@ -136,7 +154,9 @@ describe('InitCommand integration', () => {
           location: '',
         })
         // loop iteration 2: email (empty → exits)
-        .mockResolvedValueOnce({ email: '' });
+        .mockResolvedValueOnce({ email: '' })
+        // promptGoogleDriveSetup — disabled
+        .mockResolvedValueOnce({ enabled: false });
 
       await new InitCommand().run();
     } catch (err) {
@@ -345,6 +365,58 @@ describe('InitCommand integration', () => {
       expect(content).toContain(
         `[[../../_members/${TEAM_MEMBER_EMAIL}/${TEAM_MEMBER_EMAIL}|${TEAM_MEMBER_EMAIL}]]`,
       );
+    });
+  });
+
+  describe('action items files (Story 2.10)', () => {
+    it('writes action-items-{email}.md for each team member', () => {
+      const paths = Array.from(writtenFiles.keys());
+      expect(
+        paths.some((p) =>
+          p.includes(`my-teams/_members/${TEAM_MEMBER_EMAIL}/action-items-${TEAM_MEMBER_EMAIL}.md`),
+        ),
+      ).toBe(true);
+    });
+
+    it('action-items file contains correct frontmatter', () => {
+      const actionItemsPath = Array.from(writtenFiles.keys()).find((p) =>
+        p.includes(`action-items-${TEAM_MEMBER_EMAIL}.md`),
+      );
+      expect(actionItemsPath).toBeDefined();
+      const content = writtenFiles.get(actionItemsPath!)!;
+      expect(content).toContain(`email: [[${TEAM_MEMBER_EMAIL}]]`);
+      expect(content).toContain('type: action-items');
+    });
+
+    it('action-items file contains ACTION ITEMS TRACKER heading', () => {
+      const actionItemsPath = Array.from(writtenFiles.keys()).find((p) =>
+        p.includes(`action-items-${TEAM_MEMBER_EMAIL}.md`),
+      );
+      const content = writtenFiles.get(actionItemsPath!)!;
+      expect(content).toContain('## ACTION ITEMS TRACKER');
+    });
+
+    it('member profile contains ## Action Items section with wiki-link', () => {
+      const memberPath = Array.from(writtenFiles.keys()).find((p) =>
+        p.includes(`my-teams/_members/${TEAM_MEMBER_EMAIL}/${TEAM_MEMBER_EMAIL}.md`),
+      );
+      expect(memberPath).toBeDefined();
+      const content = writtenFiles.get(memberPath!)!;
+      expect(content).toContain('## Action Items');
+      expect(content).toContain(`[[action-items-${TEAM_MEMBER_EMAIL}|Action Items Tracker]]`);
+    });
+
+    it('member profile frontmatter includes action_items_gdoc field', () => {
+      const memberPath = Array.from(writtenFiles.keys()).find((p) =>
+        p.includes(`my-teams/_members/${TEAM_MEMBER_EMAIL}/${TEAM_MEMBER_EMAIL}.md`),
+      );
+      const content = writtenFiles.get(memberPath!)!;
+      expect(content).toContain("action_items_gdoc: ''");
+    });
+
+    it('does not create .gdoc pointer file when google_drive_enabled is false', () => {
+      const paths = Array.from(writtenFiles.keys());
+      expect(paths.some((p) => p.endsWith('.gdoc'))).toBe(false);
     });
   });
 

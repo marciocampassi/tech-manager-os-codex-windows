@@ -39,6 +39,16 @@ export interface AppConfig {
   process_log_enabled?: boolean;
   /** Per-provider configuration (keys: 'openai', 'claude', 'gemini') */
   providers?: Record<string, ProviderConfig>;
+  /** Whether Google Drive integration is enabled. Default: false */
+  google_drive_enabled?: boolean;
+  /** Google Drive folder ID that mirrors my-teams/_members/ */
+  google_drive_folder_id?: string;
+  /** Google OAuth2 token stored encrypted. Null when not authenticated */
+  google_oauth_token?: Record<string, unknown> | null;
+  /** Google OAuth2 client ID from Google Cloud Console */
+  google_client_id?: string;
+  /** Google OAuth2 client secret from Google Cloud Console */
+  google_client_secret?: string;
 }
 
 export const CONFIG_KEYS: ReadonlyArray<keyof AppConfig> = [
@@ -50,6 +60,11 @@ export const CONFIG_KEYS: ReadonlyArray<keyof AppConfig> = [
   'confidence_threshold',
   'process_log_enabled',
   'providers',
+  'google_drive_enabled',
+  'google_drive_folder_id',
+  'google_oauth_token',
+  'google_client_id',
+  'google_client_secret',
 ];
 
 /** Maps AppConfig keys to their TMR_* environment variable overrides */
