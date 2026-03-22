@@ -26,6 +26,7 @@ export function createProgram(): Command {
     .version(pkg.version, '-v, --version', 'output the current version')
     .helpOption('-h, --help', 'display help for command')
     .addHelpCommand(false)
+    .enablePositionalOptions()
     .option('--verbose', 'enable verbose output')
     .option('--plain', 'disable colors and formatting')
     .option('--json', 'output as machine-readable JSON');
