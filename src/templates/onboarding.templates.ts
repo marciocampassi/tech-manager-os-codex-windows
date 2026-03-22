@@ -107,6 +107,7 @@ name: ${member.name}
 role: ${member.role}
 gender: ${member.gender}
 ${locationLine}teams: [default]
+action_items_gdoc: ''
 date_added: ${date}
 updated: ${date}
 ---
@@ -128,6 +129,10 @@ updated: ${date}
 ## Assessments
 
 ## Feedbacks
+
+## Action Items
+
+- [[action-items-${member.email}|Action Items Tracker]]
 `;
 }
 
@@ -175,5 +180,103 @@ export function generateAgentStub(agentName: string): string {
 
 > **Placeholder**: This agent definition is populated by \`tmr sync-agents\` (coming in Epic 2).
 > Do not edit manually.
+`;
+}
+
+export function generateActionItemsTemplate(email: string): string {
+  const date = today();
+  return `---
+email: [[${email}]]
+type: action-items
+updated: ${date}
+---
+
+## ACTION ITEMS TRACKER
+
+**Review Frequency:**
+
+- [ ] Weekly
+- [ ] Bi-weekly
+- [ ] Monthly
+
+---
+
+## STATUS
+
+| Status | Definition |
+| :----- | :--------- |
+| Not Started | Task has been assigned but work has not begun |
+| In Progress | Work is actively underway |
+| Blocked | Task is paused due to dependencies or obstacles |
+| Complete | Task has been finished and verified |
+| On Hold | Task is temporarily suspended pending decision/resource |
+
+---
+
+## PRIORITY LEVELS
+
+| Priority | Definition | Response Time |
+| :------- | :--------- | :------------ |
+| High | Critical to business; impacts multiple areas | Review weekly |
+| Medium | Important; impacts specific area | Review bi-weekly |
+| Low | Nice-to-have; limited impact | Review monthly |
+
+---
+
+## ACTION ITEMS TABLE
+
+| Action Item | Owner/Assignee | Priority | Status | Comments | Follow-up Date |
+| :---------- | :------------- | :------- | :----- | :------- | :------------- |
+| | | | | | |
+| | | | | | |
+| | | | | | |
+
+---
+
+## DETAILED ACTION ITEM CARDS
+
+> **DO NOT CHANGE THIS. COPY AND PASTE ABOVE THIS LINE, USE IT AS A TEMPLATE**
+>
+> **Action Item #:** ___
+> **Title:** ___________________
+> **Owner:** ___________________
+> **Department:** ___________________
+>
+> **Description:**
+> [Provide context and background]
+>
+> **Objective/Expected Outcome:**
+> [What success looks like]
+>
+> **Due Date:** ___________________
+>
+> **Priority:**
+> - [ ] High
+> - [ ] Medium
+> - [ ] Low
+>
+> **Status:**
+> - [ ] Not Started
+> - [ ] In Progress
+> - [ ] Blocked
+> - [ ] Complete
+>
+> **Progress Notes:**
+>
+> | Date | Update | % Complete | Blocker/Risk |
+> | :--- | :----- | :--------- | :----------- |
+> | | | | |
+>
+> **Comments & Follow-ups:**
+>
+> | Date | Comment | Action Required | By Whom |
+> | :--- | :------ | :-------------- | :------ |
+> | | | | |
+>
+> **Blockers/Risks:**
+>
+> **Next Steps:**
+> 1.
+> 2.
 `;
 }

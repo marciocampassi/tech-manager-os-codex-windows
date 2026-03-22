@@ -3,6 +3,10 @@ import chalk from 'chalk';
 import inquirer from 'inquirer';
 import ora from 'ora';
 import { join } from 'node:path';
+import { homedir } from 'node:os';
+import { execSync } from 'node:child_process';
+import matter from 'gray-matter';
+import { sync as whichSync } from 'which';
 import { AIProviderFactory } from '../providers/ai-provider-factory.js';
 import { configService } from '../services/config.service.js';
 import { fileSystemService } from '../services/file-system.service.js';
@@ -13,6 +17,7 @@ import {
   promptManagerProfile,
   promptLeadershipContext,
   promptTeamMembers,
+  promptGoogleDriveSetup,
 } from '../workflows/onboarding.prompts.js';
 import { buildWorkspaceStructure } from '../workflows/workspace-builder.js';
 import { obsidianPluginService } from '../services/obsidian-plugin.service.js';
@@ -26,7 +31,13 @@ import {
   generateCursorRule,
   generateAgentStub,
   generateTaskFileTemplate,
+  generateActionItemsTemplate,
 } from '../templates/onboarding.templates.js';
+import {
+  googleDriveService,
+  generateSyncScript,
+  generateSyncSetupGuide,
+} from '../services/google-drive.service.js';
 import type { TaskPeriod } from '../types/task.types.js';
 import type { OnboardingData, TeamMember } from '../types/onboarding.types.js';
 
@@ -117,10 +128,17 @@ export class InitCommand {
     workspacePath: string,
     members: TeamMember[],
     managerEmail: string,
+    googleEnabled: boolean,
+    folderDriveId: string,
   ): Promise<void> {
     await Promise.all(
       members.map(async (member) => {
         const memberDir = join(workspacePath, 'my-teams', '_members', member.email);
+
+        // Always create the action items .md file (idempotent)
+        const actionItemsPath = join(memberDir, `action-items-${member.email}.md`);
+        const actionItemsExists = await fileSystemService.exists(actionItemsPath);
+
         await Promise.all([
           fileSystemService.createDirectory(join(memberDir, '1on1s')),
           fileSystemService.createDirectory(join(memberDir, 'feedback')),
@@ -130,9 +148,56 @@ export class InitCommand {
             join(memberDir, `${member.email}.md`),
             generateTeamMemberProfile(member, managerEmail),
           ),
+          ...(actionItemsExists
+            ? []
+            : [
+                fileSystemService.writeFile(
+                  actionItemsPath,
+                  generateActionItemsTemplate(member.email),
+                ),
+              ]),
         ]);
+
+        // Google Drive integration (only when enabled)
+        if (googleEnabled && folderDriveId) {
+          await this._createGoogleDocForMember(member.email, memberDir, folderDriveId);
+        }
       }),
     );
+  }
+
+  private async _createGoogleDocForMember(
+    email: string,
+    memberDir: string,
+    folderDriveId: string,
+  ): Promise<void> {
+    try {
+      const templateContent = generateActionItemsTemplate(email);
+      const { docId, url } = await googleDriveService.createActionItemsDoc(
+        email,
+        folderDriveId,
+        templateContent,
+      );
+
+      if (!docId) return;
+
+      await googleDriveService.shareDocument(docId, email, 'writer');
+
+      // Update member profile frontmatter with GDoc URL (AC5)
+      const profilePath = join(memberDir, `${email}.md`);
+      const profileContent = await fileSystemService.readFile(profilePath);
+      const parsed = matter(profileContent);
+      parsed.data['action_items_gdoc'] = url;
+      await fileSystemService.writeFile(profilePath, matter.stringify(parsed.content, parsed.data));
+
+      const pointerPath = join(memberDir, `action-items-${email}.gdoc`);
+      await googleDriveService.createGdocPointerFile(pointerPath, docId, url, email);
+    } catch (err) {
+      // Google failure must never block local .md creation
+      process.stderr.write(
+        `⚠  Google Drive integration failed for ${email}: ${err instanceof Error ? err.message : String(err)}\n`,
+      );
+    }
   }
 
   private async writeDefaultTeam(workspacePath: string, members: TeamMember[]): Promise<void> {
@@ -148,6 +213,91 @@ export class InitCommand {
         generateDefaultTeamMembers(members),
       ),
     ]);
+  }
+
+  private async writeGoogleSyncFiles(workspacePath: string, folderDriveId: string): Promise<void> {
+    const utilsDir = join(workspacePath, 'utils');
+    await Promise.all([
+      fileSystemService.writeFile(
+        join(utilsDir, 'sync-action-items.gs'),
+        generateSyncScript(folderDriveId),
+      ),
+      fileSystemService.writeFile(
+        join(utilsDir, 'sync-action-items-setup.md'),
+        generateSyncSetupGuide(),
+      ),
+    ]);
+  }
+
+  async deployWithClasp(workspacePath: string): Promise<void> {
+    const gsFilePath = join(workspacePath, 'utils', 'sync-action-items.gs');
+    const setupGuidePath = join(workspacePath, 'utils', 'sync-action-items-setup.md');
+
+    process.stdout.write('\n─────────────────────────────────────────────────────\n');
+    process.stdout.write('AppScript Sync — Deployment\n');
+    process.stdout.write('─────────────────────────────────────────────────────\n');
+    process.stdout.write(`The sync script was generated at:\n  ${gsFilePath}\n`);
+    process.stdout.write('\nIt needs to be deployed to Google Apps Script to run daily.\n');
+
+    const claspPath = whichSync('clasp', { nothrow: true });
+
+    if (claspPath) {
+      process.stdout.write(chalk.green('\n✓ clasp detected.\n'));
+      const { deploy } = await inquirer.prompt<{ deploy: boolean }>([
+        {
+          type: 'confirm',
+          name: 'deploy',
+          message:
+            'Deploy the sync script now via clasp? (Strongly recommended — saves 8 manual steps)',
+          default: true,
+        },
+      ]);
+
+      if (deploy) {
+        const spinner = ora('Deploying sync script via clasp…').start();
+        try {
+          const utilsDir = join(workspacePath, 'utils');
+          const claspRc = join(homedir(), '.clasprc.json');
+
+          if (!(await fileSystemService.exists(claspRc))) {
+            spinner.info('Opening browser for clasp login…');
+            execSync('clasp login', { stdio: 'inherit', cwd: utilsDir });
+          }
+
+          execSync('clasp create --title "TMR Action Items Sync" --type standalone', {
+            cwd: utilsDir,
+          });
+          execSync('clasp push', { cwd: utilsDir });
+          execSync('clasp run onInstall', { cwd: utilsDir });
+          spinner.succeed('Sync script deployed. Daily trigger active at 7 AM.');
+        } catch {
+          spinner.warn('clasp deployment failed. See manual instructions below.');
+          this._displayManualInstructions(setupGuidePath);
+        }
+        return;
+      }
+    } else {
+      process.stdout.write(chalk.yellow('\nℹ  clasp not found on your system.\n'));
+    }
+
+    process.stdout.write('\nTo enable daily sync, choose one of these options:\n\n');
+    process.stdout.write(
+      chalk.bold('  Option A (Recommended): Install clasp and deploy automatically\n'),
+    );
+    process.stdout.write('    npm install -g @google/clasp\n');
+    process.stdout.write(`    cd ${join(workspacePath, 'utils')}\n`);
+    process.stdout.write('    clasp login\n');
+    process.stdout.write('    clasp create --title "TMR Action Items Sync" --type standalone\n');
+    process.stdout.write('    clasp push && clasp run onInstall\n\n');
+    process.stdout.write(
+      chalk.bold('  Option B: Deploy manually via Google Apps Script web editor\n'),
+    );
+    process.stdout.write(`    See: ${setupGuidePath}\n\n`);
+  }
+
+  private _displayManualInstructions(setupGuidePath: string): void {
+    process.stdout.write('\nManual deployment instructions:\n');
+    process.stdout.write(`  See: ${setupGuidePath}\n\n`);
   }
 
   private displayNextSteps(workspacePath: string): void {
@@ -225,6 +375,27 @@ export class InitCommand {
     const leadershipContext = await promptLeadershipContext();
     const teamMembers = await promptTeamMembers();
 
+    // Google Drive integration prompt (after workspace setup)
+    const googleSetup = await promptGoogleDriveSetup();
+    if (googleSetup.enabled) {
+      configService.set('google_drive_enabled', true);
+      configService.set('google_drive_folder_id', googleSetup.folderDriveId);
+      configService.set('google_client_id', googleSetup.clientId);
+      configService.set('google_client_secret', googleSetup.clientSecret);
+
+      const authSpinner = ora('Authenticating with Google…').start();
+      try {
+        const token = await googleDriveService.authenticate(
+          googleSetup.clientId,
+          googleSetup.clientSecret,
+        );
+        configService.set('google_oauth_token', token);
+        authSpinner.succeed('Google authentication complete');
+      } catch {
+        authSpinner.warn('Google authentication skipped — run `tmr google auth` later');
+      }
+    }
+
     const data: OnboardingData = {
       provider,
       apiKey,
@@ -237,9 +408,24 @@ export class InitCommand {
     const spinner = ora('Creating workspace…').start();
     await buildWorkspaceStructure(workspacePath);
     await this.writeWorkspaceFiles(workspacePath, data);
-    await this.writeTeamMemberFiles(workspacePath, teamMembers, leadershipContext.managerEmail);
+    await this.writeTeamMemberFiles(
+      workspacePath,
+      teamMembers,
+      leadershipContext.managerEmail,
+      googleSetup.enabled,
+      googleSetup.folderDriveId,
+    );
     await this.writeDefaultTeam(workspacePath, teamMembers);
+
+    if (googleSetup.enabled) {
+      await this.writeGoogleSyncFiles(workspacePath, googleSetup.folderDriveId);
+    }
+
     spinner.succeed('Workspace ready');
+
+    if (googleSetup.enabled) {
+      await this.deployWithClasp(workspacePath);
+    }
 
     const pluginSpinner = ora('Downloading Obsidian plugins…').start();
     await obsidianPluginService.installPlugins(workspacePath);

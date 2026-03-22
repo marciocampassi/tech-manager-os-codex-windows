@@ -2,6 +2,7 @@ import path from 'node:path';
 import matter from 'gray-matter';
 import { FileSystemService, fileSystemService } from './file-system.service.js';
 import { getWorkspaceRoot as resolveWorkspaceRoot } from '../utils/workspace.js';
+import { generateActionItemsTemplate } from '../templates/onboarding.templates.js';
 import type {
   IAddMemberOptions,
   IArchiveOptions,
@@ -90,6 +91,7 @@ role: ${role}
 location: ${location}
 teams:
 ${teamsYaml}
+action_items_gdoc: ''
 date_added: ${todayIso()}
 ---
 
@@ -110,6 +112,10 @@ ${managerLink}
 ## Assessments
 
 ## Feedbacks
+
+## Action Items
+
+- [[action-items-${email}|Action Items Tracker]]
 `;
 }
 
@@ -195,6 +201,15 @@ export class TeamService {
         path.join(memberDir(workspaceRoot, normalizedEmail), 'performance-reviews'),
       );
       await this._fs.writeFile(profilePath, profileMd);
+
+      // Create action items tracker file (idempotent)
+      const actionItemsPath = path.join(
+        memberDir(workspaceRoot, normalizedEmail),
+        `action-items-${normalizedEmail}.md`,
+      );
+      if (!(await this._fs.exists(actionItemsPath))) {
+        await this._fs.writeFile(actionItemsPath, generateActionItemsTemplate(normalizedEmail));
+      }
     }
 
     // Append wiki-link to team members file
