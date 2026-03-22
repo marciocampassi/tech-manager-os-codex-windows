@@ -57,17 +57,11 @@ describe('Relationship Integration', () => {
     const profilePath = path.join(
       workspace,
       'my-company',
-      'relationships',
+      'members',
       'alice@co.com',
       'alice@co.com.md',
     );
-    const oneOnOneDir = path.join(
-      workspace,
-      'my-company',
-      'relationships',
-      'alice@co.com',
-      '1on1s',
-    );
+    const oneOnOneDir = path.join(workspace, 'my-company', 'members', 'alice@co.com', '1on1s');
 
     expect(fs.existsSync(profilePath)).toBe(true);
     expect(fs.existsSync(oneOnOneDir)).toBe(true);
@@ -91,7 +85,7 @@ describe('Relationship Integration', () => {
     const profilePath = path.join(
       workspace,
       'my-company',
-      'relationships',
+      'members',
       'alice@co.com',
       'alice@co.com.md',
     );
@@ -106,7 +100,7 @@ describe('Relationship Integration', () => {
     const profilePath = path.join(
       workspace,
       'my-company',
-      'relationships',
+      'members',
       'alice@co.com',
       'alice@co.com.md',
     );
@@ -127,13 +121,7 @@ describe('Relationship Integration', () => {
     expect(result.created).toBe(2);
     expect(result.existed).toBe(1);
 
-    const bobPath = path.join(
-      workspace,
-      'my-company',
-      'relationships',
-      'bob@co.com',
-      'bob@co.com.md',
-    );
+    const bobPath = path.join(workspace, 'my-company', 'members', 'bob@co.com', 'bob@co.com.md');
     expect(fs.existsSync(bobPath)).toBe(true);
   });
 
@@ -204,7 +192,7 @@ describe('Relationship Integration', () => {
     const profilePath = path.join(
       workspace,
       'my-company',
-      'relationships',
+      'members',
       'alice@co.com',
       'alice@co.com.md',
     );

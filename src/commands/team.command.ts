@@ -58,7 +58,7 @@ async function runCreate(svc: TeamService, teamNameArg: string | undefined): Pro
   const ws = svc.getWorkspaceRoot();
   await svc.createTeam(teamName, ws);
   process.stdout.write(
-    `${chalk.green('✔')} Team "${teamName}" created at my-teams/_teams/${teamName}/\n`,
+    `${chalk.green('✔')} Team "${teamName}" created at my-teams/teams/${teamName}/\n`,
   );
 }
 
@@ -66,20 +66,13 @@ async function runAdd(
   svc: TeamService,
   teamNameArg: string | undefined,
   emailArg: string | undefined,
-  opts: { role?: string; location?: string },
+  opts: { name?: string; role?: string; gender?: string; location?: string },
 ): Promise<void> {
   let teamName = teamNameArg?.trim() ?? '';
   let email = emailArg?.trim() ?? '';
-  let role = opts.role?.trim() ?? '';
-  let location = opts.location?.trim() ?? '';
 
   if (!teamName || !email) {
-    const answers = await inquirer.prompt<{
-      teamName: string;
-      email: string;
-      role: string;
-      location: string;
-    }>(
+    const answers = await inquirer.prompt<{ teamName: string; email: string }>(
       [
         !teamName && {
           type: 'input',
@@ -94,26 +87,34 @@ async function runAdd(
           validate: (v: string): boolean | string =>
             /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) || 'Valid email required',
         },
-        !role && {
-          type: 'input',
-          name: 'role',
-          message: 'Role (optional):',
-        },
-        !location && {
-          type: 'input',
-          name: 'location',
-          message: 'Location (optional):',
-        },
       ].filter(Boolean) as Parameters<typeof inquirer.prompt>[0],
     );
     teamName = teamName || answers.teamName;
     email = email || answers.email;
-    role = role || answers.role || '';
-    location = location || answers.location || '';
   }
 
+  // Secondary prompts for optional fields — always run, skip if pre-filled via flags
+  const secondaryAnswers = await inquirer.prompt<{
+    name: string;
+    role: string;
+    gender: string;
+    location: string;
+  }>(
+    [
+      !opts.name && { type: 'input', name: 'name', message: 'Name (optional):' },
+      !opts.role && { type: 'input', name: 'role', message: 'Role (optional):' },
+      !opts.gender && { type: 'input', name: 'gender', message: 'Gender (optional):' },
+      !opts.location && { type: 'input', name: 'location', message: 'Location (optional):' },
+    ].filter(Boolean) as Parameters<typeof inquirer.prompt>[0],
+  );
+
+  const name = opts.name?.trim() ?? secondaryAnswers.name?.trim() ?? '';
+  const role = opts.role?.trim() ?? secondaryAnswers.role?.trim() ?? '';
+  const gender = opts.gender?.trim() ?? secondaryAnswers.gender?.trim() ?? '';
+  const location = opts.location?.trim() ?? secondaryAnswers.location?.trim() ?? '';
+
   const ws = svc.getWorkspaceRoot();
-  await svc.addMember(teamName, email, { role, location }, ws);
+  await svc.addMember(teamName, email, { name, role, gender, location }, ws);
   process.stdout.write(`${chalk.green('✔')} Member "${email}" added to team "${teamName}"\n`);
 }
 
@@ -192,8 +193,17 @@ async function runFire(
     email = email || answers.email;
   }
 
+  const { terminationNote } = await inquirer.prompt<{ terminationNote: string }>([
+    {
+      type: 'input',
+      name: 'terminationNote',
+      message: 'Termination note (optional, press Enter to skip):',
+    },
+  ]);
+  const note = terminationNote.trim() || undefined;
+
   const ws = svc.getWorkspaceRoot();
-  await svc.fireMember(teamName, email, ws);
+  await svc.fireMember(teamName, email, ws, note);
   process.stdout.write(
     `${chalk.green('✔')} Member "${email}" terminated and archived from team "${teamName}"\n`,
   );
@@ -238,13 +248,15 @@ export function createTeamCommand(): Command {
   cmd
     .command('add [team-name] [email]')
     .description('add a member to a team')
+    .option('--name <name>', 'member name')
     .option('--role <role>', 'member role / job title')
+    .option('--gender <gender>', 'member gender')
     .option('--location <location>', 'member location')
     .action(
       async (
         teamName: string | undefined,
         email: string | undefined,
-        opts: { role?: string; location?: string },
+        opts: { name?: string; role?: string; gender?: string; location?: string },
       ) => {
         await runAdd(svc, teamName, email, opts);
       },

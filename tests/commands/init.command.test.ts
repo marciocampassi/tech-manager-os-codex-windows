@@ -438,22 +438,22 @@ describe('InitCommand', () => {
       expect(mockWriteFile).toHaveBeenCalledTimes(16);
       expect(
         writtenPaths.some((p) =>
-          p.includes('my-teams/_members/dev1@example.com/dev1@example.com.md'),
+          p.includes('my-teams/members/dev1@example.com/dev1@example.com.md'),
         ),
       ).toBe(true);
       expect(
         writtenPaths.some((p) =>
-          p.includes('my-teams/_members/dev2@example.com/dev2@example.com.md'),
+          p.includes('my-teams/members/dev2@example.com/dev2@example.com.md'),
         ),
       ).toBe(true);
       expect(
         writtenPaths.some((p) =>
-          p.includes('my-teams/_members/dev1@example.com/action-items-dev1@example.com.md'),
+          p.includes('my-teams/members/dev1@example.com/action-items-dev1@example.com.md'),
         ),
       ).toBe(true);
       expect(
         writtenPaths.some((p) =>
-          p.includes('my-teams/_members/dev2@example.com/action-items-dev2@example.com.md'),
+          p.includes('my-teams/members/dev2@example.com/action-items-dev2@example.com.md'),
         ),
       ).toBe(true);
     });
@@ -523,19 +523,19 @@ describe('InitCommand', () => {
       const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) => c[0]);
       expect(
         writtenPaths.some((p) =>
-          p.includes('my-teams/_members/member@example.com/action-items-member@example.com.md'),
+          p.includes('my-teams/members/member@example.com/action-items-member@example.com.md'),
         ),
       ).toBe(true);
     });
 
-    it('writes team member profile under my-teams/_members/{email}/{email}.md', async () => {
+    it('writes team member profile under my-teams/members/{email}/{email}.md', async () => {
       setupHappyPath();
       await new InitCommand().run();
 
       const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) => c[0]);
       expect(
         writtenPaths.some((p) =>
-          p.includes('my-teams/_members/member@example.com/member@example.com.md'),
+          p.includes('my-teams/members/member@example.com/member@example.com.md'),
         ),
       ).toBe(true);
     });
@@ -545,8 +545,8 @@ describe('InitCommand', () => {
       await new InitCommand().run();
 
       const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) => c[0]);
-      expect(writtenPaths.some((p) => p.endsWith('_teams/default/default-context.md'))).toBe(true);
-      expect(writtenPaths.some((p) => p.endsWith('_teams/default/default-members.md'))).toBe(true);
+      expect(writtenPaths.some((p) => p.endsWith('teams/default/default-context.md'))).toBe(true);
+      expect(writtenPaths.some((p) => p.endsWith('teams/default/default-members.md'))).toBe(true);
     });
 
     it('does NOT write default team files when no members are added', async () => {
@@ -567,7 +567,7 @@ describe('InitCommand', () => {
       await new InitCommand().run();
 
       const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) => c[0]);
-      expect(writtenPaths.some((p) => p.includes('_teams/default'))).toBe(false);
+      expect(writtenPaths.some((p) => p.includes('teams/default'))).toBe(false);
       // 6 base files + 4 task files (no team members)
       expect(mockWriteFile).toHaveBeenCalledTimes(10);
     });
@@ -582,7 +582,7 @@ describe('InitCommand', () => {
         p.includes('action-items-member@example.com.md'),
       );
       expect(actionItemsCall).toBeDefined();
-      expect(actionItemsCall![1]).toContain('email: [[member@example.com]]');
+      expect(actionItemsCall![1]).toContain('email: "[[member@example.com]]"');
       expect(actionItemsCall![1]).toContain('type: action-items');
     });
 

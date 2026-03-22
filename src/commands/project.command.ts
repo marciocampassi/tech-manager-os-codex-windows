@@ -1,4 +1,3 @@
-import { exec } from 'node:child_process';
 import { Command } from 'commander';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
@@ -9,21 +8,6 @@ import type { IProjectFileOptions } from '../types/project.types.js';
 
 function padEnd(s: string, len: number): string {
   return s.length >= len ? s : s + ' '.repeat(len - s.length);
-}
-
-function openInEditor(filePath: string): void {
-  try {
-    const editor = process.env['EDITOR'];
-    if (editor) {
-      exec(`${editor} "${filePath}"`);
-    } else if (process.platform === 'darwin') {
-      exec(`open "${filePath}"`);
-    } else {
-      exec(`xdg-open "${filePath}"`);
-    }
-  } catch {
-    // Editor failure is non-fatal; path already printed
-  }
 }
 
 // ── Sub-command handlers ──────────────────────────────────────────────────────
@@ -81,7 +65,6 @@ export async function runProjectStandup(
   }
 
   process.stdout.write(`${chalk.green('✔')} Created: ${result.filePath}\n`);
-  if (!opts.noEdit) openInEditor(result.filePath);
 }
 
 export async function runProjectDiscussion(
@@ -107,7 +90,6 @@ export async function runProjectDiscussion(
   }
 
   process.stdout.write(`${chalk.green('✔')} Created: ${result.filePath}\n`);
-  if (!opts.noEdit) openInEditor(result.filePath);
 }
 
 export async function runProjectPresentation(
@@ -146,7 +128,6 @@ export async function runProjectPresentation(
   }
 
   process.stdout.write(`${chalk.green('✔')} Created: ${result.filePath}\n`);
-  if (!opts.noEdit) openInEditor(result.filePath);
 }
 
 export async function runProjectLinkMember(
@@ -302,76 +283,67 @@ export async function runProjectList(svc: ProjectService): Promise<void> {
 export function createProjectCommand(): Command {
   const svc = projectService;
 
-  const cmd = new Command('project').description('manage projects and team composition');
-
-  cmd
-    .command('add [name]')
-    .description('create a new project structure')
-    .action(async (name: string | undefined) => {
-      await runProjectAdd(svc, name, {});
-    });
-
-  cmd
-    .command('standup <name>')
-    .description('add a standup note to a project')
-    .option('--date <date>', 'date for the file (YYYY-MM-DD), defaults to today')
-    .option('--no-edit', 'do not open the created file in editor')
-    .action(async (name: string, opts: IProjectFileOptions) => {
-      await runProjectStandup(svc, name, opts);
-    });
-
-  cmd
-    .command('discussion <name>')
-    .description('add a discussion note to a project')
-    .option('--date <date>', 'date for the file (YYYY-MM-DD), defaults to today')
-    .option('--no-edit', 'do not open the created file in editor')
-    .action(async (name: string, opts: IProjectFileOptions) => {
-      await runProjectDiscussion(svc, name, opts);
-    });
-
-  cmd
-    .command('presentation <name>')
-    .description('add a presentation to a project')
-    .option('--topic <topic>', 'presentation topic (prompts if omitted)')
-    .option('--date <date>', 'date for the file (YYYY-MM-DD), defaults to today')
-    .option('--no-edit', 'do not open the created file in editor')
-    .action(async (name: string, opts: IProjectFileOptions) => {
-      await runProjectPresentation(svc, name, opts);
-    });
-
-  cmd
-    .command('link-member <name> <email>')
-    .description('link a member to a project (resolves or creates their profile)')
-    .action(async (name: string, email: string) => {
-      await runProjectLinkMember(svc, name, email);
-    });
-
-  cmd
-    .command('link-members <name> <email-list>')
-    .description('batch-link members to a project (comma-separated emails)')
-    .action(async (name: string, emailList: string) => {
-      await runProjectLinkMembers(svc, name, emailList);
-    });
-
-  cmd
-    .command('link-stakeholder <name> <email>')
-    .description('link a stakeholder to a project')
-    .action(async (name: string, email: string) => {
-      await runProjectLinkStakeholder(svc, name, email);
-    });
-
-  cmd
-    .command('link-stakeholders <name> <email-list>')
-    .description('batch-link stakeholders to a project (comma-separated emails)')
-    .action(async (name: string, emailList: string) => {
-      await runProjectLinkStakeholders(svc, name, emailList);
-    });
-
-  cmd
-    .command('list')
-    .description('list all projects with member and stakeholder counts')
+  const cmd = new Command('project')
+    .description('manage projects and team composition')
+    .passThroughOptions()
+    .allowUnknownOption()
     .action(async () => {
-      await runProjectList(svc);
+      // Raw argv routing for: tmr project <name> <link-action> [args]
+      // process.argv = ['node', 'tmr', 'project', nameOrAction, actionOrArg?, ...]
+      const args = process.argv.slice(3);
+      const [first, second, third] = args;
+
+      if (!first || first === 'list') {
+        await runProjectList(svc);
+        return;
+      }
+
+      if (first === 'add') {
+        await runProjectAdd(svc, second, {});
+        return;
+      }
+
+      if (first === 'standup') {
+        await runProjectStandup(svc, second, {});
+        return;
+      }
+
+      if (first === 'discussion') {
+        await runProjectDiscussion(svc, second, {});
+        return;
+      }
+
+      if (first === 'presentation') {
+        await runProjectPresentation(svc, second, {});
+        return;
+      }
+
+      // tmr project <name> <link-action> [arg]
+      const name = first;
+      const action = second;
+      const arg = third;
+
+      if (action === 'link-member') {
+        await runProjectLinkMember(svc, name, arg);
+      } else if (action === 'link-members') {
+        await runProjectLinkMembers(svc, name, arg);
+      } else if (action === 'link-stakeholder') {
+        await runProjectLinkStakeholder(svc, name, arg);
+      } else if (action === 'link-stakeholders') {
+        await runProjectLinkStakeholders(svc, name, arg);
+      } else if (action === 'standup') {
+        await runProjectStandup(svc, name, {});
+      } else if (action === 'discussion') {
+        await runProjectDiscussion(svc, name, {});
+      } else if (action === 'presentation') {
+        await runProjectPresentation(svc, name, {});
+      } else {
+        process.stdout.write(
+          `${chalk.red('✖')} Unknown project action "${action ?? first}". ` +
+            `Valid: add, list, standup, discussion, presentation, link-member, link-members, link-stakeholder, link-stakeholders\n`,
+        );
+        process.exitCode = 1;
+      }
     });
 
   return cmd;

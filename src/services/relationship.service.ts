@@ -15,7 +15,7 @@ import type { ICreateFileResult } from '../types/member.types.js';
 // ── Path helpers ──────────────────────────────────────────────────────────────
 
 function relationshipsRoot(ws: string): string {
-  return path.join(ws, 'my-company', 'relationships');
+  return path.join(ws, 'my-company', 'members');
 }
 
 function relationshipDir(ws: string, email: string): string {

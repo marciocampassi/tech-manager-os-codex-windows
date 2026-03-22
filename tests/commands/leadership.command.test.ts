@@ -54,10 +54,6 @@ jest.unstable_mockModule('chalk', () => ({
   },
 }));
 
-jest.unstable_mockModule('node:child_process', () => ({
-  exec: jest.fn(),
-}));
-
 // Dynamic imports after mocks
 const { createLeadershipCommand, runLeadershipAdd, runLeadership1on1, runLeadershipList } =
   await import('../../src/commands/leadership.command.js');
@@ -85,6 +81,9 @@ describe('leadership command', () => {
 
   describe('tmr leadership add <email>', () => {
     it('calls addLeadership for a provided email', async () => {
+      // Secondary prompts always shown (name/role/gender)
+      mockPrompt.mockResolvedValueOnce({ name: '', role: '', gender: '' });
+
       const cmd = createLeadershipCommand();
       await cmd.parseAsync(['add', 'boss@co.com'], { from: 'user' });
 
@@ -92,22 +91,38 @@ describe('leadership command', () => {
     });
 
     it('prints created message when new', async () => {
+      mockPrompt.mockResolvedValueOnce({ name: '', role: '', gender: '' });
       await runLeadershipAdd(mockSvcInstance as never, 'boss@co.com', {});
       const output = stdoutSpy.mock.calls.map((c: unknown[]) => c[0]).join('');
       expect(output).toContain('created');
     });
 
     it('prints already-exists message when not new', async () => {
+      mockPrompt.mockResolvedValueOnce({ name: '', role: '', gender: '' });
       mockAddLeadership.mockResolvedValueOnce({ created: false });
       await runLeadershipAdd(mockSvcInstance as never, 'boss@co.com', {});
       const output = stdoutSpy.mock.calls.map((c: unknown[]) => c[0]).join('');
       expect(output).toContain('already exists');
     });
 
-    it('passes --name, --role, and --areas options to service', async () => {
+    it('passes --name, --role, --gender, and --areas options to service', async () => {
+      // All flags provided, so secondary prompt has nothing to ask
+      mockPrompt.mockResolvedValueOnce({});
+
       const cmd = createLeadershipCommand();
       await cmd.parseAsync(
-        ['add', 'boss@co.com', '--name', 'The Boss', '--role', 'VP', '--areas', 'Platform'],
+        [
+          'add',
+          'boss@co.com',
+          '--name',
+          'The Boss',
+          '--role',
+          'VP',
+          '--gender',
+          'Male',
+          '--areas',
+          'Platform',
+        ],
         { from: 'user' },
       );
 
@@ -116,6 +131,7 @@ describe('leadership command', () => {
         expect.objectContaining({
           name: 'The Boss',
           role: 'VP',
+          gender: 'Male',
           areas_of_responsibility: 'Platform',
         }),
         '/fake/ws',
@@ -123,6 +139,7 @@ describe('leadership command', () => {
     });
 
     it('normalizes email to lowercase', async () => {
+      mockPrompt.mockResolvedValueOnce({ name: '', role: '', gender: '' });
       await runLeadershipAdd(mockSvcInstance as never, 'BOSS@CO.COM', {});
       expect(mockAddLeadership).toHaveBeenCalledWith('boss@co.com', expect.any(Object), '/fake/ws');
     });
@@ -131,13 +148,10 @@ describe('leadership command', () => {
   // ── add — interactive ─────────────────────────────────────────────────────────
 
   describe('interactive mode', () => {
-    it('prompts for email and metadata when no email provided', async () => {
-      mockPrompt.mockResolvedValueOnce({
-        email: 'boss@co.com',
-        name: 'The Boss',
-        role: 'VP Engineering',
-        areas_of_responsibility: 'Platform, Infra',
-      } as Record<string, string>);
+    it('prompts for email and then secondary fields when no email provided', async () => {
+      mockPrompt
+        .mockResolvedValueOnce({ resolvedEmail: 'boss@co.com' } as Record<string, string>)
+        .mockResolvedValueOnce({ name: 'The Boss', role: 'VP Engineering', gender: '' });
 
       await runLeadershipAdd(mockSvcInstance as never, undefined, {});
 
@@ -151,9 +165,7 @@ describe('leadership command', () => {
   describe('tmr leadership 1on1 <email>', () => {
     it('calls add1on1 with email and options', async () => {
       const cmd = createLeadershipCommand();
-      await cmd.parseAsync(['1on1', 'boss@co.com', '--date', '2026-03-09', '--no-edit'], {
-        from: 'user',
-      });
+      await cmd.parseAsync(['1on1', 'boss@co.com', '--date', '2026-03-09'], { from: 'user' });
 
       expect(mockAdd1on1).toHaveBeenCalledWith(
         'boss@co.com',
@@ -163,7 +175,7 @@ describe('leadership command', () => {
     });
 
     it('prints success output', async () => {
-      await runLeadership1on1(mockSvcInstance as never, 'boss@co.com', { noEdit: true });
+      await runLeadership1on1(mockSvcInstance as never, 'boss@co.com', {});
       const output = stdoutSpy.mock.calls.map((c: unknown[]) => c[0]).join('');
       expect(output).toContain('Created:');
     });
@@ -174,7 +186,7 @@ describe('leadership command', () => {
           "Leadership 'boss@co.com' not found. Run 'tmr leadership add boss@co.com' first.",
         ),
       );
-      await runLeadership1on1(mockSvcInstance as never, 'boss@co.com', { noEdit: true });
+      await runLeadership1on1(mockSvcInstance as never, 'boss@co.com', {});
 
       const output = stdoutSpy.mock.calls.map((c: unknown[]) => c[0]).join('');
       expect(output).toContain('not found');
@@ -185,13 +197,13 @@ describe('leadership command', () => {
       mockPrompt.mockResolvedValueOnce({
         resolvedEmail: 'boss@co.com',
       } as Record<string, string>);
-      await runLeadership1on1(mockSvcInstance as never, undefined, { noEdit: true });
+      await runLeadership1on1(mockSvcInstance as never, undefined, {});
       expect(mockPrompt).toHaveBeenCalled();
       expect(mockAdd1on1).toHaveBeenCalledWith('boss@co.com', expect.any(Object), '/fake/ws');
     });
 
     it('prints file path and wiki-link on success', async () => {
-      await runLeadership1on1(mockSvcInstance as never, 'boss@co.com', { noEdit: true });
+      await runLeadership1on1(mockSvcInstance as never, 'boss@co.com', {});
       const output = stdoutSpy.mock.calls.map((c: unknown[]) => c[0]).join('');
       expect(output).toContain('2026-03-09-boss@co.com-1on1.md');
       expect(output).toContain('[[1on1s/');

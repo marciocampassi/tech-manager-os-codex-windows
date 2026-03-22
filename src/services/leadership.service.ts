@@ -37,6 +37,7 @@ function buildLeadershipProfileMd(email: string, opts: IAddLeadershipOptions): s
     email,
     name: opts.name ?? '',
     role: opts.role ?? '',
+    ...(opts.gender ? { gender: opts.gender } : {}),
     areas_of_responsibility: opts.areas_of_responsibility ?? '',
     date_added: date,
   };

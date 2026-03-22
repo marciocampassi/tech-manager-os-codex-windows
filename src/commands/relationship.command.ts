@@ -1,29 +1,14 @@
-import { exec } from 'node:child_process';
 import { Command } from 'commander';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { relationshipService, RelationshipService } from '../services/relationship.service.js';
+import { projectService } from '../services/project.service.js';
 import type { IAddRelationshipOptions } from '../types/relationship.types.js';
 
 // ── Formatting helpers ────────────────────────────────────────────────────────
 
 function padEnd(s: string, len: number): string {
   return s.length >= len ? s : s + ' '.repeat(len - s.length);
-}
-
-function openInEditor(filePath: string): void {
-  try {
-    const editor = process.env['EDITOR'];
-    if (editor) {
-      exec(`${editor} "${filePath}"`);
-    } else if (process.platform === 'darwin') {
-      exec(`open "${filePath}"`);
-    } else {
-      exec(`xdg-open "${filePath}"`);
-    }
-  } catch {
-    // Editor failure is non-fatal; path already printed
-  }
 }
 
 // ── Sub-command handlers ──────────────────────────────────────────────────────
@@ -93,6 +78,27 @@ export async function runRelationshipAdd(
   } else {
     process.stdout.write(`${chalk.dim('ℹ')} Relationship "${email}" already exists\n`);
   }
+
+  // Optional project linking
+  const { projectName } = await inquirer.prompt<{ projectName: string }>([
+    {
+      type: 'input',
+      name: 'projectName',
+      message: 'Link to project? (optional, press Enter to skip):',
+    },
+  ]);
+
+  if (projectName.trim()) {
+    try {
+      await projectService.addProject(projectName.trim(), ws);
+      await projectService.linkMember(projectName.trim(), email, ws);
+      process.stdout.write(`${chalk.green('✔')} Linked to project "${projectName.trim()}"\n`);
+    } catch (err) {
+      process.stdout.write(
+        `${chalk.yellow('⚠')} Could not link to project: ${err instanceof Error ? err.message : String(err)}\n`,
+      );
+    }
+  }
 }
 
 export async function runRelationship1on1(
@@ -128,10 +134,6 @@ export async function runRelationship1on1(
   process.stdout.write(`${chalk.green('✔')} Created: ${result.filePath}\n`);
   process.stdout.write(`${chalk.dim('  Profile updated:')} ${result.profilePath}\n`);
   process.stdout.write(`${chalk.dim('  Wiki-link:')} ${result.wikiLink}\n`);
-
-  if (!opts.noEdit) {
-    openInEditor(result.filePath);
-  }
 }
 
 export async function runRelationshipList(svc: RelationshipService): Promise<void> {
@@ -188,8 +190,7 @@ export function createRelationshipCommand(): Command {
     .command('1on1 [email]')
     .description('create a 1on1 note for a relationship')
     .option('--date <date>', 'date for the file (YYYY-MM-DD), defaults to today')
-    .option('--no-edit', 'do not open the created file in editor')
-    .action(async (email: string | undefined, opts: { date?: string; noEdit?: boolean }) => {
+    .action(async (email: string | undefined, opts: { date?: string }) => {
       await runRelationship1on1(svc, email, opts);
     });
 

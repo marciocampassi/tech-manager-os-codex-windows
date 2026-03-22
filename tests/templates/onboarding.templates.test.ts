@@ -8,9 +8,9 @@ import type { TeamMember } from '../../src/types/onboarding.types.js';
 describe('generateActionItemsTemplate', () => {
   const EMAIL = 'dev@example.com';
 
-  it('includes the email in frontmatter', () => {
+  it('includes the email in frontmatter with quoted wiki-link notation', () => {
     const result = generateActionItemsTemplate(EMAIL);
-    expect(result).toContain(`email: [[${EMAIL}]]`);
+    expect(result).toContain(`email: "[[${EMAIL}]]"`);
   });
 
   it('sets type: action-items in frontmatter', () => {
@@ -81,8 +81,8 @@ describe('generateActionItemsTemplate', () => {
     const email2 = 'bob@co.com';
     const r1 = generateActionItemsTemplate(email1);
     const r2 = generateActionItemsTemplate(email2);
-    expect(r1).toContain(`email: [[${email1}]]`);
-    expect(r2).toContain(`email: [[${email2}]]`);
+    expect(r1).toContain(`email: "[[${email1}]]"`);
+    expect(r2).toContain(`email: "[[${email2}]]"`);
     expect(r1).not.toContain(email2);
   });
 });
@@ -116,7 +116,7 @@ describe('generateTeamMemberProfile', () => {
 
   it('preserves existing fields (email, name, role, gender)', () => {
     const result = generateTeamMemberProfile(member, managerEmail);
-    expect(result).toContain(`[[${member.email}]]`);
+    expect(result).toContain(`"[[${member.email}]]"`);
     expect(result).toContain(member.name);
     expect(result).toContain(member.role);
     expect(result).toContain(member.gender);

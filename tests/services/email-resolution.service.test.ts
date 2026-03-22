@@ -105,18 +105,18 @@ describe('EmailResolutionService', () => {
 
   describe('resolve', () => {
     it('resolves to team when team profile exists', async () => {
-      mockFS.exists.mockImplementation(async (p: string) => p.includes('_members'));
+      mockFS.exists.mockImplementation(async (p: string) => p.includes('my-teams/members'));
 
       const result = await svc.resolve('alice@co.com', WS);
 
       expect(result.type).toBe('team');
-      expect(result.absolutePath).toContain('my-teams/_members/alice@co.com/alice@co.com.md');
+      expect(result.absolutePath).toContain('my-teams/members/alice@co.com/alice@co.com.md');
       expect(result.created).toBe(false);
     });
 
     it('resolves to leadership when leadership profile exists (no team)', async () => {
       mockFS.exists.mockImplementation(async (p: string) => {
-        if (p.includes('_members')) return false;
+        if (p.includes('my-teams/members')) return false;
         return p.includes('my-leadership');
       });
 
@@ -127,19 +127,32 @@ describe('EmailResolutionService', () => {
       expect(result.created).toBe(false);
     });
 
-    it('resolves to relationship when relationship exists (no team/leadership)', async () => {
+    it('resolves to self when career profile exists (no team/leadership)', async () => {
       mockFS.exists.mockImplementation(async (p: string) => {
-        if (p.includes('_members')) return false;
+        if (p.includes('my-teams/members')) return false;
         if (p.includes('my-leadership')) return false;
-        return p.includes('relationships');
+        return p.includes('my-career');
+      });
+
+      const result = await svc.resolve('me@co.com', WS);
+
+      expect(result.type).toBe('self');
+      expect(result.absolutePath).toContain('my-career/me@co.com/me@co.com.md');
+      expect(result.created).toBe(false);
+    });
+
+    it('resolves to relationship when relationship exists (no team/leadership/self)', async () => {
+      mockFS.exists.mockImplementation(async (p: string) => {
+        if (p.includes('my-teams/members')) return false;
+        if (p.includes('my-leadership')) return false;
+        if (p.includes('my-career')) return false;
+        return p.includes('my-company/members');
       });
 
       const result = await svc.resolve('partner@co.com', WS);
 
       expect(result.type).toBe('relationship');
-      expect(result.absolutePath).toContain(
-        'my-company/relationships/partner@co.com/partner@co.com.md',
-      );
+      expect(result.absolutePath).toContain('my-company/members/partner@co.com/partner@co.com.md');
       expect(result.created).toBe(false);
     });
 
@@ -150,9 +163,7 @@ describe('EmailResolutionService', () => {
 
       expect(mockRel.addRelationship).toHaveBeenCalledWith('newguy@co.com', {}, WS);
       expect(result.type).toBe('relationship');
-      expect(result.absolutePath).toContain(
-        'my-company/relationships/newguy@co.com/newguy@co.com.md',
-      );
+      expect(result.absolutePath).toContain('my-company/members/newguy@co.com/newguy@co.com.md');
       expect(result.created).toBe(true);
     });
 
@@ -165,7 +176,7 @@ describe('EmailResolutionService', () => {
     });
 
     it('normalizes uppercase email to lowercase before resolution', async () => {
-      mockFS.exists.mockImplementation(async (p: string) => p.includes('_members'));
+      mockFS.exists.mockImplementation(async (p: string) => p.includes('my-teams/members'));
 
       const result = await svc.resolve('ALICE@CO.COM', WS);
 
@@ -174,10 +185,10 @@ describe('EmailResolutionService', () => {
     });
 
     it('returns consistent absolutePath using path.join (OS-native separators)', async () => {
-      mockFS.exists.mockImplementation(async (p: string) => p.includes('_members'));
+      mockFS.exists.mockImplementation(async (p: string) => p.includes('my-teams/members'));
 
       const result = await svc.resolve('user@co.com', WS);
-      const expected = path.join(WS, 'my-teams', '_members', 'user@co.com', 'user@co.com.md');
+      const expected = path.join(WS, 'my-teams', 'members', 'user@co.com', 'user@co.com.md');
       expect(result.absolutePath).toBe(expected);
     });
   });
@@ -186,7 +197,7 @@ describe('EmailResolutionService', () => {
 
   describe('caching', () => {
     it('returns cached result on second call without hitting the filesystem', async () => {
-      mockFS.exists.mockImplementation(async (p: string) => p.includes('_members'));
+      mockFS.exists.mockImplementation(async (p: string) => p.includes('my-teams/members'));
 
       await svc.resolve('alice@co.com', WS);
       mockFS.exists.mockClear();
@@ -197,7 +208,7 @@ describe('EmailResolutionService', () => {
     });
 
     it('caches result by email+ws key (different ws resolves separately)', async () => {
-      mockFS.exists.mockImplementation(async (p: string) => p.includes('_members'));
+      mockFS.exists.mockImplementation(async (p: string) => p.includes('my-teams/members'));
 
       const r1 = await svc.resolve('alice@co.com', '/ws1');
       const r2 = await svc.resolve('alice@co.com', '/ws2');
@@ -219,7 +230,7 @@ describe('EmailResolutionService', () => {
     });
 
     it('clearCache() resets all cached entries', async () => {
-      mockFS.exists.mockImplementation(async (p: string) => p.includes('_members'));
+      mockFS.exists.mockImplementation(async (p: string) => p.includes('my-teams/members'));
       await svc.resolve('a@co.com', WS);
       await svc.resolve('b@co.com', WS);
 
@@ -237,37 +248,35 @@ describe('EmailResolutionService', () => {
 
   describe('generateWikiLink', () => {
     it('generates correct relative path for team member from project composition', () => {
-      const resolvedPath = `${WS}/my-teams/_members/user@co.com/user@co.com.md`;
-      const fromPath = `${WS}/my-projects/platform/platform-composition.md`;
+      const resolvedPath = `${WS}/my-teams/members/user@co.com/user@co.com.md`;
+      const fromPath = `${WS}/my-company/projects/platform-project/platform-project-composition.md`;
 
       const result = svc.generateWikiLink('user@co.com', resolvedPath, fromPath);
 
-      expect(result).toBe('[[../../my-teams/_members/user@co.com/user@co.com.md|user@co.com]]');
+      expect(result).toBe('[[../../../my-teams/members/user@co.com/user@co.com.md|user@co.com]]');
     });
 
     it('generates correct relative path for leadership from project composition', () => {
       const resolvedPath = `${WS}/my-leadership/boss@co.com/boss@co.com.md`;
-      const fromPath = `${WS}/my-projects/platform/platform-composition.md`;
+      const fromPath = `${WS}/my-company/projects/platform-project/platform-project-composition.md`;
 
       const result = svc.generateWikiLink('boss@co.com', resolvedPath, fromPath);
 
-      expect(result).toBe('[[../../my-leadership/boss@co.com/boss@co.com.md|boss@co.com]]');
+      expect(result).toBe('[[../../../my-leadership/boss@co.com/boss@co.com.md|boss@co.com]]');
     });
 
     it('generates correct relative path for relationship from project composition', () => {
-      const resolvedPath = `${WS}/my-company/relationships/partner@co.com/partner@co.com.md`;
-      const fromPath = `${WS}/my-projects/platform/platform-composition.md`;
+      const resolvedPath = `${WS}/my-company/members/partner@co.com/partner@co.com.md`;
+      const fromPath = `${WS}/my-company/projects/platform-project/platform-project-composition.md`;
 
       const result = svc.generateWikiLink('partner@co.com', resolvedPath, fromPath);
 
-      expect(result).toBe(
-        '[[../../my-company/relationships/partner@co.com/partner@co.com.md|partner@co.com]]',
-      );
+      expect(result).toBe('[[../../members/partner@co.com/partner@co.com.md|partner@co.com]]');
     });
 
     it('normalizes email to lowercase in the wiki-link label', () => {
-      const resolvedPath = `${WS}/my-teams/_members/alice@co.com/alice@co.com.md`;
-      const fromPath = `${WS}/my-projects/platform/platform-composition.md`;
+      const resolvedPath = `${WS}/my-teams/members/alice@co.com/alice@co.com.md`;
+      const fromPath = `${WS}/my-company/projects/platform-project/platform-project-composition.md`;
 
       const result = svc.generateWikiLink('ALICE@CO.COM', resolvedPath, fromPath);
 
@@ -275,8 +284,8 @@ describe('EmailResolutionService', () => {
     });
 
     it('uses forward slashes in the path (cross-platform)', () => {
-      const resolvedPath = `${WS}/my-teams/_members/user@co.com/user@co.com.md`;
-      const fromPath = `${WS}/my-projects/platform/platform-composition.md`;
+      const resolvedPath = `${WS}/my-teams/members/user@co.com/user@co.com.md`;
+      const fromPath = `${WS}/my-company/projects/platform-project/platform-project-composition.md`;
 
       const result = svc.generateWikiLink('user@co.com', resolvedPath, fromPath);
 
@@ -284,8 +293,8 @@ describe('EmailResolutionService', () => {
     });
 
     it('returns string starting with [[ and ending with ]]', () => {
-      const resolvedPath = `${WS}/my-teams/_members/user@co.com/user@co.com.md`;
-      const fromPath = `${WS}/my-projects/platform/platform-composition.md`;
+      const resolvedPath = `${WS}/my-teams/members/user@co.com/user@co.com.md`;
+      const fromPath = `${WS}/my-company/projects/platform-project/platform-project-composition.md`;
 
       const result = svc.generateWikiLink('user@co.com', resolvedPath, fromPath);
 
@@ -293,8 +302,8 @@ describe('EmailResolutionService', () => {
     });
 
     it('does NOT include a leading dash prefix', () => {
-      const resolvedPath = `${WS}/my-teams/_members/user@co.com/user@co.com.md`;
-      const fromPath = `${WS}/my-projects/platform/platform-composition.md`;
+      const resolvedPath = `${WS}/my-teams/members/user@co.com/user@co.com.md`;
+      const fromPath = `${WS}/my-company/projects/platform-project/platform-project-composition.md`;
 
       const result = svc.generateWikiLink('user@co.com', resolvedPath, fromPath);
 

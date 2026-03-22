@@ -181,14 +181,14 @@ describe('InitCommand integration', () => {
       expect(dirs.some((d) => d.includes('my-leadership'))).toBe(true);
     });
 
-    it('creates my-teams/_members/ directory', () => {
+    it('creates my-teams/members/ directory', () => {
       const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
-      expect(dirs.some((d) => d.includes('my-teams/_members'))).toBe(true);
+      expect(dirs.some((d) => d.includes('my-teams/members'))).toBe(true);
     });
 
-    it('creates my-teams/_teams/ directory', () => {
+    it('creates my-teams/teams/ directory', () => {
       const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
-      expect(dirs.some((d) => d.includes('my-teams/_teams'))).toBe(true);
+      expect(dirs.some((d) => d.includes('my-teams/teams'))).toBe(true);
     });
 
     it('does NOT create my-team/ (old path removed)', () => {
@@ -252,19 +252,19 @@ describe('InitCommand integration', () => {
       expect(paths.filter((p) => p.endsWith('process-agent.md'))).toHaveLength(2);
     });
 
-    it('writes team member profile under my-teams/_members/{email}/{email}.md', () => {
+    it('writes team member profile under my-teams/members/{email}/{email}.md', () => {
       const paths = Array.from(writtenFiles.keys());
       expect(
         paths.some((p) =>
-          p.includes(`my-teams/_members/${TEAM_MEMBER_EMAIL}/${TEAM_MEMBER_EMAIL}.md`),
+          p.includes(`my-teams/members/${TEAM_MEMBER_EMAIL}/${TEAM_MEMBER_EMAIL}.md`),
         ),
       ).toBe(true);
     });
 
     it('writes default-context.md and default-members.md for default team', () => {
       const paths = Array.from(writtenFiles.keys());
-      expect(paths.some((p) => p.endsWith('_teams/default/default-context.md'))).toBe(true);
-      expect(paths.some((p) => p.endsWith('_teams/default/default-members.md'))).toBe(true);
+      expect(paths.some((p) => p.endsWith('teams/default/default-context.md'))).toBe(true);
+      expect(paths.some((p) => p.endsWith('teams/default/default-members.md'))).toBe(true);
     });
   });
 
@@ -291,7 +291,7 @@ describe('InitCommand integration', () => {
         p.includes(`my-career/${MANAGER_EMAIL}/${MANAGER_EMAIL}.md`),
       );
       const content = writtenFiles.get(profilePath!)!;
-      expect(content).toContain('reports_to: [[dana@example.com]]');
+      expect(content).toContain('reports_to: "[[dana@example.com]]"');
     });
 
     it('pdp contains ## Career Goals section', () => {
@@ -329,7 +329,7 @@ describe('InitCommand integration', () => {
 
     it('team member profile contains the member email and role', () => {
       const memberPath = Array.from(writtenFiles.keys()).find((p) =>
-        p.includes(`my-teams/_members/${TEAM_MEMBER_EMAIL}/${TEAM_MEMBER_EMAIL}.md`),
+        p.includes(`my-teams/members/${TEAM_MEMBER_EMAIL}/${TEAM_MEMBER_EMAIL}.md`),
       );
       expect(memberPath).toBeDefined();
       const content = writtenFiles.get(memberPath!)!;
@@ -339,31 +339,32 @@ describe('InitCommand integration', () => {
 
     it('team member profile has [[email]] wiki-link notation and gender field', () => {
       const memberPath = Array.from(writtenFiles.keys()).find((p) =>
-        p.includes(`my-teams/_members/${TEAM_MEMBER_EMAIL}/${TEAM_MEMBER_EMAIL}.md`),
+        p.includes(`my-teams/members/${TEAM_MEMBER_EMAIL}/${TEAM_MEMBER_EMAIL}.md`),
       );
       const content = writtenFiles.get(memberPath!)!;
-      expect(content).toContain(`[[${TEAM_MEMBER_EMAIL}]]`);
+      expect(content).toContain(`"[[${TEAM_MEMBER_EMAIL}]]"`);
       expect(content).toContain('gender: Female');
     });
 
     it('team member profile has manager wiki-link in Current Manager section', () => {
       const memberPath = Array.from(writtenFiles.keys()).find((p) =>
-        p.includes(`my-teams/_members/${TEAM_MEMBER_EMAIL}/${TEAM_MEMBER_EMAIL}.md`),
+        p.includes(`my-teams/members/${TEAM_MEMBER_EMAIL}/${TEAM_MEMBER_EMAIL}.md`),
       );
       const content = writtenFiles.get(memberPath!)!;
+      // Manager link points to the system user's own career profile (they are the team's manager)
       expect(content).toContain(
-        '[[../../my-career/dana@example.com/dana@example.com|dana@example.com]]',
+        `[[../../my-career/${MANAGER_EMAIL}/${MANAGER_EMAIL}|${MANAGER_EMAIL}]]`,
       );
     });
 
     it('default-members.md contains wiki-links to team members', () => {
       const defaultMembersPath = Array.from(writtenFiles.keys()).find((p) =>
-        p.endsWith('_teams/default/default-members.md'),
+        p.endsWith('teams/default/default-members.md'),
       );
       expect(defaultMembersPath).toBeDefined();
       const content = writtenFiles.get(defaultMembersPath!)!;
       expect(content).toContain(
-        `[[../../_members/${TEAM_MEMBER_EMAIL}/${TEAM_MEMBER_EMAIL}|${TEAM_MEMBER_EMAIL}]]`,
+        `[[../../members/${TEAM_MEMBER_EMAIL}/${TEAM_MEMBER_EMAIL}|${TEAM_MEMBER_EMAIL}]]`,
       );
     });
   });
@@ -373,7 +374,7 @@ describe('InitCommand integration', () => {
       const paths = Array.from(writtenFiles.keys());
       expect(
         paths.some((p) =>
-          p.includes(`my-teams/_members/${TEAM_MEMBER_EMAIL}/action-items-${TEAM_MEMBER_EMAIL}.md`),
+          p.includes(`my-teams/members/${TEAM_MEMBER_EMAIL}/action-items-${TEAM_MEMBER_EMAIL}.md`),
         ),
       ).toBe(true);
     });
@@ -384,7 +385,7 @@ describe('InitCommand integration', () => {
       );
       expect(actionItemsPath).toBeDefined();
       const content = writtenFiles.get(actionItemsPath!)!;
-      expect(content).toContain(`email: [[${TEAM_MEMBER_EMAIL}]]`);
+      expect(content).toContain(`email: "[[${TEAM_MEMBER_EMAIL}]]"`);
       expect(content).toContain('type: action-items');
     });
 
@@ -398,7 +399,7 @@ describe('InitCommand integration', () => {
 
     it('member profile contains ## Action Items section with wiki-link', () => {
       const memberPath = Array.from(writtenFiles.keys()).find((p) =>
-        p.includes(`my-teams/_members/${TEAM_MEMBER_EMAIL}/${TEAM_MEMBER_EMAIL}.md`),
+        p.includes(`my-teams/members/${TEAM_MEMBER_EMAIL}/${TEAM_MEMBER_EMAIL}.md`),
       );
       expect(memberPath).toBeDefined();
       const content = writtenFiles.get(memberPath!)!;
@@ -408,7 +409,7 @@ describe('InitCommand integration', () => {
 
     it('member profile frontmatter includes action_items_gdoc field', () => {
       const memberPath = Array.from(writtenFiles.keys()).find((p) =>
-        p.includes(`my-teams/_members/${TEAM_MEMBER_EMAIL}/${TEAM_MEMBER_EMAIL}.md`),
+        p.includes(`my-teams/members/${TEAM_MEMBER_EMAIL}/${TEAM_MEMBER_EMAIL}.md`),
       );
       const content = writtenFiles.get(memberPath!)!;
       expect(content).toContain("action_items_gdoc: ''");

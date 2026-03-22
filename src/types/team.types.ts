@@ -2,15 +2,17 @@
  * Domain interfaces for team management (Epic 2, Story 2.1).
  *
  * Directory layout (PRD authoritative — overrides data-models.md):
- *   my-teams/_members/{email}/         single canonical member location
- *   my-teams/_teams/{team-name}/       team metadata + wiki-link roster
- *   my-teams/_archived/{year}/{email}/ archived members
+ *   my-teams/members/{email}/         single canonical member location
+ *   my-teams/teams/{team-name}/       team metadata + wiki-link roster
+ *   my-teams/archived/{year}/{email}/ archived members
  */
 
-/** Frontmatter written into _members/{email}/{email}.md */
+/** Frontmatter written into members/{email}/{email}.md */
 export interface ITeamMemberFrontmatter {
   email: string;
+  name?: string;
   role: string;
+  gender?: string;
   location: string;
   teams: string[];
   date_added: string;
@@ -18,6 +20,7 @@ export interface ITeamMemberFrontmatter {
   archived_date?: string;
   termination?: boolean;
   termination_date?: string;
+  termination_note?: string;
 }
 
 /** Frontmatter written into _teams/{team-name}/{team-name}-context.md */
@@ -42,7 +45,9 @@ export interface IMemberSummary {
 
 /** Options accepted by TeamService.addMember() */
 export interface IAddMemberOptions {
+  name?: string;
   role?: string;
+  gender?: string;
   location?: string;
 }
 

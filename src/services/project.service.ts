@@ -12,24 +12,42 @@ import type {
 
 // ── Path helpers ──────────────────────────────────────────────────────────────
 
-function projectsCompanyDir(ws: string): string {
-  return path.join(ws, 'my-company', 'projects');
-}
-
-function overviewPath(ws: string, name: string): string {
-  return path.join(projectsCompanyDir(ws), `${name}-project.md`);
+/**
+ * Normalizes a project name by appending '-project' suffix if not already present.
+ * e.g. 'internship-program' → 'internship-program-project'
+ */
+export function normalizeProjectName(name: string): string {
+  return name.endsWith('-project') ? name : `${name}-project`;
 }
 
 function projectsDir(ws: string): string {
-  return path.join(ws, 'my-projects');
+  return path.join(ws, 'my-company', 'projects');
 }
 
-function projectDir(ws: string, name: string): string {
-  return path.join(projectsDir(ws), name);
+function projectBaseDir(ws: string, name: string): string {
+  return path.join(projectsDir(ws), normalizeProjectName(name));
+}
+
+function projectOverviewPath(ws: string, name: string): string {
+  const normalized = normalizeProjectName(name);
+  return path.join(projectBaseDir(ws, name), `${normalized}.md`);
 }
 
 function compositionPath(ws: string, name: string): string {
-  return path.join(projectDir(ws, name), `${name}-composition.md`);
+  const normalized = normalizeProjectName(name);
+  return path.join(projectBaseDir(ws, name), `${normalized}-composition.md`);
+}
+
+function projectStandupDir(ws: string, name: string): string {
+  return path.join(projectBaseDir(ws, name), 'standup');
+}
+
+function projectDiscussionDir(ws: string, name: string): string {
+  return path.join(projectBaseDir(ws, name), 'discussion');
+}
+
+function projectPresentationDir(ws: string, name: string): string {
+  return path.join(projectBaseDir(ws, name), 'presentation');
 }
 
 function todayIso(): string {
@@ -104,20 +122,21 @@ export class ProjectService {
       return { created: false };
     }
 
+    const normalized = normalizeProjectName(name);
     const date = todayIso();
 
-    // my-company/projects/{name}-project.md
+    // my-company/projects/{name}-project/{name}-project.md (overview)
     await this._fs.writeFile(
-      overviewPath(ws, name),
-      this._template.getProjectOverviewTemplate(name, date),
+      projectOverviewPath(ws, name),
+      this._template.getProjectOverviewTemplate(normalized, date),
     );
 
-    // my-projects/{name}/ subdirectories
-    await this._fs.createDirectory(path.join(projectDir(ws, name), 'standup'));
-    await this._fs.createDirectory(path.join(projectDir(ws, name), 'discussion'));
-    await this._fs.createDirectory(path.join(projectDir(ws, name), 'presentation'));
+    // subdirectories inside the project folder
+    await this._fs.createDirectory(projectStandupDir(ws, name));
+    await this._fs.createDirectory(projectDiscussionDir(ws, name));
+    await this._fs.createDirectory(projectPresentationDir(ws, name));
 
-    // my-projects/{name}/{name}-composition.md
+    // {name}-project/{name}-project-composition.md
     await this._fs.writeFile(compPath, this._template.getProjectCompositionTemplate());
 
     return { created: true };
@@ -136,16 +155,17 @@ export class ProjectService {
       throw new Error(`Project '${name}' not found. Run 'tmr project add ${name}' first.`);
     }
 
+    const normalized = normalizeProjectName(name);
     const date = opts.date ?? todayIso();
-    const fileName = `${date}-${name}-standup.md`;
-    const filePath = path.join(projectDir(ws, name), 'standup', fileName);
-    await this._fs.writeFile(filePath, this._template.getStandupTemplate(date, name));
+    const fileName = `${date}-${normalized}-standup.md`;
+    const filePath = path.join(projectStandupDir(ws, name), fileName);
+    await this._fs.writeFile(filePath, this._template.getStandupTemplate(date, normalized));
 
     return { filePath };
   }
 
   /**
-   * Creates a discussion file in my-projects/{name}/discussion/.
+   * Creates a discussion file inside the project directory.
    */
   async addDiscussion(
     name: string,
@@ -157,16 +177,17 @@ export class ProjectService {
       throw new Error(`Project '${name}' not found. Run 'tmr project add ${name}' first.`);
     }
 
+    const normalized = normalizeProjectName(name);
     const date = opts.date ?? todayIso();
-    const fileName = `${date}-${name}-discussion.md`;
-    const filePath = path.join(projectDir(ws, name), 'discussion', fileName);
-    await this._fs.writeFile(filePath, this._template.getDiscussionTemplate(date, name));
+    const fileName = `${date}-${normalized}-discussion.md`;
+    const filePath = path.join(projectDiscussionDir(ws, name), fileName);
+    await this._fs.writeFile(filePath, this._template.getDiscussionTemplate(date, normalized));
 
     return { filePath };
   }
 
   /**
-   * Creates a presentation file in my-projects/{name}/presentation/.
+   * Creates a presentation file inside the project directory.
    */
   async addPresentation(
     name: string,
@@ -179,11 +200,15 @@ export class ProjectService {
       throw new Error(`Project '${name}' not found. Run 'tmr project add ${name}' first.`);
     }
 
+    const normalized = normalizeProjectName(name);
     const date = opts.date ?? todayIso();
     const slug = toSlug(topic);
-    const fileName = `${date}-${name}-presentation-${slug}.md`;
-    const filePath = path.join(projectDir(ws, name), 'presentation', fileName);
-    await this._fs.writeFile(filePath, this._template.getPresentationTemplate(date, name, topic));
+    const fileName = `${date}-${normalized}-presentation-${slug}.md`;
+    const filePath = path.join(projectPresentationDir(ws, name), fileName);
+    await this._fs.writeFile(
+      filePath,
+      this._template.getPresentationTemplate(date, normalized, topic),
+    );
 
     return { filePath };
   }
@@ -294,10 +319,11 @@ export class ProjectService {
     if (!(await this._fs.exists(root))) return [];
 
     const names = await this._fs.listDirectories(root);
-    if (names.length === 0) return [];
+    const projectNames = names.filter((n) => n.endsWith('-project'));
+    if (projectNames.length === 0) return [];
 
     return Promise.all(
-      names.map(async (name): Promise<IProjectSummary> => {
+      projectNames.map(async (name): Promise<IProjectSummary> => {
         const compPath = compositionPath(ws, name);
         if (!(await this._fs.exists(compPath))) {
           return { name, memberCount: 0, stakeholderCount: 0 };

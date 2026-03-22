@@ -1,4 +1,5 @@
 import path from 'node:path';
+import matter from 'gray-matter';
 import { FileSystemService, fileSystemService } from './file-system.service.js';
 import { SectionParserService, sectionParserService } from './section-parser.service.js';
 import { TemplateService, templateService } from './template.service.js';
@@ -8,12 +9,13 @@ import {
   type FileType,
   type ICreateFileOptions,
   type ICreateFileResult,
+  type ICreateMemberOptions,
 } from '../types/member.types.js';
 
 // ── Path helpers ──────────────────────────────────────────────────────────────
 
 function membersRoot(ws: string): string {
-  return path.join(ws, 'my-teams', '_members');
+  return path.join(ws, 'my-teams', 'members');
 }
 
 function memberDir(ws: string, email: string): string {
@@ -39,6 +41,52 @@ export class MemberService {
 
   getWorkspaceRoot(): string {
     return resolveWorkspaceRoot();
+  }
+
+  /**
+   * Creates a new member profile with the full directory tree under my-teams/members/.
+   * Idempotent — skips creation if profile already exists.
+   */
+  async createMember(
+    email: string,
+    opts: ICreateMemberOptions,
+    workspaceRoot: string,
+  ): Promise<{ created: boolean }> {
+    const normalizedEmail = email.toLowerCase();
+    const profilePath = memberProfilePath(workspaceRoot, normalizedEmail);
+
+    if (await this._fs.exists(profilePath)) {
+      return { created: false };
+    }
+
+    const date = todayIso();
+    const fm: Record<string, unknown> = {
+      email: `[[${normalizedEmail}]]`,
+      name: opts.name ?? '',
+      role: opts.role ?? '',
+      gender: opts.gender ?? '',
+      location: '',
+      teams: [],
+      date_added: date,
+    };
+
+    const body =
+      '\n## Current Manager\n\n## Previous Managers\n\n## Other Leaderships\n\n## Previous Leaderships\n\n## Performance Reviews\n\n## 1on1s\n\n## Assessments\n\n## Feedbacks\n';
+    const profileMd = matter.stringify(body, fm);
+
+    await this._fs.createDirectory(path.join(memberDir(workspaceRoot, normalizedEmail), '1on1s'));
+    await this._fs.createDirectory(
+      path.join(memberDir(workspaceRoot, normalizedEmail), 'feedback'),
+    );
+    await this._fs.createDirectory(
+      path.join(memberDir(workspaceRoot, normalizedEmail), 'assessments'),
+    );
+    await this._fs.createDirectory(
+      path.join(memberDir(workspaceRoot, normalizedEmail), 'performance-reviews'),
+    );
+    await this._fs.writeFile(profilePath, profileMd);
+
+    return { created: true };
   }
 
   /**
