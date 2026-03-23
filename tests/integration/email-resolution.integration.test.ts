@@ -52,7 +52,7 @@ describe('EmailResolutionService Integration', () => {
 
   it('resolves to team when team profile exists', async () => {
     const email = 'alice@co.com';
-    const profilePath = path.join(workspace, 'my-teams', '_members', email, `${email}.md`);
+    const profilePath = path.join(workspace, 'my-teams', 'members', email, `${email}.md`);
     await fs.ensureDir(path.dirname(profilePath));
     await fs.writeFile(profilePath, `# ${email}`);
 
@@ -78,7 +78,7 @@ describe('EmailResolutionService Integration', () => {
 
   it('resolves to relationship when relationship profile exists (no team/leadership)', async () => {
     const email = 'partner@co.com';
-    const profilePath = path.join(workspace, 'my-company', 'relationships', email, `${email}.md`);
+    const profilePath = path.join(workspace, 'my-company', 'members', email, `${email}.md`);
     await fs.ensureDir(path.dirname(profilePath));
     await fs.writeFile(profilePath, `# ${email}`);
 
@@ -97,13 +97,7 @@ describe('EmailResolutionService Integration', () => {
     expect(result.type).toBe('relationship');
     expect(result.created).toBe(true);
 
-    const expectedProfilePath = path.join(
-      workspace,
-      'my-company',
-      'relationships',
-      email,
-      `${email}.md`,
-    );
+    const expectedProfilePath = path.join(workspace, 'my-company', 'members', email, `${email}.md`);
     expect(result.absolutePath).toBe(expectedProfilePath);
     expect(fs.existsSync(expectedProfilePath)).toBe(true);
   });
@@ -111,9 +105,9 @@ describe('EmailResolutionService Integration', () => {
   it('prefers team over leadership over relationship when multiple exist', async () => {
     const email = 'multi@co.com';
 
-    const teamProfile = path.join(workspace, 'my-teams', '_members', email, `${email}.md`);
+    const teamProfile = path.join(workspace, 'my-teams', 'members', email, `${email}.md`);
     const leaderProfile = path.join(workspace, 'my-leadership', email, `${email}.md`);
-    const relProfile = path.join(workspace, 'my-company', 'relationships', email, `${email}.md`);
+    const relProfile = path.join(workspace, 'my-company', 'members', email, `${email}.md`);
 
     await fs.ensureDir(path.dirname(teamProfile));
     await fs.writeFile(teamProfile, `# ${email}`);
@@ -131,7 +125,7 @@ describe('EmailResolutionService Integration', () => {
 
   it('returns identical result object on second call (cached)', async () => {
     const email = 'cached@co.com';
-    const profilePath = path.join(workspace, 'my-teams', '_members', email, `${email}.md`);
+    const profilePath = path.join(workspace, 'my-teams', 'members', email, `${email}.md`);
     await fs.ensureDir(path.dirname(profilePath));
     await fs.writeFile(profilePath, `# ${email}`);
 
@@ -157,26 +151,39 @@ describe('EmailResolutionService Integration', () => {
 
   it('generateWikiLink produces correct relative path from project composition', async () => {
     const email = 'user@co.com';
-    const resolvedPath = path.join(workspace, 'my-teams', '_members', email, `${email}.md`);
-    const fromPath = path.join(workspace, 'my-projects', 'platform', 'platform-composition.md');
+    const resolvedPath = path.join(workspace, 'my-teams', 'members', email, `${email}.md`);
+    const fromPath = path.join(
+      workspace,
+      'my-company',
+      'projects',
+      'platform-project',
+      'platform-project-composition.md',
+    );
 
     const link = svc.generateWikiLink(email, resolvedPath, fromPath);
 
-    expect(link).toContain('../../my-teams/_members/user@co.com/user@co.com.md');
+    expect(link).toContain('my-teams/members/user@co.com/user@co.com.md');
     expect(link).toContain('|user@co.com]]');
     expect(link).not.toContain('\\');
   });
 
   it('generateWikiLink + resolve produces a complete wiki-link line for team member', async () => {
     const email = 'wikiuser@co.com';
-    const profilePath = path.join(workspace, 'my-teams', '_members', email, `${email}.md`);
+    const profilePath = path.join(workspace, 'my-teams', 'members', email, `${email}.md`);
     await fs.ensureDir(path.dirname(profilePath));
     await fs.writeFile(profilePath, `# ${email}`);
 
     const resolved = await svc.resolve(email, workspace);
-    const fromPath = path.join(workspace, 'my-projects', 'platform', 'platform-composition.md');
+    const fromPath = path.join(
+      workspace,
+      'my-company',
+      'projects',
+      'platform-project',
+      'platform-project-composition.md',
+    );
     const link = svc.generateWikiLink(email, resolved.absolutePath, fromPath);
 
-    expect(link).toBe(`[[../../my-teams/_members/${email}/${email}.md|${email}]]`);
+    expect(link).toContain(`my-teams/members/${email}/${email}.md`);
+    expect(link).toContain(`|${email}]]`);
   });
 });

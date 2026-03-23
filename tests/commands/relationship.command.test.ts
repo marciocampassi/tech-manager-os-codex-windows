@@ -12,9 +12,8 @@ const mockAddBatch = jest
 const mockAdd1on1 = jest
   .fn<() => Promise<{ filePath: string; profilePath: string; wikiLink: string }>>()
   .mockResolvedValue({
-    filePath:
-      '/fake/ws/my-company/relationships/alice@co.com/1on1s/2026-03-07-alice@co.com-1on1.md',
-    profilePath: '/fake/ws/my-company/relationships/alice@co.com/alice@co.com.md',
+    filePath: '/fake/ws/my-company/members/alice@co.com/1on1s/2026-03-07-alice@co.com-1on1.md',
+    profilePath: '/fake/ws/my-company/members/alice@co.com/alice@co.com.md',
     wikiLink: '- [[1on1s/2026-03-07-alice@co.com-1on1.md]]',
   });
 const mockListRelationships = jest
@@ -46,6 +45,23 @@ jest.unstable_mockModule('../../src/services/relationship.service.js', () => ({
   relationshipService: mockSvcInstance,
 }));
 
+// Mock project service to avoid real file system calls from optional project linking
+const mockAddProject = jest
+  .fn<() => Promise<{ created: boolean }>>()
+  .mockResolvedValue({ created: false });
+const mockLinkMember = jest
+  .fn<() => Promise<{ wikiLink: string; created: boolean }>>()
+  .mockResolvedValue({ wikiLink: '[[fake]]', created: false });
+
+jest.unstable_mockModule('../../src/services/project.service.js', () => ({
+  ProjectService: jest.fn(),
+  projectService: {
+    addProject: mockAddProject,
+    linkMember: mockLinkMember,
+    getWorkspaceRoot: jest.fn(() => '/fake/ws'),
+  },
+}));
+
 const mockPrompt = jest.fn<() => Promise<Record<string, string>>>();
 jest.unstable_mockModule('inquirer', () => ({
   default: { prompt: mockPrompt },
@@ -57,11 +73,8 @@ jest.unstable_mockModule('chalk', () => ({
     green: (s: string) => s,
     dim: (s: string) => s,
     red: (s: string) => s,
+    yellow: (s: string) => s,
   },
-}));
-
-jest.unstable_mockModule('node:child_process', () => ({
-  exec: jest.fn(),
 }));
 
 // Dynamic imports after mocks
@@ -80,6 +93,8 @@ describe('relationship command', () => {
     jest.clearAllMocks();
     mockGetWorkspaceRoot.mockReturnValue('/fake/ws');
     mockAddRelationship.mockResolvedValue({ created: true });
+    // Default: no project linking (skip prompt)
+    mockPrompt.mockResolvedValue({ projectName: '' });
   });
 
   afterEach(() => {
@@ -91,6 +106,8 @@ describe('relationship command', () => {
 
   describe('tmr relationship add <email>', () => {
     it('calls addRelationship for a single email', async () => {
+      mockPrompt.mockResolvedValue({ projectName: '' });
+
       const cmd = createRelationshipCommand();
       await cmd.parseAsync(['add', 'alice@co.com'], { from: 'user' });
 
@@ -102,12 +119,14 @@ describe('relationship command', () => {
     });
 
     it('prints created message when new', async () => {
+      mockPrompt.mockResolvedValue({ projectName: '' });
       await runRelationshipAdd(mockSvcInstance as never, 'alice@co.com', {});
       const output = stdoutSpy.mock.calls.map((c: unknown[]) => c[0]).join('');
       expect(output).toContain('created');
     });
 
     it('prints already-exists message when not new', async () => {
+      mockPrompt.mockResolvedValue({ projectName: '' });
       mockAddRelationship.mockResolvedValueOnce({ created: false });
       await runRelationshipAdd(mockSvcInstance as never, 'alice@co.com', {});
       const output = stdoutSpy.mock.calls.map((c: unknown[]) => c[0]).join('');
@@ -115,6 +134,8 @@ describe('relationship command', () => {
     });
 
     it('passes --name and --type options to service', async () => {
+      mockPrompt.mockResolvedValue({ projectName: '' });
+
       const cmd = createRelationshipCommand();
       await cmd.parseAsync(['add', 'alice@co.com', '--name', 'Alice', '--type', 'collaborator'], {
         from: 'user',
@@ -125,6 +146,24 @@ describe('relationship command', () => {
         expect.objectContaining({ name: 'Alice', relationship_type: 'collaborator' }),
         '/fake/ws',
       );
+    });
+
+    it('prompts for optional project linking and links when name provided', async () => {
+      mockPrompt.mockResolvedValueOnce({ projectName: 'my-project' });
+
+      await runRelationshipAdd(mockSvcInstance as never, 'alice@co.com', {});
+
+      expect(mockAddProject).toHaveBeenCalled();
+      expect(mockLinkMember).toHaveBeenCalled();
+    });
+
+    it('skips project linking when prompt is empty', async () => {
+      mockPrompt.mockResolvedValue({ projectName: '' });
+
+      await runRelationshipAdd(mockSvcInstance as never, 'alice@co.com', {});
+
+      expect(mockAddProject).not.toHaveBeenCalled();
+      expect(mockLinkMember).not.toHaveBeenCalled();
     });
   });
 
@@ -162,13 +201,15 @@ describe('relationship command', () => {
 
   describe('interactive mode', () => {
     it('prompts for email and metadata when no email provided', async () => {
-      mockPrompt.mockResolvedValueOnce({
-        email: 'alice@co.com',
-        name: 'Alice',
-        role: 'PM',
-        department: 'Product',
-        relationship_type: 'collaborator',
-      } as Record<string, string>);
+      mockPrompt
+        .mockResolvedValueOnce({
+          email: 'alice@co.com',
+          name: 'Alice',
+          role: 'PM',
+          department: 'Product',
+          relationship_type: 'collaborator',
+        } as Record<string, string>)
+        .mockResolvedValueOnce({ projectName: '' });
 
       await runRelationshipAdd(mockSvcInstance as never, undefined, {});
 
@@ -186,9 +227,7 @@ describe('relationship command', () => {
   describe('tmr relationship 1on1 <email>', () => {
     it('calls add1on1 with email and options', async () => {
       const cmd = createRelationshipCommand();
-      await cmd.parseAsync(['1on1', 'alice@co.com', '--date', '2026-03-07', '--no-edit'], {
-        from: 'user',
-      });
+      await cmd.parseAsync(['1on1', 'alice@co.com', '--date', '2026-03-07'], { from: 'user' });
 
       expect(mockAdd1on1).toHaveBeenCalledWith(
         'alice@co.com',
@@ -198,7 +237,7 @@ describe('relationship command', () => {
     });
 
     it('prints success output', async () => {
-      await runRelationship1on1(mockSvcInstance as never, 'alice@co.com', { noEdit: true });
+      await runRelationship1on1(mockSvcInstance as never, 'alice@co.com', {});
       const output = stdoutSpy.mock.calls.map((c: unknown[]) => c[0]).join('');
       expect(output).toContain('Created:');
     });
@@ -209,7 +248,7 @@ describe('relationship command', () => {
           "Relationship 'alice@co.com' not found. Run 'tmr relationship add alice@co.com' first.",
         ),
       );
-      await runRelationship1on1(mockSvcInstance as never, 'alice@co.com', { noEdit: true });
+      await runRelationship1on1(mockSvcInstance as never, 'alice@co.com', {});
 
       const output = stdoutSpy.mock.calls.map((c: unknown[]) => c[0]).join('');
       expect(output).toContain('not found');
@@ -218,7 +257,7 @@ describe('relationship command', () => {
 
     it('prompts for email when not provided', async () => {
       mockPrompt.mockResolvedValueOnce({ resolvedEmail: 'alice@co.com' } as Record<string, string>);
-      await runRelationship1on1(mockSvcInstance as never, undefined, { noEdit: true });
+      await runRelationship1on1(mockSvcInstance as never, undefined, {});
       expect(mockPrompt).toHaveBeenCalled();
       expect(mockAdd1on1).toHaveBeenCalledWith('alice@co.com', expect.any(Object), '/fake/ws');
     });

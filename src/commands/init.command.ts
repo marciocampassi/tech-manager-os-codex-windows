@@ -132,7 +132,7 @@ export class InitCommand {
   ): Promise<void> {
     await Promise.all(
       members.map(async (member) => {
-        const memberDir = join(workspacePath, 'my-teams', '_members', member.email);
+        const memberDir = join(workspacePath, 'my-teams', 'members', member.email);
 
         // Always create the action items .md file (idempotent)
         const actionItemsPath = join(memberDir, `action-items-${member.email}.md`);
@@ -201,7 +201,7 @@ export class InitCommand {
 
   private async writeDefaultTeam(workspacePath: string, members: TeamMember[]): Promise<void> {
     if (members.length === 0) return;
-    const defaultTeamDir = join(workspacePath, 'my-teams', '_teams', 'default');
+    const defaultTeamDir = join(workspacePath, 'my-teams', 'teams', 'default');
     await Promise.all([
       fileSystemService.writeFile(
         join(defaultTeamDir, 'default-context.md'),
@@ -411,7 +411,7 @@ export class InitCommand {
     await this.writeTeamMemberFiles(
       workspacePath,
       teamMembers,
-      leadershipContext.managerEmail,
+      profile.email,
       googleSetup.enabled,
       googleSetup.folderDriveId,
     );

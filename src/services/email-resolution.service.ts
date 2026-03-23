@@ -75,7 +75,7 @@ export class EmailResolutionService {
 
   private async _doResolve(email: string, ws: string): Promise<IEntityLocation> {
     // 1. Team member
-    const teamProfile = path.join(ws, 'my-teams', '_members', email, `${email}.md`);
+    const teamProfile = path.join(ws, 'my-teams', 'members', email, `${email}.md`);
     if (await this._fs.exists(teamProfile)) {
       return { type: 'team', absolutePath: teamProfile, created: false };
     }
@@ -86,8 +86,14 @@ export class EmailResolutionService {
       return { type: 'leadership', absolutePath: leaderProfile, created: false };
     }
 
+    // 2.5. Self (system user's own career profile — prevents auto-creating a relationship for self)
+    const selfProfile = path.join(ws, 'my-career', email, `${email}.md`);
+    if (await this._fs.exists(selfProfile)) {
+      return { type: 'self', absolutePath: selfProfile, created: false };
+    }
+
     // 3. Relationship (already exists)
-    const relProfile = path.join(ws, 'my-company', 'relationships', email, `${email}.md`);
+    const relProfile = path.join(ws, 'my-company', 'members', email, `${email}.md`);
     if (await this._fs.exists(relProfile)) {
       return { type: 'relationship', absolutePath: relProfile, created: false };
     }
