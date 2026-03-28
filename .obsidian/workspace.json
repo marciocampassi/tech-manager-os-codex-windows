@@ -11,10 +11,10 @@
             "id": "88f5a242556b5a60",
             "type": "leaf",
             "state": {
-              "type": "empty",
+              "type": "graph",
               "state": {},
-              "icon": "lucide-file",
-              "title": "Nova aba"
+              "icon": "lucide-git-fork",
+              "title": "Visualização em gráfico"
             }
           }
         ]
@@ -178,41 +178,6 @@
   },
   "active": "88f5a242556b5a60",
   "lastOpenFiles": [
-    "tests/services/google-drive.service.test.ts",
-    "tests/templates/onboarding.templates.test.ts",
-    "tests/templates",
-    "src/services/google-drive.service.ts",
-    "node_modules/@rollup/rollup-linux-arm-musleabihf",
-    "node_modules/@rollup/rollup-linux-arm-gnueabihf",
-    "node_modules/@rollup/rollup-freebsd-x64",
-    "node_modules/@rollup/rollup-freebsd-arm64",
-    "node_modules/@rollup/rollup-darwin-x64",
-    "node_modules/@rollup/rollup-android-arm64",
-    "node_modules/@esbuild/win32-x64",
-    "node_modules/@types/which/README.md",
-    "node_modules/googleapis/README.md",
-    "node_modules/googleapis/CHANGELOG.md",
-    "node_modules/isexe/LICENSE.md",
-    "node_modules/cross-spawn/node_modules/isexe/README.md",
-    "node_modules/cross-spawn/node_modules/which/CHANGELOG.md",
-    "node_modules/cross-spawn/node_modules/which/README.md",
-    "node_modules/webidl-conversions/LICENSE.md",
-    "node_modules/webidl-conversions/README.md",
-    "node_modules/dunder-proto/CHANGELOG.md",
-    "node_modules/dunder-proto/README.md",
-    "node_modules/math-intrinsics/README.md",
-    "node_modules/math-intrinsics/CHANGELOG.md",
-    "node_modules/has-symbols/README.md",
-    "node_modules/has-symbols/CHANGELOG.md",
-    "node_modules/gopd/README.md",
-    "node_modules/gopd/CHANGELOG.md",
-    "node_modules/get-proto/README.md",
-    "node_modules/get-proto/CHANGELOG.md",
-    "node_modules/es-object-atoms/README.md",
-    "node_modules/es-object-atoms/CHANGELOG.md",
-    "node_modules/es-define-property/README.md",
-    "node_modules/es-define-property/CHANGELOG.md",
-    "node_modules/call-bind-apply-helpers/README.md",
-    "node_modules/call-bind-apply-helpers/CHANGELOG.md"
+    "dist/cli.d.ts"
   ]
 }
