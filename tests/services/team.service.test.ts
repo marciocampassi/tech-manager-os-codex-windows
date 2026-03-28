@@ -56,11 +56,11 @@ describe('TeamService', () => {
       await svc.createTeam('alpha', WORKSPACE);
 
       expect(mockFS.writeFile).toHaveBeenCalledWith(
-        expect.stringContaining('_teams/alpha/alpha-context.md'),
+        expect.stringContaining('teams/alpha/alpha-context.md'),
         expect.stringContaining('team: alpha'),
       );
       expect(mockFS.writeFile).toHaveBeenCalledWith(
-        expect.stringContaining('_teams/alpha/alpha-members.md'),
+        expect.stringContaining('teams/alpha/alpha-members.md'),
         expect.stringContaining('# Team Members'),
       );
     });
@@ -85,9 +85,9 @@ describe('TeamService', () => {
       });
       mockFS.readFile.mockImplementation(async (p: string) => {
         if (p.includes('alpha-members.md')) return '# Team Members\n';
-        if (p.includes('profile.md')) return matter.stringify('', { email: 'mgr@co.com' });
         return '';
       });
+      mockFS.listDirectories.mockResolvedValue([]);
 
       await svc.addMember(
         'alpha',
@@ -99,7 +99,7 @@ describe('TeamService', () => {
       // Email normalized to lowercase
       expect(mockFS.writeFile).toHaveBeenCalledWith(
         expect.stringContaining('john@co.com/john@co.com.md'),
-        expect.stringContaining('email: john@co.com'),
+        expect.stringContaining('"john@co.com"'),
       );
       // Subdirectories created
       expect(mockFS.createDirectory).toHaveBeenCalledWith(expect.stringContaining('1on1s'));
@@ -136,7 +136,7 @@ describe('TeamService', () => {
     });
 
     it('does not duplicate wiki-link when member already in members file', async () => {
-      const wikiLink = '- [[../../_members/john@co.com/john@co.com.md|john@co.com]]';
+      const wikiLink = '- [[../../members/john@co.com/john@co.com.md|john@co.com]]';
       mockFS.exists.mockImplementation(async (p: string) => {
         if (p.includes('alpha-context.md')) return true;
         if (p.includes('john@co.com.md')) return true;
@@ -145,6 +145,7 @@ describe('TeamService', () => {
       mockFS.readFile.mockImplementation(async (p: string) => {
         if (p.includes('john@co.com.md')) return buildProfileMd('john@co.com', ['alpha']);
         if (p.includes('alpha-members.md')) return `# Team Members\n${wikiLink}\n`;
+
         return '';
       });
 
@@ -156,14 +157,92 @@ describe('TeamService', () => {
     it('auto-creates team when it does not exist', async () => {
       mockFS.exists.mockResolvedValue(false);
       mockFS.readFile.mockResolvedValue('# Team Members\n');
+      mockFS.listDirectories.mockResolvedValue([]);
 
       await svc.addMember('newteam', 'x@co.com', {}, WORKSPACE);
 
       // Team context file should be created
       expect(mockFS.writeFile).toHaveBeenCalledWith(
-        expect.stringContaining('_teams/newteam/newteam-context.md'),
+        expect.stringContaining('teams/newteam/newteam-context.md'),
         expect.any(String),
       );
+    });
+
+    it('creates action-items-{email}.md for new member (Story 2.10)', async () => {
+      mockFS.exists.mockImplementation(async (p: string) => {
+        if (p.includes('alpha-context.md')) return true;
+        return false;
+      });
+      mockFS.listDirectories.mockResolvedValue([]);
+      mockFS.readFile.mockImplementation(async (p: string) => {
+        if (p.includes('alpha-members.md')) return '# Team Members\n';
+        return '';
+      });
+
+      await svc.addMember('alpha', 'dev@co.com', { role: 'Engineer' }, WORKSPACE);
+
+      expect(mockFS.writeFile).toHaveBeenCalledWith(
+        expect.stringContaining('action-items-dev@co.com.md'),
+        expect.stringContaining('type: action-items'),
+      );
+    });
+
+    it('skips action-items creation when file already exists (idempotent)', async () => {
+      mockFS.exists.mockImplementation(async (p: string) => {
+        if (p.includes('alpha-context.md')) return true;
+        if (p.includes('action-items-dev@co.com.md')) return true;
+        return false;
+      });
+      mockFS.listDirectories.mockResolvedValue([]);
+      mockFS.readFile.mockImplementation(async (p: string) => {
+        if (p.includes('alpha-members.md')) return '# Team Members\n';
+        return '';
+      });
+
+      await svc.addMember('alpha', 'dev@co.com', {}, WORKSPACE);
+
+      const writtenPaths = (mockFS.writeFile.mock.calls as [string, string][]).map((c) => c[0]);
+      expect(writtenPaths.some((p) => p.includes('action-items-dev@co.com.md'))).toBe(false);
+    });
+
+    it('new member profile includes ## Action Items section (Story 2.10)', async () => {
+      mockFS.exists.mockImplementation(async (p: string) => {
+        if (p.includes('alpha-context.md')) return true;
+        return false;
+      });
+      mockFS.listDirectories.mockResolvedValue([]);
+      mockFS.readFile.mockImplementation(async (p: string) => {
+        if (p.includes('alpha-members.md')) return '# Team Members\n';
+        return '';
+      });
+
+      await svc.addMember('alpha', 'dev@co.com', { role: 'Engineer' }, WORKSPACE);
+
+      const profileCall = (mockFS.writeFile.mock.calls as [string, string][]).find(([p]) =>
+        p.includes('dev@co.com/dev@co.com.md'),
+      );
+      expect(profileCall).toBeDefined();
+      expect(profileCall![1]).toContain('## Action Items');
+      expect(profileCall![1]).toContain('[[action-items-dev@co.com|Action Items Tracker]]');
+    });
+
+    it('new member profile includes action_items_gdoc frontmatter field (Story 2.10)', async () => {
+      mockFS.exists.mockImplementation(async (p: string) => {
+        if (p.includes('alpha-context.md')) return true;
+        return false;
+      });
+      mockFS.listDirectories.mockResolvedValue([]);
+      mockFS.readFile.mockImplementation(async (p: string) => {
+        if (p.includes('alpha-members.md')) return '# Team Members\n';
+        return '';
+      });
+
+      await svc.addMember('alpha', 'dev@co.com', { role: 'Engineer' }, WORKSPACE);
+
+      const profileCall = (mockFS.writeFile.mock.calls as [string, string][]).find(([p]) =>
+        p.includes('dev@co.com/dev@co.com.md'),
+      );
+      expect(profileCall![1]).toContain("action_items_gdoc: ''");
     });
   });
 
@@ -202,7 +281,7 @@ describe('TeamService', () => {
       });
       mockFS.readFile.mockImplementation(async (p: string) => {
         if (p.includes('alpha-members.md'))
-          return '# Team Members\n- [[../../_members/a@co.com/a@co.com.md|a@co.com]]\n';
+          return '# Team Members\n- [[../../members/a@co.com/a@co.com.md|a@co.com]]\n';
         if (p.includes('a@co.com.md')) return profileMd;
         return '';
       });
@@ -220,26 +299,26 @@ describe('TeamService', () => {
     it('moves member directory and updates frontmatter', async () => {
       const profileMd = buildProfileMd('a@co.com', ['alpha']);
       mockFS.exists.mockImplementation(async (p: string) => {
-        if (p.includes('_members/a@co.com')) return true;
-        if (p.includes('a@co.com.md') && p.includes('_archived')) return true;
+        if (p.includes('members/a@co.com') && !p.includes('archived')) return true;
+        if (p.includes('a@co.com.md') && p.includes('archived')) return true;
         return false;
       });
       mockFS.readFile.mockImplementation(async (p: string) => {
         if (p.includes('a@co.com.md')) return profileMd;
         if (p.includes('alpha-members.md'))
-          return '# Team Members\n- [[../../_members/a@co.com/a@co.com.md|a@co.com]]\n';
+          return '# Team Members\n- [[../../members/a@co.com/a@co.com.md|a@co.com]]\n';
         return '';
       });
 
       await svc.archiveMember('alpha', 'a@co.com', {}, WORKSPACE);
 
       expect(mockFS.moveFile).toHaveBeenCalledWith(
-        expect.stringContaining('_members/a@co.com'),
-        expect.stringContaining('_archived'),
+        expect.stringContaining('members/a@co.com'),
+        expect.stringContaining('archived'),
       );
       // Frontmatter update
       expect(mockFS.writeFile).toHaveBeenCalledWith(
-        expect.stringContaining('_archived'),
+        expect.stringContaining('archived'),
         expect.stringContaining('archived: true'),
       );
     });
@@ -258,7 +337,9 @@ describe('TeamService', () => {
     it('archives and adds termination fields', async () => {
       const profileMd = buildProfileMd('a@co.com', ['alpha']);
       mockFS.exists.mockImplementation(async (p: string) => {
-        return p.includes('_members/a@co.com') || p.includes('a@co.com.md');
+        if (p.includes('my-teams/members/a@co.com')) return true;
+        if (p.includes('a@co.com.md')) return true;
+        return false;
       });
       mockFS.readFile.mockImplementation(async (p: string) => {
         if (p.includes('a@co.com.md')) return profileMd;
@@ -270,18 +351,60 @@ describe('TeamService', () => {
 
       // termination fields written
       expect(mockFS.writeFile).toHaveBeenCalledWith(
-        expect.stringContaining('_archived'),
+        expect.stringContaining('archived'),
         expect.stringContaining('termination: true'),
       );
+    });
+
+    it('writes termination_note when note is provided', async () => {
+      const profileMd = buildProfileMd('a@co.com', ['alpha']);
+      mockFS.exists.mockImplementation(async (p: string) => {
+        if (p.includes('my-teams/members/a@co.com')) return true;
+        if (p.includes('a@co.com.md')) return true;
+        return false;
+      });
+      mockFS.readFile.mockImplementation(async (p: string) => {
+        if (p.includes('a@co.com.md')) return profileMd;
+        if (p.includes('alpha-members.md')) return '# Team Members\n';
+        return '';
+      });
+
+      await svc.fireMember('alpha', 'a@co.com', WORKSPACE, 'Performance issues');
+
+      expect(mockFS.writeFile).toHaveBeenCalledWith(
+        expect.stringContaining('archived'),
+        expect.stringContaining('termination_note: Performance issues'),
+      );
+    });
+
+    it('does not write termination_note when note is not provided', async () => {
+      const profileMd = buildProfileMd('a@co.com', ['alpha']);
+      mockFS.exists.mockImplementation(async (p: string) => {
+        if (p.includes('my-teams/members/a@co.com')) return true;
+        if (p.includes('a@co.com.md')) return true;
+        return false;
+      });
+      mockFS.readFile.mockImplementation(async (p: string) => {
+        if (p.includes('a@co.com.md')) return profileMd;
+        if (p.includes('alpha-members.md')) return '# Team Members\n';
+        return '';
+      });
+
+      await svc.fireMember('alpha', 'a@co.com', WORKSPACE);
+
+      const writeCall = (mockFS.writeFile.mock.calls as [string, string][]).find(([p]) =>
+        p.includes('archived'),
+      );
+      expect(writeCall?.[1]).not.toContain('termination_note');
     });
   });
 
   // ── showProfile ──────────────────────────────────────────────────────────────
 
   describe('showProfile', () => {
-    it('returns profile content when member exists in _members', async () => {
+    it('returns profile content when member exists in members', async () => {
       mockFS.exists.mockImplementation(async (p: string) =>
-        p.includes('_members/john@co.com/john@co.com.md'),
+        p.includes('my-teams/members/john@co.com/john@co.com.md'),
       );
       mockFS.readFile.mockResolvedValue('profile content');
 
@@ -294,7 +417,7 @@ describe('TeamService', () => {
 
     it('normalizes email to lowercase before searching', async () => {
       mockFS.exists.mockImplementation(async (p: string) =>
-        p.includes('_members/john@co.com/john@co.com.md'),
+        p.includes('my-teams/members/john@co.com/john@co.com.md'),
       );
       mockFS.readFile.mockResolvedValue('content');
 

@@ -34,14 +34,13 @@ const { ProjectService } = await import('../../src/services/project.service.js')
 describe('Project Integration', () => {
   let workspace: string;
   let svc: InstanceType<typeof ProjectService>;
-  let relSvc: InstanceType<typeof RelationshipService>;
 
   beforeEach(() => {
     workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'tmr-project-test-'));
     const realFS = new FileSystemService();
     const realTemplate = new TemplateService();
     const realSection = new SectionParserService(realFS);
-    relSvc = new RelationshipService(realFS, realSection, realTemplate);
+    const relSvc = new RelationshipService(realFS, realSection, realTemplate);
     const emailResolution = new EmailResolutionService(realFS, relSvc);
     svc = new ProjectService(realFS, realTemplate, emailResolution);
   });
@@ -57,11 +56,12 @@ describe('Project Integration', () => {
 
     expect(result.created).toBe(true);
 
-    const overviewPath = path.join(workspace, 'my-company', 'projects', 'platform-project.md');
-    const compPath = path.join(workspace, 'my-projects', 'platform', 'platform-composition.md');
-    const standupDir = path.join(workspace, 'my-projects', 'platform', 'standup');
-    const discussionDir = path.join(workspace, 'my-projects', 'platform', 'discussion');
-    const presentationDir = path.join(workspace, 'my-projects', 'platform', 'presentation');
+    const projectDir = path.join(workspace, 'my-company', 'projects', 'platform-project');
+    const overviewPath = path.join(projectDir, 'platform-project.md');
+    const compPath = path.join(projectDir, 'platform-project-composition.md');
+    const standupDir = path.join(projectDir, 'standup');
+    const discussionDir = path.join(projectDir, 'discussion');
+    const presentationDir = path.join(projectDir, 'presentation');
 
     expect(fs.existsSync(overviewPath)).toBe(true);
     expect(fs.existsSync(compPath)).toBe(true);
@@ -71,7 +71,7 @@ describe('Project Integration', () => {
 
     const overviewContent = fs.readFileSync(overviewPath, 'utf8');
     const { data } = matter(overviewContent);
-    expect(data['name']).toBe('platform');
+    expect(data['name']).toBe('platform-project');
     expect(data['type']).toBe('project');
     expect(overviewContent).toContain('## Overview');
     expect(overviewContent).toContain('## Goals');
@@ -96,17 +96,18 @@ describe('Project Integration', () => {
 
     const expectedPath = path.join(
       workspace,
-      'my-projects',
-      'platform',
+      'my-company',
+      'projects',
+      'platform-project',
       'standup',
-      '2026-03-09-platform-standup.md',
+      '2026-03-09-platform-project-standup.md',
     );
     expect(result.filePath).toBe(expectedPath);
     expect(fs.existsSync(expectedPath)).toBe(true);
 
     const content = fs.readFileSync(expectedPath, 'utf8');
     expect(content).toContain('type: standup');
-    expect(content).toContain('project: platform');
+    expect(content).toContain('project: platform-project');
     expect(content).toContain('## Yesterday');
     expect(content).toContain('## Today');
     expect(content).toContain('## Blockers');
@@ -144,17 +145,18 @@ describe('Project Integration', () => {
 
     const expectedPath = path.join(
       workspace,
-      'my-projects',
-      'platform',
+      'my-company',
+      'projects',
+      'platform-project',
       'presentation',
-      '2026-03-09-platform-presentation-q1-review.md',
+      '2026-03-09-platform-project-presentation-q1-review.md',
     );
     expect(result.filePath).toBe(expectedPath);
     expect(fs.existsSync(expectedPath)).toBe(true);
 
     const content = fs.readFileSync(expectedPath, 'utf8');
     expect(content).toContain('topic: Q1 Review');
-    expect(content).toContain('# platform — Q1 Review');
+    expect(content).toContain('# platform-project — Q1 Review');
     expect(content).toContain('## Slides Outline');
   });
 
@@ -163,17 +165,23 @@ describe('Project Integration', () => {
   it('AC5: links an existing team member to composition Team Members section', async () => {
     await svc.addProject('platform', workspace);
 
-    // Create a team member profile
-    const memberDir = path.join(workspace, 'my-teams', '_members', 'alice@co.com');
+    // Create a team member profile (new path: my-teams/members/)
+    const memberDir = path.join(workspace, 'my-teams', 'members', 'alice@co.com');
     fs.ensureDirSync(memberDir);
     fs.writeFileSync(path.join(memberDir, 'alice@co.com.md'), '---\nemail: alice@co.com\n---\n');
 
     const result = await svc.linkMember('platform', 'alice@co.com', workspace);
 
     expect(result.created).toBe(false);
-    expect(result.wikiLink).toContain('my-teams/_members/alice@co.com');
+    expect(result.wikiLink).toContain('my-teams/members/alice@co.com');
 
-    const compPath = path.join(workspace, 'my-projects', 'platform', 'platform-composition.md');
+    const compPath = path.join(
+      workspace,
+      'my-company',
+      'projects',
+      'platform-project',
+      'platform-project-composition.md',
+    );
     const content = fs.readFileSync(compPath, 'utf8');
     expect(content).toContain('alice@co.com');
 
@@ -191,7 +199,7 @@ describe('Project Integration', () => {
     const relProfile = path.join(
       workspace,
       'my-company',
-      'relationships',
+      'members',
       'unknown@co.com',
       'unknown@co.com.md',
     );
@@ -204,7 +212,7 @@ describe('Project Integration', () => {
     await svc.addProject('platform', workspace);
 
     // Pre-create one team member
-    const memberDir = path.join(workspace, 'my-teams', '_members', 'alice@co.com');
+    const memberDir = path.join(workspace, 'my-teams', 'members', 'alice@co.com');
     fs.ensureDirSync(memberDir);
     fs.writeFileSync(path.join(memberDir, 'alice@co.com.md'), '---\nemail: alice@co.com\n---\n');
 
@@ -219,16 +227,22 @@ describe('Project Integration', () => {
   it('AC7: links stakeholder to Stakeholders section', async () => {
     await svc.addProject('platform', workspace);
 
-    // Pre-create relationship profile
-    const relDir = path.join(workspace, 'my-company', 'relationships', 'vendor@co.com');
+    // Pre-create relationship profile (new path: my-company/members/)
+    const relDir = path.join(workspace, 'my-company', 'members', 'vendor@co.com');
     fs.ensureDirSync(relDir);
     fs.writeFileSync(path.join(relDir, 'vendor@co.com.md'), '---\nemail: vendor@co.com\n---\n');
 
     const result = await svc.linkStakeholder('platform', 'vendor@co.com', workspace);
 
-    expect(result.wikiLink).toContain('my-company/relationships/vendor@co.com');
+    expect(result.wikiLink).toContain('vendor@co.com');
 
-    const compPath = path.join(workspace, 'my-projects', 'platform', 'platform-composition.md');
+    const compPath = path.join(
+      workspace,
+      'my-company',
+      'projects',
+      'platform-project',
+      'platform-project-composition.md',
+    );
     const content = fs.readFileSync(compPath, 'utf8');
 
     const stakeholdersIdx = content.indexOf('# Stakeholders');
@@ -243,22 +257,22 @@ describe('Project Integration', () => {
     await svc.addProject('mobile', workspace);
 
     // Link members to platform
-    const memberDir = path.join(workspace, 'my-teams', '_members', 'alice@co.com');
+    const memberDir = path.join(workspace, 'my-teams', 'members', 'alice@co.com');
     fs.ensureDirSync(memberDir);
     fs.writeFileSync(path.join(memberDir, 'alice@co.com.md'), '---\nemail: alice@co.com\n---\n');
 
     await svc.linkMember('platform', 'alice@co.com', workspace);
     await svc.linkMember('platform', 'bob@co.com', workspace); // auto-creates relationship
 
-    const relDir = path.join(workspace, 'my-company', 'relationships', 'stake@co.com');
+    const relDir = path.join(workspace, 'my-company', 'members', 'stake@co.com');
     fs.ensureDirSync(relDir);
     fs.writeFileSync(path.join(relDir, 'stake@co.com.md'), '---\nemail: stake@co.com\n---\n');
     await svc.linkStakeholder('platform', 'stake@co.com', workspace);
 
     const rows = await svc.listProjects(workspace);
 
-    const platformRow = rows.find((r) => r.name === 'platform');
-    const mobileRow = rows.find((r) => r.name === 'mobile');
+    const platformRow = rows.find((r) => r.name === 'platform-project');
+    const mobileRow = rows.find((r) => r.name === 'mobile-project');
 
     expect(platformRow?.memberCount).toBe(2);
     expect(platformRow?.stakeholderCount).toBe(1);
@@ -266,7 +280,7 @@ describe('Project Integration', () => {
     expect(mobileRow?.stakeholderCount).toBe(0);
   });
 
-  it('AC9: returns empty array when my-projects/ does not exist', async () => {
+  it('AC9: returns empty array when my-company/projects/ does not exist', async () => {
     const rows = await svc.listProjects(workspace);
     expect(rows).toEqual([]);
   });
@@ -297,13 +311,13 @@ describe('Project Integration', () => {
     expect(presentation.filePath).toContain('q1-planning');
 
     // 5. Link team member (pre-create)
-    const memberDir = path.join(workspace, 'my-teams', '_members', 'eng@co.com');
+    const memberDir = path.join(workspace, 'my-teams', 'members', 'eng@co.com');
     fs.ensureDirSync(memberDir);
     fs.writeFileSync(path.join(memberDir, 'eng@co.com.md'), '---\nemail: eng@co.com\n---\n');
 
     const memberLink = await svc.linkMember('alpha', 'eng@co.com', workspace);
     expect(memberLink.created).toBe(false);
-    expect(memberLink.wikiLink).toContain('my-teams/_members/eng@co.com');
+    expect(memberLink.wikiLink).toContain('my-teams/members/eng@co.com');
 
     // 6. Link stakeholder (auto-creates)
     const stakeLink = await svc.linkStakeholder('alpha', 'pm@co.com', workspace);
@@ -311,7 +325,7 @@ describe('Project Integration', () => {
 
     // 7. List shows correct counts
     const rows = await svc.listProjects(workspace);
-    const alphaRow = rows.find((r) => r.name === 'alpha');
+    const alphaRow = rows.find((r) => r.name === 'alpha-project');
     expect(alphaRow?.memberCount).toBe(1);
     expect(alphaRow?.stakeholderCount).toBe(1);
   });

@@ -1,4 +1,3 @@
-import { exec } from 'node:child_process';
 import { Command } from 'commander';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
@@ -9,21 +8,6 @@ import type { IAddLeadershipOptions } from '../types/leadership.types.js';
 
 function padEnd(s: string, len: number): string {
   return s.length >= len ? s : s + ' '.repeat(len - s.length);
-}
-
-function openInEditor(filePath: string): void {
-  try {
-    const editor = process.env['EDITOR'];
-    if (editor) {
-      exec(`${editor} "${filePath}"`);
-    } else if (process.platform === 'darwin') {
-      exec(`open "${filePath}"`);
-    } else {
-      exec(`xdg-open "${filePath}"`);
-    }
-  } catch {
-    // Editor failure is non-fatal; path already printed
-  }
 }
 
 // ── Sub-command handlers ──────────────────────────────────────────────────────
@@ -38,37 +22,35 @@ export async function runLeadershipAdd(
   let email = emailArg?.trim().toLowerCase() ?? '';
 
   if (!email) {
-    const answers = await inquirer.prompt<{
-      email: string;
-      name: string;
-      role: string;
-      areas_of_responsibility: string;
-    }>([
+    const { resolvedEmail } = await inquirer.prompt<{ resolvedEmail: string }>([
       {
         type: 'input',
-        name: 'email',
+        name: 'resolvedEmail',
         message: 'Email:',
         validate: (v: string): boolean | string =>
           /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) || 'Valid email required',
       },
-      { type: 'input', name: 'name', message: 'Name (optional):' },
-      { type: 'input', name: 'role', message: 'Role (optional):' },
-      {
-        type: 'input',
-        name: 'areas_of_responsibility',
-        message: 'Areas of responsibility (optional):',
-      },
     ]);
-    email = answers.email.trim().toLowerCase();
-    opts = {
-      ...opts,
-      name: answers.name || opts.name,
-      role: answers.role || opts.role,
-      areas_of_responsibility: answers.areas_of_responsibility || opts.areas_of_responsibility,
-    };
+    email = resolvedEmail.trim().toLowerCase();
   }
 
-  const result = await svc.addLeadership(email, opts, ws);
+  // Secondary prompts — always run, skip individual prompts if pre-filled via flags
+  const secondaryAnswers = await inquirer.prompt<{ name: string; role: string; gender: string }>(
+    [
+      !opts.name && { type: 'input', name: 'name', message: 'Name (optional):' },
+      !opts.role && { type: 'input', name: 'role', message: 'Role (optional):' },
+      !opts.gender && { type: 'input', name: 'gender', message: 'Gender (optional):' },
+    ].filter(Boolean) as Parameters<typeof inquirer.prompt>[0],
+  );
+
+  const resolvedOpts: IAddLeadershipOptions = {
+    ...opts,
+    name: opts.name?.trim() ?? secondaryAnswers.name?.trim() ?? '',
+    role: opts.role?.trim() ?? secondaryAnswers.role?.trim() ?? '',
+    gender: opts.gender?.trim() ?? secondaryAnswers.gender?.trim() ?? '',
+  };
+
+  const result = await svc.addLeadership(email, resolvedOpts, ws);
   if (result.created) {
     process.stdout.write(`${chalk.green('✔')} Leadership "${email}" created\n`);
   } else {
@@ -110,10 +92,6 @@ export async function runLeadership1on1(
   process.stdout.write(`${chalk.green('✔')} Created: ${result.filePath}\n`);
   process.stdout.write(`${chalk.dim('  Profile updated:')} ${result.profilePath}\n`);
   process.stdout.write(`${chalk.dim('  Wiki-link:')} ${result.wikiLink}\n`);
-
-  if (!opts.noEdit) {
-    openInEditor(result.filePath);
-  }
 }
 
 export async function runLeadershipList(svc: LeadershipService): Promise<void> {
@@ -150,15 +128,17 @@ export function createLeadershipCommand(): Command {
     .description('add a leadership contact')
     .option('--name <name>', 'contact name')
     .option('--role <role>', 'contact role')
+    .option('--gender <gender>', 'contact gender')
     .option('--areas <areas>', 'areas of responsibility')
     .action(
       async (
         emailArg: string | undefined,
-        opts: { name?: string; role?: string; areas?: string },
+        opts: { name?: string; role?: string; gender?: string; areas?: string },
       ) => {
         await runLeadershipAdd(svc, emailArg, {
           name: opts.name,
           role: opts.role,
+          gender: opts.gender,
           areas_of_responsibility: opts.areas,
         });
       },
@@ -168,8 +148,7 @@ export function createLeadershipCommand(): Command {
     .command('1on1 [email]')
     .description('create a 1on1 note for a leadership contact')
     .option('--date <date>', 'date for the file (YYYY-MM-DD), defaults to today')
-    .option('--no-edit', 'do not open the created file in editor')
-    .action(async (email: string | undefined, opts: { date?: string; noEdit?: boolean }) => {
+    .action(async (email: string | undefined, opts: { date?: string }) => {
       await runLeadership1on1(svc, email, opts);
     });
 

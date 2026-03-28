@@ -92,7 +92,10 @@ describe('team command', () => {
   // ── team add ────────────────────────────────────────────────────────────────
 
   describe('team add', () => {
-    it('calls addMember with flags', async () => {
+    it('calls addMember with flags and secondary prompts', async () => {
+      // Secondary prompt response (always shown even when flags provided)
+      mockPrompt.mockResolvedValueOnce({ name: '', role: '', gender: '', location: '' });
+
       const cmd = createTeamCommand();
       await cmd.parseAsync(
         ['add', 'alpha', 'john@co.com', '--role', 'Engineer', '--location', 'Remote'],
@@ -101,18 +104,16 @@ describe('team command', () => {
       expect(mockAddMember).toHaveBeenCalledWith(
         'alpha',
         'john@co.com',
-        { role: 'Engineer', location: 'Remote' },
+        expect.objectContaining({ role: 'Engineer', location: 'Remote' }),
         '/fake/ws',
       );
     });
 
     it('prompts interactively when no args given', async () => {
-      mockPrompt.mockResolvedValueOnce({
-        teamName: 'alpha',
-        email: 'x@co.com',
-        role: 'QA',
-        location: 'Remote',
-      });
+      // Primary prompt (teamName + email), then secondary prompt (name/role/gender/location)
+      mockPrompt
+        .mockResolvedValueOnce({ teamName: 'alpha', email: 'x@co.com' })
+        .mockResolvedValueOnce({ name: '', role: 'QA', gender: '', location: 'Remote' });
 
       const cmd = createTeamCommand();
       await cmd.parseAsync(['add'], { from: 'user' });
@@ -182,11 +183,27 @@ describe('team command', () => {
   // ── team fire ───────────────────────────────────────────────────────────────
 
   describe('team fire', () => {
-    it('calls fireMember with team name and email', async () => {
+    it('calls fireMember with team name, email, and optional note', async () => {
+      mockPrompt.mockResolvedValueOnce({ terminationNote: '' });
+
       const cmd = createTeamCommand();
       await cmd.parseAsync(['fire', 'alpha', 'john@co.com'], { from: 'user' });
 
-      expect(mockFireMember).toHaveBeenCalledWith('alpha', 'john@co.com', '/fake/ws');
+      expect(mockFireMember).toHaveBeenCalledWith('alpha', 'john@co.com', '/fake/ws', undefined);
+    });
+
+    it('passes termination note when provided', async () => {
+      mockPrompt.mockResolvedValueOnce({ terminationNote: 'Performance issues' });
+
+      const cmd = createTeamCommand();
+      await cmd.parseAsync(['fire', 'alpha', 'john@co.com'], { from: 'user' });
+
+      expect(mockFireMember).toHaveBeenCalledWith(
+        'alpha',
+        'john@co.com',
+        '/fake/ws',
+        'Performance issues',
+      );
     });
   });
 

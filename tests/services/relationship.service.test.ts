@@ -42,7 +42,7 @@ function createMockSectionParser(): MockSectionParser {
 
 const WS = '/fake/workspace';
 const EMAIL = 'alice@co.com';
-const PROFILE_PATH = `${WS}/my-company/relationships/${EMAIL}/${EMAIL}.md`;
+const PROFILE_PATH = `${WS}/my-company/members/${EMAIL}/${EMAIL}.md`;
 
 function buildProfileContent(email: string): string {
   return matter.stringify('\n# Relationship\n\n## Notes\n\n## 1on1s\n', {

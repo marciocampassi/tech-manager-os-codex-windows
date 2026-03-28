@@ -2,6 +2,7 @@ import path from 'node:path';
 import matter from 'gray-matter';
 import { FileSystemService, fileSystemService } from './file-system.service.js';
 import { getWorkspaceRoot as resolveWorkspaceRoot } from '../utils/workspace.js';
+import { generateActionItemsTemplate } from '../templates/onboarding.templates.js';
 import type {
   IAddMemberOptions,
   IArchiveOptions,
@@ -14,15 +15,15 @@ import type {
 // ── Path helpers ──────────────────────────────────────────────────────────────
 
 function membersRoot(ws: string): string {
-  return path.join(ws, 'my-teams', '_members');
+  return path.join(ws, 'my-teams', 'members');
 }
 
 function teamsRoot(ws: string): string {
-  return path.join(ws, 'my-teams', '_teams');
+  return path.join(ws, 'my-teams', 'teams');
 }
 
 function archivedRoot(ws: string): string {
-  return path.join(ws, 'my-teams', '_archived');
+  return path.join(ws, 'my-teams', 'archived');
 }
 
 function memberDir(ws: string, email: string): string {
@@ -76,20 +77,24 @@ function buildMembersMd(): string {
 
 function buildMemberProfileMd(
   email: string,
-  role: string,
-  location: string,
+  options: { name?: string; role?: string; gender?: string; location?: string },
   teams: string[],
   managerEmail: string | null,
 ): string {
   const teamsYaml = teams.map((t) => `  - ${t}`).join('\n');
-  const managerLink = managerEmail ? `[[my-career/${managerEmail}.md]]` : '';
+  const managerLink = managerEmail
+    ? `[[my-career/${managerEmail}/${managerEmail}|${managerEmail}]]`
+    : '';
 
   return `---
-email: ${email}
-role: ${role}
-location: ${location}
+email: "${email}"
+name: ${options.name ?? ''}
+role: ${options.role ?? ''}
+gender: ${options.gender ?? ''}
+location: ${options.location ?? ''}
 teams:
 ${teamsYaml}
+action_items_gdoc: ''
 date_added: ${todayIso()}
 ---
 
@@ -110,11 +115,15 @@ ${managerLink}
 ## Assessments
 
 ## Feedbacks
+
+## Action Items
+
+- [[action-items-${email}|Action Items Tracker]]
 `;
 }
 
 function buildWikiLink(email: string): string {
-  return `- [[../../_members/${email}/${email}.md|${email}]]`;
+  return `- [[../../members/${email}/${email}.md|${email}]]`;
 }
 
 // ── Service ───────────────────────────────────────────────────────────────────
@@ -127,11 +136,16 @@ export class TeamService {
   }
 
   async getManagerEmail(workspaceRoot: string): Promise<string | null> {
-    const profilePath = path.join(workspaceRoot, 'my-career', 'profile.md');
+    const careerRoot = path.join(workspaceRoot, 'my-career');
+    if (!(await this._fs.exists(careerRoot))) return null;
+    const subdirs = await this._fs.listDirectories(careerRoot);
+    if (subdirs.length === 0) return null;
+    const email = subdirs[0] as string;
+    const profilePath = path.join(careerRoot, email, `${email}.md`);
     if (!(await this._fs.exists(profilePath))) return null;
     const content = await this._fs.readFile(profilePath);
     const { data } = matter(content);
-    return (data['email'] as string | undefined) ?? null;
+    return (data['email'] as string | undefined)?.replace(/["[\]]/g, '') ?? email;
   }
 
   async createTeam(teamName: string, workspaceRoot: string): Promise<void> {
@@ -152,8 +166,6 @@ export class TeamService {
     workspaceRoot: string,
   ): Promise<void> {
     const normalizedEmail = email.toLowerCase();
-    const role = options.role ?? '';
-    const location = options.location ?? '';
 
     // Auto-create team if needed
     await this.createTeam(teamName, workspaceRoot);
@@ -176,13 +188,7 @@ export class TeamService {
     } else {
       // New member — create full directory + profile
       const managerEmail = await this.getManagerEmail(workspaceRoot);
-      const profileMd = buildMemberProfileMd(
-        normalizedEmail,
-        role,
-        location,
-        [teamName],
-        managerEmail,
-      );
+      const profileMd = buildMemberProfileMd(normalizedEmail, options, [teamName], managerEmail);
 
       await this._fs.createDirectory(path.join(memberDir(workspaceRoot, normalizedEmail), '1on1s'));
       await this._fs.createDirectory(
@@ -195,6 +201,15 @@ export class TeamService {
         path.join(memberDir(workspaceRoot, normalizedEmail), 'performance-reviews'),
       );
       await this._fs.writeFile(profilePath, profileMd);
+
+      // Create action items tracker file (idempotent)
+      const actionItemsPath = path.join(
+        memberDir(workspaceRoot, normalizedEmail),
+        `action-items-${normalizedEmail}.md`,
+      );
+      if (!(await this._fs.exists(actionItemsPath))) {
+        await this._fs.writeFile(actionItemsPath, generateActionItemsTemplate(normalizedEmail));
+      }
     }
 
     // Append wiki-link to team members file
@@ -263,7 +278,7 @@ export class TeamService {
     const srcDir = memberDir(workspaceRoot, normalizedEmail);
 
     if (!(await this._fs.exists(srcDir))) {
-      throw new Error(`Member ${normalizedEmail} not found in _members/`);
+      throw new Error(`Member ${normalizedEmail} not found in members/`);
     }
 
     const year = new Date().getFullYear().toString();
@@ -303,7 +318,7 @@ export class TeamService {
     if (await this._fs.exists(archivedProfile)) {
       const content = await this._fs.readFile(archivedProfile);
       const parsed = matter(content);
-      const fm = parsed.data as ITeamMemberFrontmatter;
+      const fm = { ...parsed.data } as ITeamMemberFrontmatter;
       fm.archived = true;
       fm.archived_date = todayIso();
       await this._fs.writeFile(archivedProfile, matter.stringify(parsed.content, fm));
@@ -313,7 +328,12 @@ export class TeamService {
     await this._removeWikiLink(teamName, normalizedEmail, workspaceRoot);
   }
 
-  async fireMember(teamName: string, email: string, workspaceRoot: string): Promise<void> {
+  async fireMember(
+    teamName: string,
+    email: string,
+    workspaceRoot: string,
+    note?: string,
+  ): Promise<void> {
     const normalizedEmail = email.toLowerCase();
     await this.archiveMember(teamName, normalizedEmail, {}, workspaceRoot);
 
@@ -328,9 +348,12 @@ export class TeamService {
     if (await this._fs.exists(archivedProfile)) {
       const content = await this._fs.readFile(archivedProfile);
       const parsed = matter(content);
-      const fm = parsed.data as ITeamMemberFrontmatter;
+      const fm = { ...parsed.data } as ITeamMemberFrontmatter;
       fm.termination = true;
       fm.termination_date = todayIso();
+      if (note) {
+        fm.termination_note = note;
+      }
       await this._fs.writeFile(archivedProfile, matter.stringify(parsed.content, fm));
     }
   }
@@ -383,7 +406,7 @@ export class TeamService {
     const relationshipPath = path.join(
       workspaceRoot,
       'my-company',
-      'relationships',
+      'members',
       normalizedEmail,
       `${normalizedEmail}.md`,
     );

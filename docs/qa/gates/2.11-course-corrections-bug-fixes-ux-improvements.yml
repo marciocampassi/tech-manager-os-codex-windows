@@ -1,0 +1,51 @@
+schema: 1
+story: '2.11'
+story_title: 'Course Corrections — Bug Fixes, UX Improvements, and Structural Alignment'
+gate: PASS
+status_reason: 'All 7 ACs fully implemented with 598 tests passing (100%), zero TypeScript errors, zero ESLint errors. One minor concern about raw YAML string interpolation in createMember that does not affect current functionality.'
+reviewer: 'Quinn (Test Architect)'
+updated: '2026-03-22T23:15:00Z'
+
+top_issues:
+  - severity: MINOR
+    description: 'MemberService.createMember() builds YAML frontmatter via raw string interpolation instead of matter.stringify(). Values like name/role/gender with YAML-special characters (colons, quotes) could produce malformed YAML.'
+    refs:
+      - 'src/services/member.service.ts:62-70'
+    recommendation: 'Replace manual frontmatter string with matter.stringify() call for consistency with rest of codebase'
+
+waiver: { active: false }
+
+quality_score: 88
+
+expires: '2026-04-05T00:00:00Z'
+
+evidence:
+  tests_reviewed: 598
+  risks_identified: 1
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'exec/openInEditor removed (no more shell injection vectors). Email normalized to lowercase. Paths via path.join (no traversal). No sensitive data leaked.'
+  performance:
+    status: PASS
+    notes: 'Gray-matter cache mutation bug fixed with object spread. No hot-path performance regressions introduced.'
+  reliability:
+    status: PASS
+    notes: 'fireMember idempotency maintained. createMember is idempotent. archiveMember handles date ranges correctly. Email resolution hierarchy preserved.'
+  maintainability:
+    status: PASS
+    notes: 'Path helpers centralized via helper functions. Type definitions updated and consistent. 598 tests provide strong safety net for future changes.'
+
+recommendations:
+  immediate: []
+  future:
+    - action: 'Replace raw YAML string interpolation in MemberService.createMember() with matter.stringify() for safety with special characters in name/role/gender fields'
+      refs:
+        - 'src/services/member.service.ts'
+    - action: 'Consider adding a migration helper for existing workspaces that still use _members/_teams/_archived directory structure'
+      refs:
+        - 'src/workflows/workspace-builder.ts'

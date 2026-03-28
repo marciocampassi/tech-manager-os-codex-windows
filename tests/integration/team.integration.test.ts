@@ -46,8 +46,8 @@ describe('Team Integration', () => {
     // 1. Create team
     await svc.createTeam('alpha', workspace);
 
-    const contextPath = path.join(workspace, 'my-teams', '_teams', 'alpha', 'alpha-context.md');
-    const membersPath = path.join(workspace, 'my-teams', '_teams', 'alpha', 'alpha-members.md');
+    const contextPath = path.join(workspace, 'my-teams', 'teams', 'alpha', 'alpha-context.md');
+    const membersPath = path.join(workspace, 'my-teams', 'teams', 'alpha', 'alpha-members.md');
     expect(fs.existsSync(contextPath)).toBe(true);
     expect(fs.existsSync(membersPath)).toBe(true);
 
@@ -65,7 +65,7 @@ describe('Team Integration', () => {
     const memberProfilePath = path.join(
       workspace,
       'my-teams',
-      '_members',
+      'members',
       'john@co.com',
       'john@co.com.md',
     );
@@ -78,11 +78,11 @@ describe('Team Integration', () => {
     expect(data['teams']).toContain('alpha');
 
     // Subdirectories created
+    expect(fs.existsSync(path.join(workspace, 'my-teams', 'members', 'john@co.com', '1on1s'))).toBe(
+      true,
+    );
     expect(
-      fs.existsSync(path.join(workspace, 'my-teams', '_members', 'john@co.com', '1on1s')),
-    ).toBe(true);
-    expect(
-      fs.existsSync(path.join(workspace, 'my-teams', '_members', 'john@co.com', 'feedback')),
+      fs.existsSync(path.join(workspace, 'my-teams', 'members', 'john@co.com', 'feedback')),
     ).toBe(true);
 
     // Wiki-link in members file
@@ -110,7 +110,7 @@ describe('Team Integration', () => {
     const archivedPath = path.join(
       workspace,
       'my-teams',
-      '_archived',
+      'archived',
       year,
       'john@co.com',
       'john@co.com.md',
@@ -127,7 +127,7 @@ describe('Team Integration', () => {
 
     // Wiki-link removed from team members file
     const updatedMembers = fs.readFileSync(membersPath, 'utf8');
-    expect(updatedMembers).not.toContain('[[../../_members/john@co.com');
+    expect(updatedMembers).not.toContain('[[../../members/john@co.com');
 
     // showProfile now finds archived
     const archivedProfile = await svc.showProfile('john@co.com', workspace);
@@ -143,7 +143,7 @@ describe('Team Integration', () => {
     const profilePath = path.join(
       workspace,
       'my-teams',
-      '_members',
+      'members',
       'shared@co.com',
       'shared@co.com.md',
     );
@@ -159,7 +159,7 @@ describe('Team Integration', () => {
     const firedPath = path.join(
       workspace,
       'my-teams',
-      '_archived',
+      'archived',
       year,
       'fired@co.com',
       'fired@co.com.md',
@@ -172,7 +172,7 @@ describe('Team Integration', () => {
   it('date-range archive (AC5): only moves files within date range', async () => {
     await svc.addMember('alpha', 'ranged@co.com', { role: 'PM' }, workspace);
 
-    const memberBase = path.join(workspace, 'my-teams', '_members', 'ranged@co.com');
+    const memberBase = path.join(workspace, 'my-teams', 'members', 'ranged@co.com');
 
     // Create dated files in the 1on1s subdirectory
     fs.writeFileSync(path.join(memberBase, '1on1s', '2026-01-15.md'), '# Jan 1:1');
@@ -188,7 +188,7 @@ describe('Team Integration', () => {
     );
 
     const year = new Date().getFullYear().toString();
-    const archBase = path.join(workspace, 'my-teams', '_archived', year, 'ranged@co.com', '1on1s');
+    const archBase = path.join(workspace, 'my-teams', 'archived', year, 'ranged@co.com', '1on1s');
 
     // Feb file moved
     expect(fs.existsSync(path.join(archBase, '2026-02-20.md'))).toBe(true);

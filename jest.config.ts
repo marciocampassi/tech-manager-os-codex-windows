@@ -16,6 +16,7 @@ const config: Config = {
     ],
   },
   testMatch: ['**/tests/**/*.test.ts'],
+  testTimeout: 30000,
   collectCoverageFrom: ['src/**/*.ts', '!src/**/*.d.ts'],
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'clover'],

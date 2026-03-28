@@ -41,7 +41,7 @@ function createMockSectionParser(): MockSectionParser {
 
 const WS = '/fake/workspace';
 const EMAIL = 'john@co.com';
-const PROFILE_PATH = `${WS}/my-teams/_members/${EMAIL}/${EMAIL}.md`;
+const PROFILE_PATH = `${WS}/my-teams/members/${EMAIL}/${EMAIL}.md`;
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 

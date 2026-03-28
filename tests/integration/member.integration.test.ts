@@ -166,7 +166,7 @@ describe('Member Integration', () => {
     const profilePath = path.join(
       workspace,
       'my-teams',
-      '_members',
+      'members',
       'john@co.com',
       'john@co.com.md',
     );

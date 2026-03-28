@@ -153,6 +153,43 @@ type: meeting
 
 ---
 
+## External API: Google Drive & Docs API
+
+**Purpose:** Creates Google Docs for team member action items trackers, shares documents with team members, and manages Drive folder structure. Activated only when `google_drive_enabled: true` in config.
+
+**Documentation:**
+- Drive API: https://developers.google.com/drive/api/v3/reference
+- Docs API: https://developers.google.com/docs/api/reference/rest
+
+**Base URL(s):**
+- `https://www.googleapis.com/drive/v3`
+- `https://docs.googleapis.com/v1`
+
+**Authentication:** OAuth2 (user-authorized; Desktop app flow with local redirect on `http://localhost:3000/oauth2callback`)
+
+**OAuth Scopes:**
+- `https://www.googleapis.com/auth/drive.file` — create and manage files the app creates
+- `https://www.googleapis.com/auth/drive` — read Drive folder structure
+
+**Key Endpoints Used:**
+- `POST /drive/v3/files` — Create Google Doc in specified folder
+- `POST /drive/v3/files/{fileId}/permissions` — Share document with team member email
+- `GET /drive/v3/files` — Find existing member subfolders
+- `POST /docs/v1/documents/{documentId}:batchUpdate` — Insert content into document
+
+**Rate Limits:**
+- Drive API: 1,000 requests/100 seconds/user
+- Docs API: 300 requests/60 seconds/user
+
+**Integration Notes:**
+- All calls wrapped in `GoogleDriveService` — integration is fully config-gated
+- Failures are caught and logged; never block local `.md` file creation
+- MVP: plain text content insertion; rich-text table formatting deferred to future story
+- OAuth token stored encrypted in config via `ConfigService`
+- Client credentials (Client ID + Secret) collected during `tmr init` Google setup prompt
+
+---
+
 ## AI Provider Comparison Matrix (2026)
 
 | Feature | OpenAI | Claude | Gemini |

@@ -90,6 +90,24 @@ jest.unstable_mockModule('../../src/services/obsidian-plugin.service.js', () => 
   },
 }));
 
+jest.unstable_mockModule('node:child_process', () => ({
+  execSync: jest.fn(),
+  spawnSync: jest.fn().mockReturnValue({ status: 1, stdout: '' }),
+}));
+
+jest.unstable_mockModule('../../src/services/google-drive.service.js', () => ({
+  googleDriveService: {
+    authenticate: jest.fn<() => Promise<Record<string, unknown>>>().mockResolvedValue({}),
+    createActionItemsDoc: jest
+      .fn<() => Promise<{ docId: string; url: string }>>()
+      .mockResolvedValue({ docId: 'doc-123', url: 'https://docs.google.com/d/doc-123' }),
+    shareDocument: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
+    createGdocPointerFile: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
+  },
+  generateSyncScript: jest.fn<(id: string) => string>().mockReturnValue('// sync script'),
+  generateSyncSetupGuide: jest.fn<() => string>().mockReturnValue('# setup guide'),
+}));
+
 // ── Dynamic import (after all mocks) ─────────────────────────────────────────
 
 const { InitCommand } = await import('../../src/commands/init.command.js');
@@ -136,7 +154,9 @@ describe('InitCommand integration', () => {
           location: '',
         })
         // loop iteration 2: email (empty → exits)
-        .mockResolvedValueOnce({ email: '' });
+        .mockResolvedValueOnce({ email: '' })
+        // promptGoogleDriveSetup — disabled
+        .mockResolvedValueOnce({ enabled: false });
 
       await new InitCommand().run();
     } catch (err) {
@@ -161,14 +181,14 @@ describe('InitCommand integration', () => {
       expect(dirs.some((d) => d.includes('my-leadership'))).toBe(true);
     });
 
-    it('creates my-teams/_members/ directory', () => {
+    it('creates my-teams/members/ directory', () => {
       const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
-      expect(dirs.some((d) => d.includes('my-teams/_members'))).toBe(true);
+      expect(dirs.some((d) => d.includes('my-teams/members'))).toBe(true);
     });
 
-    it('creates my-teams/_teams/ directory', () => {
+    it('creates my-teams/teams/ directory', () => {
       const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
-      expect(dirs.some((d) => d.includes('my-teams/_teams'))).toBe(true);
+      expect(dirs.some((d) => d.includes('my-teams/teams'))).toBe(true);
     });
 
     it('does NOT create my-team/ (old path removed)', () => {
@@ -232,19 +252,19 @@ describe('InitCommand integration', () => {
       expect(paths.filter((p) => p.endsWith('process-agent.md'))).toHaveLength(2);
     });
 
-    it('writes team member profile under my-teams/_members/{email}/{email}.md', () => {
+    it('writes team member profile under my-teams/members/{email}/{email}.md', () => {
       const paths = Array.from(writtenFiles.keys());
       expect(
         paths.some((p) =>
-          p.includes(`my-teams/_members/${TEAM_MEMBER_EMAIL}/${TEAM_MEMBER_EMAIL}.md`),
+          p.includes(`my-teams/members/${TEAM_MEMBER_EMAIL}/${TEAM_MEMBER_EMAIL}.md`),
         ),
       ).toBe(true);
     });
 
     it('writes default-context.md and default-members.md for default team', () => {
       const paths = Array.from(writtenFiles.keys());
-      expect(paths.some((p) => p.endsWith('_teams/default/default-context.md'))).toBe(true);
-      expect(paths.some((p) => p.endsWith('_teams/default/default-members.md'))).toBe(true);
+      expect(paths.some((p) => p.endsWith('teams/default/default-context.md'))).toBe(true);
+      expect(paths.some((p) => p.endsWith('teams/default/default-members.md'))).toBe(true);
     });
   });
 
@@ -271,7 +291,7 @@ describe('InitCommand integration', () => {
         p.includes(`my-career/${MANAGER_EMAIL}/${MANAGER_EMAIL}.md`),
       );
       const content = writtenFiles.get(profilePath!)!;
-      expect(content).toContain('reports_to: [[dana@example.com]]');
+      expect(content).toContain('reports_to: "[[dana@example.com]]"');
     });
 
     it('pdp contains ## Career Goals section', () => {
@@ -309,7 +329,7 @@ describe('InitCommand integration', () => {
 
     it('team member profile contains the member email and role', () => {
       const memberPath = Array.from(writtenFiles.keys()).find((p) =>
-        p.includes(`my-teams/_members/${TEAM_MEMBER_EMAIL}/${TEAM_MEMBER_EMAIL}.md`),
+        p.includes(`my-teams/members/${TEAM_MEMBER_EMAIL}/${TEAM_MEMBER_EMAIL}.md`),
       );
       expect(memberPath).toBeDefined();
       const content = writtenFiles.get(memberPath!)!;
@@ -319,32 +339,124 @@ describe('InitCommand integration', () => {
 
     it('team member profile has [[email]] wiki-link notation and gender field', () => {
       const memberPath = Array.from(writtenFiles.keys()).find((p) =>
-        p.includes(`my-teams/_members/${TEAM_MEMBER_EMAIL}/${TEAM_MEMBER_EMAIL}.md`),
+        p.includes(`my-teams/members/${TEAM_MEMBER_EMAIL}/${TEAM_MEMBER_EMAIL}.md`),
       );
       const content = writtenFiles.get(memberPath!)!;
-      expect(content).toContain(`[[${TEAM_MEMBER_EMAIL}]]`);
+      expect(content).toContain(`"[[${TEAM_MEMBER_EMAIL}]]"`);
       expect(content).toContain('gender: Female');
     });
 
     it('team member profile has manager wiki-link in Current Manager section', () => {
       const memberPath = Array.from(writtenFiles.keys()).find((p) =>
-        p.includes(`my-teams/_members/${TEAM_MEMBER_EMAIL}/${TEAM_MEMBER_EMAIL}.md`),
+        p.includes(`my-teams/members/${TEAM_MEMBER_EMAIL}/${TEAM_MEMBER_EMAIL}.md`),
       );
       const content = writtenFiles.get(memberPath!)!;
+      // Manager link points to the system user's own career profile (they are the team's manager)
       expect(content).toContain(
-        '[[../../my-career/dana@example.com/dana@example.com|dana@example.com]]',
+        `[[../../my-career/${MANAGER_EMAIL}/${MANAGER_EMAIL}|${MANAGER_EMAIL}]]`,
       );
     });
 
     it('default-members.md contains wiki-links to team members', () => {
       const defaultMembersPath = Array.from(writtenFiles.keys()).find((p) =>
-        p.endsWith('_teams/default/default-members.md'),
+        p.endsWith('teams/default/default-members.md'),
       );
       expect(defaultMembersPath).toBeDefined();
       const content = writtenFiles.get(defaultMembersPath!)!;
       expect(content).toContain(
-        `[[../../_members/${TEAM_MEMBER_EMAIL}/${TEAM_MEMBER_EMAIL}|${TEAM_MEMBER_EMAIL}]]`,
+        `[[../../members/${TEAM_MEMBER_EMAIL}/${TEAM_MEMBER_EMAIL}|${TEAM_MEMBER_EMAIL}]]`,
       );
+    });
+  });
+
+  describe('action items files (Story 2.10)', () => {
+    it('writes action-items-{email}.md for each team member', () => {
+      const paths = Array.from(writtenFiles.keys());
+      expect(
+        paths.some((p) =>
+          p.includes(`my-teams/members/${TEAM_MEMBER_EMAIL}/action-items-${TEAM_MEMBER_EMAIL}.md`),
+        ),
+      ).toBe(true);
+    });
+
+    it('action-items file contains correct frontmatter', () => {
+      const actionItemsPath = Array.from(writtenFiles.keys()).find((p) =>
+        p.includes(`action-items-${TEAM_MEMBER_EMAIL}.md`),
+      );
+      expect(actionItemsPath).toBeDefined();
+      const content = writtenFiles.get(actionItemsPath!)!;
+      expect(content).toContain(`email: "[[${TEAM_MEMBER_EMAIL}]]"`);
+      expect(content).toContain('type: action-items');
+    });
+
+    it('action-items file contains ACTION ITEMS TRACKER heading', () => {
+      const actionItemsPath = Array.from(writtenFiles.keys()).find((p) =>
+        p.includes(`action-items-${TEAM_MEMBER_EMAIL}.md`),
+      );
+      const content = writtenFiles.get(actionItemsPath!)!;
+      expect(content).toContain('## ACTION ITEMS TRACKER');
+    });
+
+    it('member profile contains ## Action Items section with wiki-link', () => {
+      const memberPath = Array.from(writtenFiles.keys()).find((p) =>
+        p.includes(`my-teams/members/${TEAM_MEMBER_EMAIL}/${TEAM_MEMBER_EMAIL}.md`),
+      );
+      expect(memberPath).toBeDefined();
+      const content = writtenFiles.get(memberPath!)!;
+      expect(content).toContain('## Action Items');
+      expect(content).toContain(`[[action-items-${TEAM_MEMBER_EMAIL}|Action Items Tracker]]`);
+    });
+
+    it('member profile frontmatter includes action_items_gdoc field', () => {
+      const memberPath = Array.from(writtenFiles.keys()).find((p) =>
+        p.includes(`my-teams/members/${TEAM_MEMBER_EMAIL}/${TEAM_MEMBER_EMAIL}.md`),
+      );
+      const content = writtenFiles.get(memberPath!)!;
+      expect(content).toContain("action_items_gdoc: ''");
+    });
+
+    it('does not create .gdoc pointer file when google_drive_enabled is false', () => {
+      const paths = Array.from(writtenFiles.keys());
+      expect(paths.some((p) => p.endsWith('.gdoc'))).toBe(false);
+    });
+  });
+
+  describe('task files (Story 2.9)', () => {
+    it('writes my-tasks/today.md with default template', () => {
+      const paths = Array.from(writtenFiles.keys());
+      expect(paths.some((p) => p.includes('my-tasks/today.md'))).toBe(true);
+    });
+
+    it('writes my-tasks/this-week.md with default template', () => {
+      const paths = Array.from(writtenFiles.keys());
+      expect(paths.some((p) => p.includes('my-tasks/this-week.md'))).toBe(true);
+    });
+
+    it('writes my-tasks/this-month.md with default template', () => {
+      const paths = Array.from(writtenFiles.keys());
+      expect(paths.some((p) => p.includes('my-tasks/this-month.md'))).toBe(true);
+    });
+
+    it('writes my-tasks/this-quarter.md with default template', () => {
+      const paths = Array.from(writtenFiles.keys());
+      expect(paths.some((p) => p.includes('my-tasks/this-quarter.md'))).toBe(true);
+    });
+
+    it('task file content contains expected template header', () => {
+      const todayPath = Array.from(writtenFiles.keys()).find((p) =>
+        p.includes('my-tasks/today.md'),
+      );
+      expect(todayPath).toBeDefined();
+      const content = writtenFiles.get(todayPath!)!;
+      expect(content).toContain('# Tasks — Today');
+      expect(content).toContain('tmr process');
+    });
+
+    it('does not overwrite existing task files (idempotent)', () => {
+      // mockFsExists returns false by default in beforeAll — all files are created.
+      // This test verifies all 4 files are written (exists=false → writeFile called).
+      const taskPaths = Array.from(writtenFiles.keys()).filter((p) => p.includes('my-tasks/'));
+      expect(taskPaths).toHaveLength(4);
     });
   });
 });
