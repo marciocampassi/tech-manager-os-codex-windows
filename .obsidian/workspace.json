@@ -11,10 +11,10 @@
             "id": "88f5a242556b5a60",
             "type": "leaf",
             "state": {
-              "type": "graph",
+              "type": "empty",
               "state": {},
-              "icon": "lucide-git-fork",
-              "title": "Visualização em gráfico"
+              "icon": "lucide-file",
+              "title": "Nova aba"
             }
           }
         ]
@@ -178,6 +178,11 @@
   },
   "active": "88f5a242556b5a60",
   "lastOpenFiles": [
+    "docs/story-3.4-fluxo.canvas",
+    "Sem título.base",
+    "2026-04-07.md",
+    "Sem título 1.canvas",
+    "Sem título.canvas",
     "dist/cli.d.ts"
   ]
 }
