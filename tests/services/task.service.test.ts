@@ -25,6 +25,7 @@ function createMockFS(): MockFS {
     appendFile: jest.fn<FileSystemService['appendFile']>().mockResolvedValue(undefined),
     listFiles: jest.fn<FileSystemService['listFiles']>().mockResolvedValue([]),
     listDirectories: jest.fn<FileSystemService['listDirectories']>().mockResolvedValue([]),
+    removeFile: jest.fn<FileSystemService['removeFile']>().mockResolvedValue(undefined),
   };
 }
 

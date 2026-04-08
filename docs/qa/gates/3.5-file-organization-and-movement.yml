@@ -1,0 +1,48 @@
+schema: 1
+story: "3.5"
+story_title: "File Organization and Movement"
+gate: PASS
+status_reason: "All 7 ACs implemented with unit and integration tests; path traversal rejected for destinations; inbox sources validated; multi-dest uses atomic writes then inbox removal."
+reviewer: "Quinn (Test Architect)"
+updated: "2026-04-08T12:00:00Z"
+
+waiver: { active: false }
+
+top_issues: []
+
+risk_summary:
+  totals: { critical: 0, high: 0, medium: 0, low: 0 }
+  recommendations:
+    must_fix: []
+    monitor:
+      - "Story 3.6 should inject FileOrganizationService after categorization and handle Result failures in the process orchestrator"
+
+quality_score: 95
+expires: "2026-04-22T00:00:00Z"
+
+evidence:
+  tests_reviewed: 11
+  risks_identified: 0
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: "Workspace-relative destinations resolved under workspace root; traversal outside root returns null / archive fallback"
+  performance:
+    status: PASS
+    notes: "O(n) destinations with sequential writes; typical n is small"
+  reliability:
+    status: PASS
+    notes: "Public API returns Result<T>; multi-write failure leaves inbox in place until all writes succeed"
+  maintainability:
+    status: PASS
+    notes: "Clear split: move / copy-many / archive; FileSystemService extended with removeFile"
+
+recommendations:
+  immediate: []
+  future:
+    - action: "Wire FileOrganizationService into tmr process (Story 3.6)"
+      refs: ["src/services/file-organization.service.ts"]

@@ -9,6 +9,7 @@ const mockMove = jest.fn<() => Promise<void>>();
 const mockPathExists = jest.fn<() => Promise<unknown>>();
 const mockAppendFile = jest.fn<() => Promise<void>>();
 const mockReaddir = jest.fn<() => Promise<unknown>>();
+const mockUnlink = jest.fn<() => Promise<void>>();
 
 jest.unstable_mockModule('fs-extra', () => ({
   ensureDir: mockEnsureDir,
@@ -20,6 +21,7 @@ jest.unstable_mockModule('fs-extra', () => ({
   pathExists: mockPathExists,
   appendFile: mockAppendFile,
   readdir: mockReaddir,
+  unlink: mockUnlink,
 }));
 
 const { FileSystemService, FileSystemError } =
@@ -38,6 +40,7 @@ beforeEach(() => {
   mockPathExists.mockReset();
   mockAppendFile.mockReset();
   mockReaddir.mockReset();
+  mockUnlink.mockReset();
 });
 
 // ─── FileSystemError ─────────────────────────────────────────────────────────
@@ -323,6 +326,31 @@ describe('FileSystemService — appendFile', () => {
     await expect(service.appendFile('/logs/app.log', 'x')).rejects.toMatchObject({
       operation: 'appendFile',
       path: '/logs/app.log',
+      cause: root,
+    });
+  });
+});
+
+// ─── removeFile ────────────────────────────────────────────────────────────────
+
+describe('FileSystemService — removeFile', () => {
+  it('calls fs.unlink with the given path', async () => {
+    mockUnlink.mockResolvedValue(undefined);
+    await service.removeFile('/tmp/delete-me.txt');
+    expect(mockUnlink).toHaveBeenCalledWith('/tmp/delete-me.txt');
+  });
+
+  it('throws FileSystemError when unlink fails', async () => {
+    mockUnlink.mockRejectedValue(new Error('ENOENT'));
+    await expect(service.removeFile('/missing.txt')).rejects.toBeInstanceOf(FileSystemError);
+  });
+
+  it('FileSystemError has operation "removeFile", correct path, and cause', async () => {
+    const root = new Error('ENOENT');
+    mockUnlink.mockRejectedValue(root);
+    await expect(service.removeFile('/missing.txt')).rejects.toMatchObject({
+      operation: 'removeFile',
+      path: '/missing.txt',
       cause: root,
     });
   });

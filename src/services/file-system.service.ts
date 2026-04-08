@@ -81,6 +81,23 @@ export class FileSystemService {
     return fs.pathExists(targetPath);
   }
 
+  /**
+   * Deletes a file at the given path (not directories — `unlink` semantics).
+   * Used after successful multi-destination writes to clear the inbox copy.
+   */
+  async removeFile(filePath: string): Promise<void> {
+    try {
+      await fs.unlink(filePath);
+    } catch (err) {
+      throw new FileSystemError(
+        err instanceof Error ? err.message : 'removeFile failed',
+        'removeFile',
+        filePath,
+        err,
+      );
+    }
+  }
+
   // ─── Architecture-mandated additions (components.md § FileSystemService) ─
 
   /**
