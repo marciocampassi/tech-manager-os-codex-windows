@@ -1,0 +1,43 @@
+schema: 1
+story: '3.3'
+story_title: 'Context Summary Updates via CLI Injection'
+gate: PASS
+status_reason: 'All 7 ACs implemented and verified. 30 tests pass (22 unit + 8 integration). One refactoring performed (block separator). No blocking issues.'
+reviewer: 'Quinn (Test Architect)'
+updated: '2026-04-07T00:00:00Z'
+
+top_issues: []
+waiver:
+  active: false
+
+quality_score: 97
+expires: '2026-04-21T00:00:00Z'
+
+evidence:
+  tests_reviewed: 30
+  risks_identified: 1
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'No API key exposure; no PII logged; file content is the manager''s own workspace data. Path construction uses path.join (no traversal risk). Email normalised to lowercase before path construction.'
+  performance:
+    status: PASS
+    notes: 'Two fs.exists() calls per updateContext() invocation (member check, then leadership fallback). O(1) per call regardless of workspace size. No full file reads — SectionParserService handles file I/O internally.'
+  reliability:
+    status: PASS
+    notes: 'All public async methods return Result<T>; never throw. Both try/catch blocks (entity detection + append) handle non-Error throwables gracefully. SectionParserService.appendToFile() is atomic (write to tmp then rename). Empty insights array is a no-op, not an error.'
+  maintainability:
+    status: PASS
+    notes: 'Three-level private method chain (_formatInsightBlock → _ensureContextFile → _appendInsights) isolates concerns. Path helpers are pure functions at module scope. Single source of truth for section name via CONTEXT_SECTION_NAME constant. Consistent with Epic 2 service patterns.'
+
+recommendations:
+  immediate: []
+  future:
+    - action: 'Extract Result<T> to src/types/shared.types.ts when ≥3 Epic 3 services define it inline (non-blocking; now at 3 — inbox, categorization, context)'
+      refs: ['src/services/context.service.ts', 'src/services/categorization.service.ts', 'src/services/inbox.service.ts']
+    - action: 'Story 3.6 (tmr process) should resolve insight Record keys (member names) to emails before calling updateContext() — EmailResolutionService already exists for this'
+      refs: ['src/services/email-resolution.service.ts']
