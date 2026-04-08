@@ -43,6 +43,7 @@ export class GeminiProvider extends BaseAIProvider {
       await this.enforceRateLimit();
       const model = this.genAI.getGenerativeModel({
         model: options?.model ?? DEFAULT_MODEL,
+        ...(options?.systemPrompt ? { systemInstruction: options.systemPrompt } : {}),
       });
       const result = await this.withRetry(() => model.generateContent(prompt));
       return result.response.text();
@@ -61,6 +62,7 @@ export class GeminiProvider extends BaseAIProvider {
       await this.enforceRateLimit();
       const model = this.genAI.getGenerativeModel({
         model: options?.model ?? DEFAULT_MODEL,
+        ...(options?.systemPrompt ? { systemInstruction: options.systemPrompt } : {}),
       });
       const result = await this.withRetry(() => model.generateContentStream(prompt));
       for await (const chunk of result.stream) {
