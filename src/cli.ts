@@ -8,6 +8,7 @@ import { createRelationshipCommand } from './commands/relationship.command.js';
 import { createLeadershipCommand } from './commands/leadership.command.js';
 import { createProjectCommand } from './commands/project.command.js';
 import { createTaskViewCommands } from './commands/task-view.command.js';
+import { createProcessCommand } from './commands/process.command.js';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json') as { version: string; description: string };
@@ -54,13 +55,7 @@ export function createProgram(): Command {
       await runShow(email);
     });
 
-  p.command('process')
-    .description('process inbox files and update context')
-    .action(() => {
-      process.stdout.write(
-        "Command 'process' coming soon — run 'tmr --help' for available commands\n",
-      );
-    });
+  p.addCommand(createProcessCommand());
 
   p.command('watch')
     .description('watch inbox folder and auto-process new files')

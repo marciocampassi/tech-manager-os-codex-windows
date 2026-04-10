@@ -1,0 +1,48 @@
+schema: 1
+story: "3.6"
+story_title: "`tmr process` Command Implementation"
+gate: PASS
+status_reason: "Full pipeline wired with InboxProcessService; progress lines [1/5]–[5/5]; summary covers scans, contexts, tasks, suggested actions, and errors; loader + integration tests; partial failure paths continue processing."
+reviewer: "Quinn (Test Architect)"
+updated: "2026-04-09T12:00:00Z"
+
+waiver: { active: false }
+
+top_issues: []
+
+risk_summary:
+  totals: { critical: 0, high: 0, medium: 0, low: 1 }
+  recommendations:
+    must_fix: []
+    monitor:
+      - "Low: insight keys that do not match any member/project are skipped silently unless future verbose logging is added"
+
+quality_score: 92
+expires: "2026-04-23T00:00:00Z"
+
+evidence:
+  tests_reviewed: 4
+  risks_identified: 1
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: "API keys from existing config; no new secret storage; workspace paths only"
+  performance:
+    status: PASS
+    notes: "Sequential per-file categorization; typical inbox sizes small"
+  reliability:
+    status: PASS
+    notes: "Result<T> throughout; per-file errors collected; dry-run avoids writes"
+  maintainability:
+    status: PASS
+    notes: "Orchestrator isolated in inbox-process.service.ts; CLI thin in process.command.ts"
+
+recommendations:
+  immediate: []
+  future:
+    - action: "Optional: surface skipped insight keys when --verbose is set"
+      refs: ["src/services/inbox-process.service.ts"]
