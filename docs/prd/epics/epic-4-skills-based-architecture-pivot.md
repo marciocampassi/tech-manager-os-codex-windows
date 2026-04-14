@@ -24,18 +24,23 @@
    - `my-teams/members/`, `my-teams/teams/`, `my-teams/feedback-templates/`
    - `.claude/skills/`, `.obsidian/`
    - `knowledge-base/branding-guidelines/`, `knowledge-base/company/`, `knowledge-base/people/`, `knowledge-base/process/`, `knowledge-base/security/`
-3. Generates `CLAUDE.md` at vault root containing:
+3. Adds `dataview` to the existing Obsidian plugin installer (`ObsidianPluginService`) alongside the three plugins already installed by Story 2.7:
+   - Add `{ id: 'dataview', owner: 'blacksmithgu', repo: 'obsidian-dataview' }` to `OBSIDIAN_PLUGINS` in `src/services/obsidian-plugin.service.ts`
+   - `installPlugins()` downloads `main.js`, `manifest.json`, `styles.css` from `https://github.com/blacksmithgu/obsidian-dataview/releases/latest/download/{file}` using the same concurrent fetch + 30s timeout pattern as the existing plugins
+   - `.obsidian/community-plugins.json` updated to include `"dataview"` alongside the existing three plugin IDs
+   - Integration test updated to assert `dataview` directory exists and `community-plugins.json` contains all four IDs
+4. Generates `CLAUDE.md` at vault root containing:
    - Identity block (name, email, role, company) from onboarding responses
    - Folder structure reference section describing each top-level folder's purpose
    - Communication style section with labeled placeholder content (user fills in later)
    - Pointer to `my-company/` for deeper company and team context
-4. All created folders and files follow TECH-MANAGER-OS-TEMPLATE naming conventions:
+5. All created folders and files follow TECH-MANAGER-OS-TEMPLATE naming conventions:
    - Lowercase kebab-case for all folder and file names
    - Email addresses used verbatim as identifiers (not normalized)
    - ISO 8601 dates (`YYYY-MM-DD`) for all time-bound filenames
-5. Does NOT collect or prompt for API keys — directs user to `tmr config` if asked
-6. Displays a clear "next steps" summary on completion pointing to `tmr config` and `tmr install tmr-inbox`
-7. Integration test validates: all directories exist, `CLAUDE.md` contains identity block, no API key prompts
+6. Does NOT collect or prompt for API keys — directs user to `tmr config` if asked
+7. Displays a clear "next steps" summary on completion pointing to `tmr config` and `tmr install tmr-inbox`
+8. Integration test validates: all directories exist, `CLAUDE.md` contains identity block, `.obsidian/community-plugins.json` contains `["obsidian-git", "obsidian-granola-sync", "obsidian-terminal", "dataview"]`, no API key prompts
 
 ---
 
