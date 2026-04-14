@@ -1,8 +1,17 @@
 # Sprint Change Proposal — Epic Reordering & CLI-First Architecture
 
-**Date:** 2026-03-04  
-**Submitted by:** John (PM Agent)  
-**Status:** ✅ READY FOR APPROVAL
+**Date:** 2026-03-04
+**Submitted by:** John (PM Agent)
+**Status:** ✅ APPROVED & IMPLEMENTED — ⚠️ SUPERSEDED
+
+> **Note for developers:** This proposal was approved and fully implemented. It has since been superseded by a further strategic pivot documented in [`docs/ARCHITECTURE-PIVOT-2026-04.md`](./ARCHITECTURE-PIVOT-2026-04.md) (April 2026).
+>
+> Key differences from the current plan:
+> - The folder paths in this document (`_members/`, `_teams/`, `my-company/relationships/`) have been corrected to match the TECH-MANAGER-OS-TEMPLATE (see `docs/TECH-MANAGER-OS-TEMPLATE`)
+> - Epics 4–7 (agent commands) documented below were subsequently removed in the April 2026 pivot
+> - A new Epic 4 (Skills-Based Architecture Pivot) and a renumbered Epic 5 (Publish) replaced them
+>
+> Read `docs/ARCHITECTURE-PIVOT-2026-04.md` for the current state of the product plan.
 
 ---
 
@@ -110,16 +119,19 @@ Stories:
 ### 3. Design Decisions
 
 **Multi-Team Structure (Option A - Approved):**
+
+> ⚠️ Folder names below use underscores (`_members/`, `_teams/`) as originally designed. These were subsequently renamed without underscores (`members/`, `teams/`) in the April 2026 pivot to align with TECH-MANAGER-OS-TEMPLATE. The structure and logic are otherwise unchanged.
+
 ```
 /my-teams/
-  _members/
-    {email}/              ← Single source of truth
-      {email}.md          ← Profile with teams array in frontmatter
+  members/              ← was _members/ (corrected April 2026)
+    {email}/            ← Single source of truth
+      {email}.md        ← Profile with teams array in frontmatter
       1on1s/
-      feedback/
+      feedbacks/        ← was feedback/ (corrected April 2026)
       assessments/
       performance-reviews/
-  _teams/
+  teams/                ← was _teams/ (corrected April 2026)
     {team-name}/
       {team-name}-context.md   ← Team-level info
       {team-name}-members.md   ← Wiki-links to members
@@ -180,9 +192,9 @@ Stories:
 ### Email Resolution Hierarchy
 
 For all linking commands:
-1. Check `/my-teams/_members/{email}/` (team member)
+1. Check `/my-teams/members/{email}/` (team member) *(path corrected in April 2026 pivot)*
 2. Check `/my-leadership/{email}/` (leadership)
-3. Check `/my-company/relationships/{email}/` (relationship)
+3. Check `/my-company/members/{email}/` (company member) *(was `relationships/` — corrected in April 2026 pivot)*
 4. If not found: Execute `tmr relationship add <email>` (auto-create)
 
 ---
@@ -265,12 +277,12 @@ For all linking commands:
 - [x] Command specifications documented
 - [x] Sprint Change Proposal created
 
-### 🔲 Pending User Approval
+### ✅ Approved (2026-03-04)
 
-- [ ] User approves epic reordering
-- [ ] User approves multi-team structure (Option A)
-- [ ] User approves command specifications
-- [ ] User approves token optimization approach
+- [x] User approved epic reordering
+- [x] User approved multi-team structure (Option A)
+- [x] User approved command specifications
+- [x] User approved token optimization approach
 
 ### 📋 Next Steps (After Approval)
 
@@ -353,9 +365,9 @@ This is a planning change that doesn't require architect or designer involvement
 
 ---
 
-## Approval Required
+## Approval Record
 
-**Please review and approve:**
+All items below were approved on 2026-03-04 and implemented:
 
 1. ✅ Epic reordering (Epic 2 → Epic 3, new Epic 2 for CLI)
 2. ✅ Multi-team structure (Option A: _members/ + _teams/)
@@ -363,7 +375,7 @@ This is a planning change that doesn't require architect or designer involvement
 4. ✅ Token optimization approach (CLI injection pattern)
 5. ✅ "cycle" → "process" rename
 
-**Type `APPROVED` to confirm, or provide feedback for adjustments.**
+> **Subsequent changes:** The April 2026 pivot (see `docs/ARCHITECTURE-PIVOT-2026-04.md`) further corrected folder paths and removed Epics 4–7. The multi-team folder structure documented above uses `_members/` and `_teams/` prefixes which were later renamed to `members/` and `teams/` (without underscores) to align with the TECH-MANAGER-OS-TEMPLATE.
 
 ---
 
