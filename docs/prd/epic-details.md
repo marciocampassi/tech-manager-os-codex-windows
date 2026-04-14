@@ -127,14 +127,14 @@
 **Acceptance Criteria:**
 
 1. **Directory Structure Created:**
-   - `/my-teams/_members/{email}/` — Single member profile location
-   - `/my-teams/_members/{email}/{email}.md` — Profile file
-   - `/my-teams/_members/{email}/1on1s/` — Directory for 1on1 files
-   - `/my-teams/_members/{email}/feedback/` — Directory for feedback files
-   - `/my-teams/_members/{email}/assessments/` — Directory for assessment files
-   - `/my-teams/_members/{email}/performance-reviews/` — Directory for review files
-   - `/my-teams/_teams/{team-name}/{team-name}-context.md` — Team-level context
-   - `/my-teams/_teams/{team-name}/{team-name}-members.md` — Team member links
+   - `/my-teams/members/{email}/` — Single member profile location
+   - `/my-teams/members/{email}/{email}.md` — Profile file
+   - `/my-teams/members/{email}/1on1s/` — Directory for 1on1 files
+   - `/my-teams/members/{email}/feedbacks/` — Directory for feedback files
+   - `/my-teams/members/{email}/assessments/` — Directory for assessment files
+   - `/my-teams/members/{email}/performance-reviews/` — Directory for review files
+   - `/my-teams/teams/{team-name}/{team-name}-context.md` — Team-level context
+   - `/my-teams/teams/{team-name}/{team-name}-members.md` — Team member links
 
 2. **`tmr team create <team-name>` Command:**
    - Creates team directory structure
@@ -146,7 +146,7 @@
 3. **`tmr team add <team-name> <email> [--role=<role>] [--location=<location>]` Command:**
    - Auto-creates team if doesn't exist
    - If no parameters provided, prompts interactively for: team-name, email, role, location
-   - Creates member directory structure (if doesn't exist)
+   - Creates member directory structure under `my-teams/members/{email}/` (if doesn't exist)
    - Generates `{email}.md` with frontmatter:
      ```yaml
      ---
@@ -157,22 +157,20 @@
      date_added: <current-date>
      ---
      ```
-   - Adds sections: Current Manager, Previous Managers, Other Leaderships, Previous Leaderships, Performance Reviews, 1on1s, Assessments, Feedbacks
-   - Populates "Current Manager" with `[[my-career/{logged-user-email}.md]]`
    - If member already exists in another team, appends team-name to `teams` array
-   - Appends wiki-link to team's `{team-name}-members.md`: `- [[../../_members/{email}/{email}.md|{email}]]`
+   - Appends wiki-link to team's `{team-name}-members.md`: `- [[../../members/{email}/{email}.md|{email}]]`
    - Unit tests cover: new member, existing member, interactive mode, auto-team-creation
 
 4. **`tmr team list [team-name]` Command:**
    - Without team-name: displays table of all teams with member counts
    - With team-name: displays table of team members with: email, role, location, date_added
-   - Reads from `_teams/*/members.md` and `_members/*/frontmatter`
+   - Reads from `teams/*/members.md` and `members/*/frontmatter`
    - Formats output with aligned columns
    - Unit tests cover: all teams, specific team, empty team
 
 5. **`tmr team archive <team-name> <email> [--from <date>] [--to <date>]` Command:**
    - If no parameters, prompts interactively
-   - Moves member directory: `/my-teams/_members/{email}/` → `/my-teams/_archived/{year}/{email}/`
+   - Moves member directory: `/my-teams/members/{email}/` → `/archive/my-teams/members/{email}/`
    - Adds `archived: true` and `archived_date: <date>` to frontmatter
    - Optional date filters move only files in date range
    - Removes member wiki-link from team's `{team-name}-members.md`
@@ -185,7 +183,7 @@
    - Unit tests cover: termination marking
 
 7. **`tmr show <email>` Command:**
-   - Searches for email in: `_members/`, `_archived/`, `my-leadership/`, `my-company/relationships/`
+   - Searches for email in: `my-teams/members/`, `my-leadership/`, `my-company/members/`, `archive/`
    - Displays profile content with formatted output
    - Shows: teams, role, location, section summaries (counts of 1on1s, feedback, etc.)
    - Error handling: email not found
@@ -200,8 +198,8 @@
 **Acceptance Criteria:**
 
 1. **`tmr member <email> add 1on1` Command:**
-   - Finds member in `/my-teams/_members/{email}/`
-   - Creates file: `1on1s/{date}-{email}-1on1.md` with template:
+   - Finds member in `/my-teams/members/{email}/`
+   - Creates file: `1on1s/YYYY-MM-DD-1on1-{email}.md` with template:
      ```yaml
      ---
      date: <date>
@@ -266,12 +264,12 @@
 1. **`tmr relationship add <email>` Command:**
    - Creates structure:
      ```
-     /my-company/relationships/{email}/
+     /my-company/members/{email}/
        {email}.md              (profile with frontmatter)
        1on1s/                  (directory)
      ```
    - Profile template includes: name, role, department, relationship_type
-   - If email already exists in relationships, returns "already exists" message
+   - If email already exists in `my-company/members/`, returns "already exists" message
    - If no email provided, prompts interactively
    - Unit tests cover: creation, already exists, interactive mode
 
@@ -283,7 +281,7 @@
    - Unit tests cover: batch creation, partial success
 
 3. **`tmr relationship <email> add 1on1` Command:**
-   - Creates file: `/my-company/relationships/{email}/1on1s/{date}-{email}-1on1.md`
+   - Creates file: `/my-company/members/{email}/1on1s/YYYY-MM-DD-1on1-{email}.md`
    - Template similar to team member 1on1
    - Appends to relationship profile "## 1on1s" section
    - Error handling: relationship not found (suggests creating first)
@@ -334,62 +332,33 @@
 1. **`tmr project add <project-name>` Command:**
    - Creates structure:
      ```
-     /my-company/projects/{project-name}-project.md
-     /my-projects/{project-name}/
-       {project-name}-composition.md
-       standup/                (directory)
-       discussion/             (directory)
-       presentation/           (directory)
+     /my-company/projects/{project-name}/
+       {project-name}-project.md    (project overview, goals, timeline)
+       meetings/                    (directory)
      ```
-   - `{project-name}-project.md` template: project overview, goals, timeline
-   - `{project-name}-composition.md` template with sections:
-     ```markdown
-     # Team Members
-     
-     # Stakeholders
-     ```
+   - All paths follow TECH-MANAGER-OS-TEMPLATE naming (kebab-case, `-project` suffix)
    - If no project-name, prompts interactively
    - Unit tests cover: creation, already exists
 
-2. **`tmr project <project-name> add standup` Command:**
-   - Creates file: `/my-projects/{project-name}/standup/{date}-{project-name}-standup.md`
-   - Template includes: yesterday, today, blockers
+2. **`tmr project <project-name> add meeting` Command:**
+   - Creates file: `/my-company/projects/{project-name}/meetings/YYYY-MM-DD-{topic}-{project-name}-project.md`
+   - Template includes: attendees, decisions, action items
    - Unit tests cover: creation
 
-3. **`tmr project <project-name> add discussion` Command:**
-   - Creates file: `/my-projects/{project-name}/discussion/{date}-{project-name}-discussion.md`
-   - Template includes: topic, attendees, decisions, action items
-   - Unit tests cover: creation
-
-4. **`tmr project <project-name> add presentation --topic=<topic>` Command:**
-   - Creates file: `/my-projects/{project-name}/presentation/{date}-{project-name}-presentation-{topic}.md`
-   - Template includes: slides outline, talking points, Q&A
-   - If no topic, prompts interactively
-   - Unit tests cover: creation, interactive mode
-
-5. **`tmr project <project-name> link-member <email>` Command:**
+3. **`tmr project <project-name> link-member <email>` Command:**
    - Uses hierarchical email resolution (see Story 2.6)
    - If email not found anywhere, creates via `tmr relationship add <email>`
-   - Appends to composition.md "# Team Members" section: `- [[path-to-email-profile|{email}]]`
-   - Determines correct wiki-link path based on email location (team/leadership/relationships)
+   - Appends wiki-link to project file "# Team Members" section
+   - Determines correct wiki-link path based on email location (`my-teams/members/`, `my-leadership/`, `my-company/members/`)
    - Unit tests cover: existing team member, existing relationship, new email
 
-6. **`tmr project <project-name> link-members <email-list>` Batch Command:**
+4. **`tmr project <project-name> link-members <email-list>` Batch Command:**
    - Executes `link-member` for each email in comma-separated list
    - Progress indicator for batch operations
    - Summary: X linked, Y created
    - Unit tests cover: batch linking
 
-7. **`tmr project <project-name> link-stakeholder <email>` Command:**
-   - Same logic as link-member
-   - Appends to composition.md "# Stakeholders" section
-   - Unit tests cover: linking, new email
-
-8. **`tmr project <project-name> link-stakeholders <email-list>` Batch Command:**
-   - Batch version of link-stakeholder
-   - Unit tests cover: batch linking
-
-9. **`tmr project list` Command:**
+5. **`tmr project list` Command:**
    - Displays table: project-name, team member count, stakeholder count
    - Unit tests cover: listing
 
@@ -405,10 +374,10 @@
    - Method: `resolve(email: string): EntityLocation`
    - Returns: `{ type: 'team' | 'leadership' | 'relationship', path: string }`
    - Hierarchy order:
-     1. Check `/my-teams/_members/{email}/` (team member)
+     1. Check `/my-teams/members/{email}/` (team member)
      2. Check `/my-leadership/{email}/` (leadership)
-     3. Check `/my-company/relationships/{email}/` (relationship)
-     4. If not found, execute `tmr relationship add <email>` and return relationship path
+     3. Check `/my-company/members/{email}/` (company member)
+     4. If not found, execute `tmr relationship add <email>` and return company member path
 
 2. **Email Validation:**
    - Validates email format before resolution
@@ -418,7 +387,7 @@
 3. **Path Generator:**
    - Method: `generateWikiLink(email: string, fromPath: string): string`
    - Generates correct Obsidian wiki-link with relative path
-   - Example: From `/my-projects/platform/composition.md` to `/my-teams/_members/user@example.com/user@example.com.md` → `[[../../my-teams/_members/user@example.com/user@example.com.md|user@example.com]]`
+   - Example: From `/my-company/projects/platform/platform-project.md` to `/my-teams/members/user@example.com/user@example.com.md` → `[[../../../my-teams/members/user@example.com/user@example.com.md|user@example.com]]`
    - Unit tests cover: various path combinations
 
 4. **Integration with All Commands:**
@@ -564,11 +533,117 @@
 
 ---
 
-## Epic 4: People Management Agent System
+## Epic 4: Skills-Based Architecture Pivot
 
-**Expanded Goal:** Implement people-focused agent commands for 1:1 preparation, feedback generation, PDP creation/updates, PIP management, and performance reviews. All agent commands leverage Epic 2 CLI for file manipulation, enabling token-optimized context operations where agents generate content and invoke CLI commands rather than directly reading/parsing files. This epic delivers intelligent assistance for the complete people management lifecycle.
+**Expanded Goal:** Re-align the product to its proven architecture. `tmr init` scaffolds the full vault structure per TECH-MANAGER-OS-TEMPLATE and generates a `CLAUDE.md` context file. All CLI routing paths are corrected to match the template and Epic 3 is retested end-to-end. `tmr-inbox` is generalized into a distributable Claude Code skill. A skill install/update mechanism lets users receive new skills over time.
 
-### Story 4.1: Profile Collection Workflow
+### Story 4.1: Pivot `tmr init` — Vault Scaffolding + CLAUDE.md Generation
+
+**As a** new leader,
+**I want** `tmr init` to scaffold my full vault and generate a `CLAUDE.md` file,
+**so that** I can start using the system with Claude Code immediately without manual setup.
+
+**Acceptance Criteria:**
+
+1. `tmr init` runs a minimal interactive onboarding collecting: name, email, role, company/domain
+2. Scaffolds complete directory structure per TECH-MANAGER-OS-TEMPLATE:
+   - `inbox/`, `archive/`, `config/`, `knowledge-base/`, `my-career/`, `my-company/`, `my-leadership/`, `my-tasks/`, `my-teams/`, `.claude/skills/`, `.obsidian/`
+   - `my-teams/members/`, `my-teams/teams/`, `my-teams/feedback-templates/`
+   - `my-company/members/`, `my-company/meetings/`, `my-company/projects/`
+   - `knowledge-base/branding-guidelines/`, `knowledge-base/company/`, `knowledge-base/people/`, `knowledge-base/process/`, `knowledge-base/security/`
+   - `my-career/assessments/`, `my-career/feedbacks/`
+   - `my-tasks/` with `tasks.md`, `today.md`, `this-week.md`, `this-month.md`, `this-quarter.md`
+3. Generates `CLAUDE.md` at vault root containing:
+   - Identity block (name, email, role, company) from onboarding responses
+   - Folder structure reference section describing each top-level folder's purpose
+   - Communication style section with labeled placeholder content
+   - Pointer to `my-company/` for deeper company and team context
+4. All created folders and files follow TECH-MANAGER-OS-TEMPLATE naming (lowercase kebab-case, ISO 8601 dates, email-as-identity)
+5. Does NOT collect or prompt for API keys — directs user to `tmr config` if asked
+6. Displays a clear "next steps" summary on completion
+7. Integration test validates full scaffold and `CLAUDE.md` contents
+
+### Story 4.2: Folder Structure Alignment + Epic 3 Path Correction & Retest
+
+**As a** developer,
+**I want** all CLI commands to use the TECH-MANAGER-OS-TEMPLATE folder paths,
+**so that** the CLI and the vault structure are consistent and `tmr process` works correctly.
+
+**Acceptance Criteria:**
+
+1. Audit all CLI commands (Epics 1–3) for any reference to old PRD paths and replace:
+   - `my-teams/{team}/{email}/` → `my-teams/members/{email}/`
+   - `my-projects/{project}/` → `my-company/projects/{project}/`
+   - `my-company/relationships/{email}/` → `my-company/members/{email}/`
+   - `operations/hiring/` → removed from routing
+2. `tmr process` routing engine updated to write to corrected paths
+3. Epic 3 retested end-to-end with the corrected paths:
+   - Inbox scanner picks up files
+   - AI categorization returns correct destinations
+   - Files move to the right folders under the new structure
+   - Context updates write to correct paths
+   - Task extraction appends to `my-tasks/tasks.md`
+4. All existing unit tests updated to reflect new paths
+5. Integration test runs the full `tmr process` flow against a vault scaffolded by the new `tmr init`
+
+### Story 4.3: `tmr config` First-Run Check in `tmr process`
+
+**As a** user running `tmr process` for the first time,
+**I want** a clear message if no API key is configured,
+**so that** I know exactly what to do before retrying.
+
+**Acceptance Criteria:**
+
+1. Before executing any AI call, `tmr process` checks whether an API key is stored in config
+2. If no key is found, command exits early with a clear, friendly message:
+   - Explains that `tmr process` requires an AI API key
+   - Instructs user to run `tmr config` to set it up
+   - Does NOT prompt for or collect the key inline
+3. If a key is found, proceeds normally
+4. `tmr config` remains the dedicated command for API key collection (no change to its implementation)
+5. Unit test covers the no-key detection and message output
+
+### Story 4.4: Generalize `tmr-inbox` Skill
+
+**As a** leader who installed the tmr-inbox skill,
+**I want** the skill to work from my `CLAUDE.md` without hardcoded values,
+**so that** any leader can install and use it for their own vault.
+
+**Acceptance Criteria:**
+
+1. All hardcoded user-specific values removed from `SKILL.md`:
+   - Vault owner email sourced from `CLAUDE.md` identity block
+   - Folder paths sourced from `CLAUDE.md` folder structure section
+   - Domain inference uses the vault owner's email domain from `CLAUDE.md`
+2. `SKILL.md` includes a clear "Prerequisites" section stating that `CLAUDE.md` must be populated before use
+3. Skill is authored in the repo under `skills/tmr-inbox/SKILL.md` (no user-specific content)
+4. Skill tested against a vault with a freshly generated `CLAUDE.md` (from Story 4.1)
+5. The `tmr-inbox setup` subcommand creates `my-tasks/tasks.md` and view files if missing
+
+### Story 4.5: Skill Install/Update Mechanism
+
+**As a** leader,
+**I want** to install and update skills via the CLI,
+**so that** I can receive new capabilities without manually copying files.
+
+**Acceptance Criteria:**
+
+1. `tmr install <skill-name>` command:
+   - Downloads the named skill from the official registry (GitHub releases or npm package)
+   - Installs it into `.claude/skills/<skill-name>/SKILL.md` in the current vault
+   - Displays a confirmation with the installed version
+   - Error handling: skill not found, network failure, already installed (offer to update)
+2. `tmr update` command:
+   - Detects all installed skills by scanning `.claude/skills/`
+   - Checks for newer versions
+   - Updates all skills that have newer versions available
+   - Reports: X updated, Y already up to date
+3. `tmr install tmr-inbox` works out of the box as the canonical first skill
+4. Unit tests cover install, already-installed, and update scenarios
+
+---
+
+## Epic 5: Polish, Testing & Distribution
 
 **As a** manager,  
 **I want** an easy way to collect structured profile information from team members,  
@@ -691,288 +766,11 @@
 
 ---
 
-## Epic 5: Leader's Career & Leadership Agent System
+## Epic 5: Polish, Testing & Distribution
 
-**Expanded Goal:** Enable managers to track their own career development with agent-assisted PDP management, brag document summarization, self-review generation, and leadership alignment tracking. All agent commands use Epic 2 CLI for file operations, ensuring consistent token-optimized operations. This epic ensures managers don't neglect their own growth.
+**Expanded Goal:** Comprehensive testing across all layers, complete documentation with user guide and examples, performance optimization, and npm packaging for distribution. This epic ensures the system is production-ready.
 
-### Story 5.1: Manager Career Commands
-
-**As a** manager,  
-**I want** to manage my own career development,  
-**so that** I'm intentional about my growth.
-
-**Acceptance Criteria:**
-
-1. `tmr my profile` opens profile in editor
-2. `tmr my pdp` opens PDP in editor
-3. Brag document managed manually (no commands)
-4. Files created during `tmr init` with suggested brag structure
-5. Unit tests for profile/pdp commands
-
-### Story 5.2: tmr-career Agent - PDP Management
-
-**As a** manager,  
-**I want** AI to help with my own PDP,  
-**so that** I have a clear development plan.
-
-**Acceptance Criteria:**
-
-1. Agent command: `*pdp-generate`
-2. Reads: my-career/profile.md, my-leadership/profile.md
-3. Generates PDP aligned with leader's expectations
-4. Agent command: `*pdp-update` suggests updates
-5. Outputs to: `my-career/pdp.md`
-6. Uses template: `manager-pdp-tmpl.yaml`
-7. Integration test validates alignment
-
-### Story 5.3: tmr-career Agent - Brag Document and Self-Review
-
-**As a** manager,  
-**I want** AI to help summarize my achievements,  
-**so that** I'm prepared for performance reviews.
-
-**Acceptance Criteria:**
-
-1. Agent command: `*brag-summarize`
-2. Analyzes brag document entries
-3. Generates summary by category: impact, leadership, technical
-4. Agent command: `*self-review <period>`
-5. Generates self-review draft from brag document and PDP
-6. Integration test validates quality
-
-### Story 5.4: Leadership Alignment Tracking
-
-**As a** manager,  
-**I want** my 1:1s with my leader tracked,  
-**so that** I maintain alignment.
-
-**Acceptance Criteria:**
-
-1. Process agent recognizes transcripts with leader (based on my-leadership/profile.md)
-2. **Uses CLI:** Executes `tmr leadership <email> add 1on1`
-3. Updates manager's context with alignment notes
-4. Flags misalignment with PDP
-5. Integration test validates categorization
-
----
-
-## Epic 6: Project Management Agent System
-
-**Expanded Goal:** Implement project-focused agent commands for status reporting, risk assessment, and stakeholder communication. All agent commands leverage Epic 2 CLI for project structure management and team composition updates. This epic extends beyond people management to cover the operational aspects of project delivery.
-
-### Story 6.1: Project Lifecycle Commands
-
-**As a** manager,  
-**I want** to view project information and status,  
-**so that** I can track my project portfolio.
-
-**Note:** Project creation commands are in Epic 2, Story 2.5. This story focuses on viewing and display commands.
-
-**Acceptance Criteria:**
-
-1. `tmr project list` displays table (implemented in Epic 2)
-2. `tmr project show <name>` displays full project context
-3. `tmr show <project>` displays context (implemented in Epic 2)
-4. Unit tests for display commands
-
-### Story 6.2: tmr-project Agent - Status Reports
-
-**As a** manager,  
-**I want** AI to generate weekly status reports,  
-**so that** I can quickly communicate project health.
-
-**Acceptance Criteria:**
-
-1. Agent command: `*status-report <project>`
-2. Reads: context.md, meetings, related member contexts
-3. Generates report: progress, risks, team capacity, next steps
-4. **Uses CLI:** Executes `tmr project <project-name> add standup` or creates custom report file
-5. Uses template: `status-report-tmpl.yaml`
-6. Integration test validates report quality
-
-### Story 6.3: tmr-project Agent - Risk Assessment
-
-**As a** manager,  
-**I want** AI to assess project risks,  
-**so that** I can proactively mitigate issues.
-
-**Acceptance Criteria:**
-
-1. Agent command: `*risk-assessment <project>`
-2. Analyzes recent context and identifies risks
-3. Generates assessment: risk list, severity, mitigation strategies
-4. Outputs to: `projects/active/{project}/risk-assessments/{date}.md`
-5. Integration test validates risk identification
-
-### Story 6.4: Hiring Workflow
-
-**As a** manager,  
-**I want** to manage hiring pipelines,  
-**so that** I can track candidates systematically.
-
-**Acceptance Criteria:**
-
-1. `tmr hiring open <role-and-seniority>` creates job description (auto-generated based on role/seniority)
-2. Interview transcripts auto-categorized by process agent to candidate folders
-3. `tmr hiring list` displays open positions
-4. Process agent creates candidate folders automatically
-5. Unit tests for all commands
-
-### Story 6.5: tmr-hiring Agent - Candidate Reviews
-
-**As a** manager,  
-**I want** AI to help review candidates,  
-**so that** I make informed hiring decisions.
-
-**Acceptance Criteria:**
-
-1. Agent command: `*candidate-review <candidate> --approved=true|false`
-2. Reads: interview transcripts, job description, culture values
-3. Generates review: technical assessment, culture fit, recommendation
-4. Outputs to: `operations/hiring/{role}/candidates/{name}/candidate-review.md`
-5. Integration test validates review quality
-
-### Story 6.6: Operations and Knowledge Base
-
-**As a** manager,  
-**I want** structured places for operational information,  
-**so that** everything has a home.
-
-**Acceptance Criteria:**
-
-1. Process agent categorizes: leadership meetings, company meetings, post-mortems to multi-level locations
-2. Knowledge base entries placed manually by user
-3. Binary files moved to `knowledge-base/files/` by process agent
-4. Knowledge base consulted by agents when relevant
-5. Integration test validates categorization
-
----
-
-## Epic 7: Agent System & BMAD Builder Integration
-
-**Expanded Goal:** Build the complete agent and skill system using the BMAD Builder framework as the foundational engine. Implement all tmr-* agent definitions as BMAD-compliant modules, author the `process-meeting-note` skill for intelligent Granola note routing, create IDE integration files for Cursor/Claude/Gemini/GitHub Copilot, and deliver SKILL.md-based extensibility aligned with the BMAD Method module specification. This epic replaces the previously planned custom Pack Engine with BMAD Builder.
-
-### Story 7.1: BMAD Builder Module Structure Setup
-
-**As a** developer,  
-**I want** the `.tm-core/` system structured as a BMAD Builder-compliant module,  
-**so that** all agents and skills follow a standardized, extensible format.
-
-**Acceptance Criteria:**
-
-1. `.tm-core/` directory organized per BMAD module specification:
-   - `agents/` — BMAD agent definition files
-   - `skills/` — BMAD SKILL.md workflow files
-   - `tasks/` — Task definition files
-   - `templates/` — Output templates
-   - `core-config.yaml` — Module configuration
-2. Module structure validated against BMAD Builder spec
-3. `tmr init` generates this structure in the workspace
-4. Unit tests verify directory creation and file presence
-
-### Story 7.2: `process-meeting-note` BMAD Skill
-
-**As a** manager,  
-**I want** Granola-synced meeting notes intelligently routed to the correct folders,  
-**so that** my workspace organizes itself from my meeting transcripts.
-
-**Acceptance Criteria:**
-
-1. `process-meeting-note.md` SKILL.md file created in `.tm-core/skills/`
-2. Skill parses Granola frontmatter: `granola_id`, `attendees`, `date`, `title`, `type`
-3. Identifies all email addresses in attendees and content
-4. Generates `[[@email@domain.com]]` wiki-links for all identified persons
-5. Determines destination category using priority order: Granola `type` field → attendee pattern → content keywords (see FR42 Routing Decision Table)
-6. **Confidence-gated routing:** When confidence is below threshold, presents proposed destination + rationale to user and awaits confirmation before any file is written; high-confidence decisions are applied automatically and shown in the processing summary with rationale
-7. **Single-pass manifest:** Produces one AI call per transcript yielding a structured change manifest `{ primary, appends[], task_extracts }` — only the transcript and profile frontmatter (not full context files) are loaded as AI input; the CLI code applies all writes atomically after the AI call completes
-8. **Append-only context updates:** Secondary `context.md` files receive a dated excerpt block appended at the end of the file; the AI does not read existing context file content; users manage cleanup manually
-9. Distributes content updates across all affected entity context files using the standard append entry format (see FR42)
-10. Creates or updates `{email}.md` identity file for any new email encountered; unknown persons with no team/project match are auto-created in `my-company/relationships/{email}/`
-11. Generated primary meeting note files include standard frontmatter + `> Connections:` callout (see FR42 header format)
-12. **Archive original:** After processing, moves the inbox file to `archive/{year}/{month}/inbox/{original-filename}.md` with `processed: true` and `routed_to: [...]` added to frontmatter
-13. **Folder philosophy communicated:** Processing summary explicitly states when a team member's meeting note is filed under `my-projects/` or `my-company/` (not their personal folder), so routing rationale is transparent to the user
-14. **Optional process log:** When `process_log: true` is set in config, appends a structured run entry to `my-tasks/process-log.md`; default is `false`
-15. Integration tests with sample Granola-format notes covering: simple 1:1, team meeting, project meeting with external attendees, and unknown-person scenario
-
-### Story 7.3: Template Engine with Variable Injection
-
-**As a** developer,  
-**I want** to inject variables into agent prompts and templates,  
-**so that** commands are context-aware.
-
-**Acceptance Criteria:**
-
-1. `TemplateService` with method: `render(template, variables)`
-2. Uses Handlebars for templating
-3. Variable sources: file paths, keywords, computed values
-4. Handles missing variables gracefully
-5. Security: sandboxed execution
-6. Unit tests cover injection scenarios
-
-### Story 7.4: Agent Definitions
-
-**As a** manager using an IDE,  
-**I want** to invoke specialized agents,  
-**so that** I get domain-specific assistance.
-
-**Acceptance Criteria:**
-
-1. All agents defined in `.tm-core/agents/`:
-   - process-agent.md (renamed from cycle-agent)
-   - tmr-people.md
-   - tmr-project.md
-   - tmr-career.md
-   - tmr-hiring.md
-   - tmr-master.md
-2. Each agent has: persona, commands, dependencies
-3. Documentation includes usage examples
-4. Agent files created during `tmr init`
-
-### Story 7.5: IDE Integration Files
-
-**As a** manager,  
-**I want** agents available in my IDE,  
-**so that** I can use them naturally in my workflow.
-
-**Acceptance Criteria:**
-
-1. `.cursor/rules/tm/*.mdc` files generated
-2. `.claude/agents/*.md` files generated
-3. `.gemini/agents/*.md` files generated
-4. `.github/copilot/skills/*.md` files generated
-5. Files include agent definition and command reference
-6. Files created during `tmr init`
-7. Integration test validates file structure
-
-### Story 7.6: BMAD Core Module — Base Skills and Tasks
-
-**As a** product manager,  
-**I want** a comprehensive set of base BMAD skills and tasks,  
-**so that** users get immediate value out of the box.
-
-**Acceptance Criteria:**
-
-1. All core skills created in `.tm-core/skills/`:
-   - `process-meeting-note.md` — Granola note routing (see Story 7.2)
-   - `process-workflow.md` — Full inbox processing workflow (renamed from cycle-workflow)
-   - `collect-profile.md` — Team member profile collection
-   - `onboarding-manager.md` — Leader onboarding workflow
-   - `archive-workflow.md` — Archive/fire member workflow
-2. All core tasks created in `.tm-core/tasks/`:
-   - `prepare-1on1.md`, `generate-feedback.md`, `create-pip.md`, `generate-pdp.md`
-   - `project-status-report.md`, `project-risk-assessment.md`
-   - `candidate-review.md`, `update-tasks-context.md`, `categorize-note.md`
-3. All skills/tasks follow BMAD module specification format
-4. Generated during `tmr init`
-5. Integration test validates all skill/task files are present and parseable
-
----
-
-## Epic 8: Polish, Testing & Distribution
-
-**Expanded Goal:** Comprehensive testing across all layers, complete documentation with user guide and examples, IDE integration validation, performance optimization, and npm packaging for distribution. This epic ensures the system is production-ready.
-
-### Story 8.1: Comprehensive Test Suite
+### Story 5.1: Comprehensive Test Suite
 
 **As a** developer,  
 **I want** thorough test coverage,  
@@ -987,7 +785,7 @@
 5. All tests passing
 6. CI/CD pipeline configured (GitHub Actions)
 
-### Story 8.2: Documentation
+### Story 5.2: Documentation
 
 **As a** new user,  
 **I want** comprehensive documentation,  
@@ -1004,7 +802,7 @@
 7. Examples directory with sample workflows
 8. `docs/setup/obsidian-setup.md` — Obsidian vault setup, Granola Sync plugin installation, and Obsidian Terminal plugin installation and configuration guide (FR41)
 
-### Story 8.3: Performance Optimization
+### Story 5.3: Performance Optimization
 
 **As a** user,  
 **I want** fast response times,  
@@ -1019,7 +817,7 @@
 5. Retry logic with exponential backoff
 6. Performance benchmarks documented
 
-### Story 8.4: Error Handling and UX Polish
+### Story 5.4: Error Handling and UX Polish
 
 **As a** user,  
 **I want** clear error messages and polished UI,  
@@ -1034,7 +832,7 @@
 5. Help text comprehensive
 6. Accessibility flags work (--plain, --json)
 
-### Story 8.5: npm Packaging and Distribution
+### Story 5.5: npm Packaging and Distribution
 
 **As a** developer,  
 **I want** the package ready for npm,  

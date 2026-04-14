@@ -26,10 +26,10 @@ Tech Leadership OS is a **local-first CLI and file system-based management works
 
 4. **Primary User Interaction Flow:**
    - User drops files into `inbox/` (manually or via Granola sync)
-   - User runs `tmr process` command (or `tmr watch` for automatic processing)
+   - User runs `tmr process` command (or invokes the `/tmr-inbox` Claude Code skill for skill-based processing)
    - AI analyzes and categorizes each file with confidence scoring
-   - System updates context files, extracts tasks, routes to appropriate folders
-   - User interacts with Obsidian vault or runs specialized agent commands (`*1on1-prepare`, `*status-report`, etc.)
+   - System updates context files, extracts tasks, routes to appropriate folders per TECH-MANAGER-OS-TEMPLATE
+   - User installs additional skills via `tmr install <skill-name>` and invokes them from Claude Code
 
 5. **Key Architectural Decisions:**
    - **Local file system over database:** Enables human readability, git versioning, Obsidian compatibility, zero vendor lock-in
@@ -37,7 +37,7 @@ Tech Leadership OS is a **local-first CLI and file system-based management works
    - **Confidence-gated routing:** Human-in-the-loop for ambiguous categorization decisions
    - **Single-pass AI processing:** Each transcript processed once with minimal context to control costs
    - **Email-as-identity convention:** Consistent `{email}.md` files enable Obsidian graph view resolution
-   - **Multi-provider support with runtime switching:** Users can configure multiple AI providers (OpenAI, Claude, Gemini) and switch between them via `tmr config set-active-provider` without reconfiguration
+   - **Multi-provider support:** Users configure their AI provider via `tmr config`; `tmr process` is the only AI-enabled CLI command
    - **Pure file system for MVP:** Rely on Obsidian's native search capabilities; defer SQLite indexing to future versions if performance requirements emerge
    - **Manual context cleanup:** Defer automated context summarization (`tmr clean-context`) to future versions; users manage file growth manually in MVP
 
@@ -49,77 +49,81 @@ graph TB
         CLI[tmr CLI Commands]
         OBS[Obsidian Vault UI]
         GRAN[Granola Sync Plugin]
+        CC[Claude Code]
     end
-    
+
     subgraph "CLI Application Core"
         DISP[Command Dispatcher]
-        PROC[Inbox Processor]
-        AGENT[Agent Orchestrator]
+        PROC[Inbox Processor - tmr process]
         AI[AI Provider Abstraction]
     end
-    
+
     subgraph "Processing Services"
         CAT[Categorization Service]
         ROUT[Routing Engine]
         CTX[Context Updater]
         TASK[Task Extractor]
     end
-    
-    subgraph "BMAD Agent System"
-        CYCLE[cycle-agent]
-        PEOPLE[tmr-people]
-        PROJ[tmr-project]
-        CAREER[tmr-career]
-        HIRE[tmr-hiring]
+
+    subgraph "Claude Code Skills"
+        INBOX_SKILL[tmr-inbox skill]
+        MORE_SKILLS[... future skills]
     end
-    
-    subgraph "Storage Layer"
+
+    subgraph "Storage Layer - TECH-MANAGER-OS-TEMPLATE"
         INBOX[inbox/]
-        TEAMS[my-teams/]
-        PROJECTS[my-projects/]
+        TEAMS[my-teams/members/]
+        PROJECTS[my-company/projects/]
+        COMPANY[my-company/members/]
         CAREER_DIR[my-career/]
+        LEADERSHIP[my-leadership/]
         ARCHIVE[archive/]
         KB[knowledge-base/]
+        TASKS[my-tasks/]
+        CLAUDE_MD[CLAUDE.md]
     end
-    
+
     subgraph "External AI Providers"
         OPENAI[OpenAI API]
-        CLAUDE[Anthropic Claude]
+        CLAUDE_API[Anthropic Claude]
         GEMINI[Google Gemini]
     end
-    
+
     CLI --> DISP
     OBS --> INBOX
     GRAN --> INBOX
-    
+    CC --> INBOX_SKILL
+    CC --> MORE_SKILLS
+
     DISP --> PROC
-    DISP --> AGENT
-    
+
     PROC --> CAT
     CAT --> AI
     AI --> OPENAI
-    AI --> CLAUDE
+    AI --> CLAUDE_API
     AI --> GEMINI
-    
+
     PROC --> ROUT
     ROUT --> CTX
     ROUT --> TASK
-    
-    AGENT --> CYCLE
-    AGENT --> PEOPLE
-    AGENT --> PROJ
-    AGENT --> CAREER
-    AGENT --> HIRE
-    
+
+    INBOX_SKILL --> CLAUDE_MD
+    INBOX_SKILL --> TEAMS
+    INBOX_SKILL --> PROJECTS
+    INBOX_SKILL --> COMPANY
+    INBOX_SKILL --> TASKS
+
     CTX --> TEAMS
     CTX --> PROJECTS
     CTX --> CAREER_DIR
-    
+
     ROUT --> TEAMS
     ROUT --> PROJECTS
+    ROUT --> COMPANY
+    ROUT --> LEADERSHIP
     ROUT --> ARCHIVE
-    
-    TASK --> TEAMS
+
+    TASK --> TASKS
 ```
 
 ## Architectural and Design Patterns

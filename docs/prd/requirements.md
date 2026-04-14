@@ -5,21 +5,26 @@
 ### Core System (FR1-FR8)
 
 **FR1:** The system shall provide a `tmr init` command that:
-- Runs an interactive onboarding workflow to collect leader's profile, career goals, and leadership context
-- Creates complete directory structure (`inbox/`, `my-teams/`, `my-projects/`, `my-tasks/`, `my-career/`, `my-leadership/`, `my-company/`, `operations/`, `knowledge-base/`, `archive/`)
-- Generates IDE integration files (`.cursor/rules/tmr/`, `.claude/agents/`, `.gemini/agents/`, `.github/copilot/skills/`)
-- Creates initial profile and PDP templates for the leader
+- Runs a minimal interactive onboarding to collect: leader's name, email, role, and primary company/domain
+- Scaffolds the complete vault directory structure as defined in TECH-MANAGER-OS-TEMPLATE: `inbox/`, `archive/`, `config/`, `knowledge-base/`, `my-career/`, `my-company/`, `my-leadership/`, `my-tasks/`, `my-teams/`, `.claude/skills/`, `.obsidian/`
+- Generates `CLAUDE.md` at the vault root containing:
+  - Identity block (name, email, role, company) populated from onboarding responses
+  - Folder structure reference (paths and their purposes)
+  - Communication style section with placeholder content for the leader to fill in
+  - Pointer to `my-company/` for deeper company and team context
+- All folders and files created by `tmr init` follow TECH-MANAGER-OS-TEMPLATE naming conventions (lowercase kebab-case, email-as-identity, ISO 8601 dates for time-bound files)
+- Does NOT collect or store API keys — that is handled exclusively by `tmr config`
 
-**FR2:** The system shall support interactive AI provider selection during `tmr init`, allowing users to choose between OpenAI, Anthropic (Claude), and Google Gemini as their AI provider.
+**FR2:** *(Removed — AI provider selection during `tmr init` is superseded by FR3 and the `tmr config` command)*
 
-**FR3:** The system shall securely store API keys for the selected AI provider using encrypted configuration management in OS-specific directories.
+**FR3:** The system shall provide a `tmr config` command for API key management using AES-256 encryption in OS-specific config directories. When `tmr process` is run and no API key is configured, the command shall detect this condition, display a clear actionable message, and direct the user to run `tmr config` to complete setup before retrying.
 
 **FR4:** The system shall provide a `tmr process` command that:
 - Scans `inbox/` for all text files (.txt, .md, .json)
 - Uses AI to categorize each file by type (1:1, feedback, project status, meeting notes, hiring, company interactions, etc.)
 - Identifies which teams, people, projects, and/or leaders each file relates to
 - Updates context summaries for affected entities automatically
-- Moves files to appropriate destination folders (multi-level: team, project, or company)
+- Moves files to appropriate destination folders (multi-level: `my-teams/members/`, `my-company/projects/`, `my-company/meetings/`, `my-leadership/`)
 - Extracts actionable tasks and updates `my-tasks/today.md`, `my-tasks/this-week.md`, `my-tasks/this-month.md`, `my-tasks/this-quarter.md`
 - Handles binary files (PDF, PPTX, XLS) by moving to `knowledge-base/files/` without processing
 - Provides summary of changes and suggested actions
@@ -36,13 +41,13 @@
 **FR5:** The system shall provide a `tmr watch` command that monitors the `inbox/` directory and automatically runs `tmr process` when new files are detected.
 
 **FR6:** The system shall maintain AI-enhanced context summaries:
-- `my-teams/{team}/{member-email}/context.md` - Running summary of all interactions with team member
-- `my-projects/{project}/context.md` - Running summary of all project activity
+- `my-teams/members/{email}/context.md` - Running summary of all interactions with team member
+- `my-company/projects/{project}/context.md` - Running summary of all project activity
 - `my-career/profile.md` - Leader's own profile and development areas
-- `my-leadership/{leader-email}/profile.md` - Each leader's expectations and style
-- `my-company/relationships/{email}/context.md` - Running summary of company-wide relationships
+- `my-leadership/{email}/profile.md` - Each leader's expectations and style
+- `my-company/members/{email}/context.md` - Running summary of company-wide relationships
 - Context updates triggered automatically by `tmr process` command after inbox processing
-- **Email-as-identity convention (critical):** Every `{email}/` folder in the system must also contain a root file named exactly `{email}.md` (e.g., `john.doe@company.com.md`). This file is the identity anchor that enables Obsidian graph view link resolution — all `[[@email]]` wiki-links resolve to this file. This applies consistently to `my-teams/`, `my-leadership/`, `my-company/relationships/`, and `operations/hiring/candidates/` wherever email-based folders exist.
+- **Email-as-identity convention (critical):** Every `{email}/` folder in the system must also contain a root file named exactly `{email}.md` (e.g., `john.doe@company.com.md`). This file is the identity anchor that enables Obsidian graph view link resolution — all `[[email]]` wiki-links resolve to this file. This applies consistently to `my-teams/members/`, `my-leadership/`, and `my-company/members/` wherever email-based folders exist.
 
 **FR7:** The system shall provide time-based task views:
 - `tmr today` - Display urgent tasks, scheduled 1:1s, and attention items for today
@@ -50,41 +55,33 @@
 - `tmr this-month` - Display monthly objectives and key deadlines
 - `tmr this-quarter` - Display quarterly goals and strategic initiatives
 
-**FR8:** The system shall implement an Agent System with specialized personas:
-- **cycle-agent**: Inbox processing and intelligent categorization
-- **tmr-people**: People management (1:1s, feedback, PDP, PIP, reviews)
-- **tmr-project**: Project management (status reports, risk assessments, health checks)
-- **tmr-career**: Leader's own career development (PDP, brag document, self-reviews)
-- **tmr-hiring**: Recruitment support (candidate reviews, job descriptions, interview guides)
-- **tmr-master**: All-in-one agent for web platform usage
-- All agent and skill definitions shall be authored as **BMAD Builder-compliant** modules following the BMAD Method specification (https://github.com/bmad-code-org/bmad-builder). The `.tm-core/` system structure follows BMAD module conventions, enabling community extensibility through standardized BMAD-compliant packaging.
+**FR8:** The system shall implement a Skills Distribution System:
+- Skills are Claude Code skill files (`SKILL.md`) installed into the user's `.claude/skills/` directory
+- The first distributable skill is `tmr-inbox`, which processes Granola meeting notes from `inbox/` and routes them to the correct vault folders
+- The system shall provide `tmr install <skill-name>` to download and install a named skill from the official registry into `.claude/skills/`
+- The system shall provide `tmr update` to refresh all installed skills to their latest published versions
+- New skills can be released independently of CLI releases, enabling continuous capability expansion without requiring users to upgrade the CLI
+- Skill files shall contain no hardcoded user-specific values; all identity and path context is sourced from the vault's `CLAUDE.md`
 
 ### People Management (FR9-FR16)
 
-**FR9:** The system shall provide `tmr team add <team-name> <member-email>` to create team member structure including:
-- `my-teams/{team-name}/{member-email}/profile.md` with frontmatter template (role, skills, current projects, status)
-- `my-teams/{team-name}/{member-email}/context.md` for AI-maintained interaction summary (auto-updated by `tmr process`)
-- `my-teams/{team-name}/{member-email}/pdp.md` for Personal Development Plan
-- Subdirectories: `1on1s/`, `feedback/`, `reviews/`
-- Status field in profile.md (active/inactive) set during creation
+**FR9:** The system shall provide `tmr team add <member-email>` to create team member structure including:
+- `my-teams/members/{email}/{email}.md` with frontmatter template (role, skills, current projects, status)
+- Subdirectories: `1on1s/`, `feedbacks/`, `assessments/`, `performance-reviews/`
+- Status field in profile (active/inactive) set during creation
+- All paths follow TECH-MANAGER-OS-TEMPLATE naming conventions
 
 **FR10:** The system shall provide a `utils/` folder containing copy/paste prompts for profile collection that can be shared with team members to gather structured information about their background, skills, work style, and career goals. No command needed - leaders copy the prompt and share it directly with team members.
 
-**FR11:** The system shall provide `tmr team archive <team-name> <member-email> [--from DATE --to DATE]` to move a team member to `my-teams/archived/{year}/{team-name}/{member-email}/` when they leave the company, preserving all historical context. Optional date filters allow partial archive of specific time periods.
+**FR11:** The system shall provide `tmr team archive <member-email> [--from DATE --to DATE]` to move a team member to `archive/my-teams/members/{email}/` when they leave, preserving all historical context. Optional date filters allow partial archive of specific time periods.
 
-**FR12:** The system shall provide `tmr team fire <team-name> <member-email>` as a distinct operation from archive that:
-- Moves member to `my-teams/archived/{year}/{team-name}/{member-email}/`
+**FR12:** The system shall provide `tmr team fire <member-email>` as a distinct operation from archive that:
+- Moves member to `archive/my-teams/members/{email}/`
 - Adds frontmatter field: `departure_reason: terminated` and `departure_date: {date}`
-- Auto-finalizes any active PIP documentation
 - Preserves all historical context for legal/HR purposes
 - Marks as distinct from voluntary departures in archive metadata
 
-**FR13:** The system shall provide agent commands for people management:
-- `*1on1-prepare <member>` - Generate 1:1 agenda from context, PDP, recent feedback, and tasks
-- `*feedback <member> --tone=positive|constructive` - Generate feedback draft based on context
-- `*pdp-generate <member>` - Create structured Personal Development Plan using SKILL.md with role-specific references (PDP updates are manual)
-- `*pip-create <member>` - Create Performance Improvement Plan
-- `*review-generate <member> --period=<month|quarter|semester|year>` - Generate performance review draft for specified period
+**FR13:** *(Removed — people management agent commands are superseded by the skills-based model introduced in FR8. Leaders install skills via `tmr install` to get AI-assisted 1:1 prep, feedback generation, and review drafting.)*
 
 **FR14:** The system shall support a structured PDP (Personal Development Plan) format including:
 - Current role and aspirations
@@ -105,16 +102,13 @@
 ### Project Management (FR17-FR22)
 
 **FR17:** The system shall provide `tmr project add <name>` to create project structure including:
-- `my-projects/{name}/brief.md` with frontmatter template (team, timeline, status, priority)
-- `my-projects/{name}/context.md` for AI-maintained project summary
-- Subdirectories: `status-reports/`, `risk-assessments/`, `meetings/`, `incidents/`
+- `my-company/projects/{name}/{name}-project.md` with frontmatter template (team, timeline, status, priority)
+- Subdirectory: `meetings/`
+- All paths follow TECH-MANAGER-OS-TEMPLATE naming conventions
 
-**FR18:** The system shall provide `tmr project archive <name> [--from DATE --to DATE]` to move completed projects to `my-projects/archived/{year}/`. Optional date filters allow partial archive of specific time periods.
+**FR18:** The system shall provide `tmr project archive <name> [--from DATE --to DATE]` to move completed projects to `archive/my-company/projects/{name}/`. Optional date filters allow partial archive of specific time periods.
 
-**FR19:** The system shall provide agent commands for project management:
-- `*status-report <project>` - Generate weekly status report from context and meetings
-- `*risk-assessment <project>` - Assess current project risks and mitigation strategies
-- `*health-check <project>` - Comprehensive project health analysis
+**FR19:** *(Removed — project management agent commands are superseded by the skills-based model introduced in FR8.)*
 
 **FR20:** The system shall provide `tmr show <project>` to display current context, recent status reports, risk assessments, and team allocation.
 
@@ -129,21 +123,16 @@
 - `pdp.md` - Personal Development Plan aligned with leader's expectations
 - `brag-document.md` - Running log of achievements, wins, and impact for performance reviews (manual updates, suggested structure provided)
 
-**FR24:** The system shall provide agent commands for career management:
-- `*pdp-generate` - Create Personal Development Plan for the leader using SKILL.md with role-specific references (PDP updates are manual)
-- `*brag-summarize` - Summarize achievements from brag document
-- `*self-review <period>` - Draft self-performance review
+**FR24:** *(Removed — career management agent commands are superseded by the skills-based model introduced in FR8.)*
 
 **FR25:** *(Removed - brag document managed manually. System provides suggested default structure during initialization.)*
 
 **FR26:** The system shall support multiple leadership relationships through `my-leadership/` directory with per-leader structure:
-- `my-leadership/{leader-email}/profile.md` - Each leader's expectations, communication style, priorities
-- `my-leadership/{leader-email}/alignments/` - Transcripts and notes from 1:1s with that leader
-- `my-leadership/{leader-email}/challenges/` - Harsh feedback or difficult conversations with that leader
-- `my-leadership/{leader-email}/pip.md` - Performance Improvement Plan if applicable
-- Command: `tmr leadership add <leader-email>` to create new leadership relationship structure
+- `my-leadership/{email}/{email}.md` - Each leader's profile (expectations, communication style, priorities)
+- `my-leadership/{email}/1on1s/` - 1:1 notes with that leader following `YYYY-MM-DD-1on1-{email}.md` pattern
+- Command: `tmr leadership add <leader-email>` to scaffold this structure
 
-**FR27:** The process agent shall recognize and categorize 1:1 transcripts with leader's managers, filing them in appropriate `my-leadership/{leader-email}/alignments/` or `my-leadership/{leader-email}/challenges/` folders based on content, and updating both leader's context and PDP alignment.
+**FR27:** The `tmr process` command shall recognize and categorize 1:1 transcripts with the leader's managers, filing them in `my-leadership/{email}/1on1s/` and updating their profile with a meeting backlink.
 
 ### Operations (FR28-FR34)
 
@@ -154,24 +143,19 @@
 
 **FR29:** *(Removed - not necessary. Candidate folders created automatically by process agent when interview transcripts are categorized.)*
 
-**FR30:** The system shall support interview tracking through:
-- `operations/hiring/{role}/candidates/{candidate-name}/` folder structure
-- Interview transcripts auto-categorized by process agent
-- Interview notes stored as `.md` files representing each meeting
-- Agent command `*candidate-review <candidate> --approved=true|false` to generate comprehensive candidate assessment including technical evaluation, culture fit, recommendation, and onboarding notes
+**FR30:** *(Removed — hiring pipeline and candidate-review agent command are out of scope for v1. Hiring support is deferred to a future installable skill.)*
 
 **FR31:** The system shall organize meetings at multiple levels:
-- `my-projects/{project}/meetings/` - Project-specific meetings
-- `my-teams/{team}/meetings/` - Team-specific meetings  
+- `my-company/projects/{project}/meetings/` - Project-specific meetings
 - `my-company/meetings/` - Company-wide meetings (all-hands, townhalls, strategy sessions)
-- `my-company/relationships/{email}/` - Interactions with company members not in direct team or project contexts
-- Process agent categorizes meeting transcripts to appropriate level based on participants and content
+- `my-company/members/{email}/1on1s/` - 1:1s with company members not in direct team or leadership
+- `tmr process` categorizes meeting transcripts to the appropriate level based on participants and content
 
-**FR32:** The process agent shall categorize meeting transcripts into appropriate folders (project/team/company level) based on content and participants, using email-based identification for company relationships.
+**FR32:** The `tmr process` command shall categorize meeting transcripts into appropriate folders (project/company level) based on content and participants, using email-as-identity for routing and profile scaffolding.
 
-**FR33:** The system shall provide `my-projects/{project}/incidents/` for project-specific incident documentation and post-mortems, tying incidents directly to the projects they affect.
+**FR33:** *(Deferred — incident documentation under `my-company/projects/{project}/` is supported by the folder structure but no dedicated command is required for v1.)*
 
-**FR34:** The system shall provide `operations/finance/` for budget-related notes and tracking.
+**FR34:** *(Removed — finance/operations folder is out of scope for v1.)*
 
 ### Knowledge Base (FR35-FR37)
 
@@ -210,30 +194,27 @@ The system shall provide a setup guide (`docs/setup/obsidian-setup.md`) covering
 7. Verification steps to confirm: Granola notes landing in `inbox/`, terminal plugin running `tmr` commands successfully
 8. Recommended Obsidian panel layout: vault file tree on the left, active note in the center, terminal panel at the bottom — enabling a complete "capture → process → review" workflow without leaving Obsidian
 
-**FR42: Dedicated Meeting Note Processing Skill**
-The system shall provide a `process-meeting-note` BMAD skill that handles the complex routing of Granola-synced notes from `inbox/`. The skill shall:
-- Parse Granola frontmatter metadata (`granola_id`, `attendees`, `date`, `title`, `type`) as primary routing signals
-- Identify all email addresses in the attendees list and file content
-- Generate `[[@email@domain.com]]` Obsidian wiki-links for all identified persons, ensuring Obsidian graph view links resolve to the `{email}.md` identity file in the corresponding `{email}/` folder
-- Determine the correct destination category based on attendees and content analysis, following this priority order: (1) Granola `type` field if set, (2) attendee pattern matching, (3) content keyword analysis
-- Extract key insights per attendee and distribute content updates to all relevant context files
-- Handle multi-attendee meetings by routing insights to all affected entity folders
-- Create or update the `{email}.md` identity file for any new email address encountered
+**FR42: tmr-inbox Claude Code Skill**
+The system shall distribute a `tmr-inbox` Claude Code skill installed at `.claude/skills/inbox-processor/SKILL.md` via `tmr install tmr-inbox`. The skill shall:
+- Be invoked via `/tmr-inbox` or `/tmr-inbox setup` in Claude Code
+- Source all identity and path context from the vault's `CLAUDE.md` (no hardcoded user-specific values)
+- Parse Granola frontmatter metadata (`attendees`, `created`, `title`) as primary routing signals
+- Classify each inbox file using attendee patterns: 1:1 (1 other attendee), project meeting (2+ attendees matching a known project), company/general (3+ attendees, no project match), or ambiguous (requires user confirmation)
+- Scaffold missing person profiles and project folders following TECH-MANAGER-OS-TEMPLATE naming conventions
+- Rename files to the canonical pattern (`YYYY-MM-DD-1on1-{email}.md`, `YYYY-MM-DD-{topic}-{project}-project.md`, etc.)
+- Inject `People:` and `Project:` backlink headers into processed notes
+- Extract action items and append to `my-tasks/tasks.md` with time-horizon tags and wikilink back to the source note
+- Be fully generalizable: any leader who installs the skill and has a correctly populated `CLAUDE.md` gets a working inbox processor for their vault
 
 **Routing Decision Table (attendee pattern → primary destination):**
 
 | Meeting Type | Attendee Pattern | Primary Destination | Secondary Appends |
 |---|---|---|---|
-| 1:1 with direct report | Leader + 1 team member | `my-teams/{team}/{email}/1on1s/{date}.md` | `{email}/context.md` |
-| Team meeting | Leader + 2+ same-team members | `my-teams/{team}/meetings/{date}-{title}.md` | Each member's `context.md` |
-| Leadership sync | Leader + their manager | `my-leadership/{manager-email}/alignments/{date}.md` | `my-career/` note |
-| Project meeting | Leader + mixed project stakeholders | `my-projects/{project}/meetings/{date}-{title}.md` | `{project}/context.md`, each attendee's `context.md` |
-| Hiring interview | Leader + candidate (+ interviewers) | `operations/hiring/{role}/candidates/{name}/interview-{date}.md` | Candidate notes |
-| All-hands / company-wide | 10+ attendees or no team/project match | `my-company/meetings/{date}-{title}.md` | Mentioned projects/people |
-| Cross-functional / stakeholder | Mixed teams + external | `my-projects/{project}/meetings/` if project identified, else `my-company/meetings/` | Multiple contexts |
-| Skip-level | Leader + manager's manager | `my-leadership/{email}/alignments/{date}.md` | `my-career/` |
-| Incident review | Leader + team + others, incident keywords | `my-projects/{project}/incidents/{date}-{title}.md` | `{project}/context.md` |
-| Unknown person (no match) | Person not in vault | Auto-create `my-company/relationships/{email}/` | Identity file + first context entry |
+| 1:1 with direct report | Leader + 1 team member | `my-teams/members/{email}/1on1s/YYYY-MM-DD-1on1-{email}.md` | Profile backlink |
+| 1:1 with leadership | Leader + their manager | `my-leadership/{email}/1on1s/YYYY-MM-DD-1on1-{email}.md` | Profile backlink |
+| Project meeting | Leader + 2+ attendees, project match | `my-company/projects/{project}/meetings/YYYY-MM-DD-{topic}-{project}-project.md` | Project file backlink |
+| Company / general | 3+ attendees, no project match | `my-company/meetings/YYYY-MM-DD-{topic}.md` | Attendee profile backlinks |
+| Unknown person (no match) | Person not in vault | Auto-create `my-company/members/{email}/` | Identity file + 1on1s/ folder |
 
 **Sharding principle — One Primary, Many References:**
 Every transcript has exactly one canonical primary file. All secondary updates are append-only excerpts that link back to the primary via `[[]]` notation. The primary note links outward to all attendees and related entities. This creates a bi-directional Obsidian graph without duplicating content.
@@ -270,7 +251,7 @@ processed: true
 ```
 
 **Folder philosophy (critical for routing decisions):**
-`my-teams/{team}/{member}/` is a *people and career folder* — it stores 1:1s, PDPs, feedback, and reviews. When a team member attends a project meeting or cross-functional meeting, the meeting note lives under `my-projects/` or `my-company/`, and the team member is referenced via `[[@email]]`. Their `context.md` receives an appended excerpt linking back to the primary note. The processing summary shall explicitly communicate this categorization logic to the user so the routing rationale is transparent.
+`my-teams/members/{email}/` is a *people and career folder* — it stores 1:1s, assessments, feedback, and performance reviews. When a team member attends a project meeting or company-wide meeting, the meeting note lives under `my-company/projects/` or `my-company/meetings/`, and the team member's profile receives a backlink to that note. The processing summary shall explicitly communicate this categorization logic to the user so the routing rationale is transparent.
 
 ## Non-Functional Requirements
 

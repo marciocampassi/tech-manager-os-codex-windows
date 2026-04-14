@@ -14,6 +14,8 @@ tech-manager-os/                     # Repository root
 │   │   │   │   ├── team.command.ts
 │   │   │   │   ├── project.command.ts
 │   │   │   │   ├── config.command.ts
+│   │   │   │   ├── install.command.ts
+│   │   │   │   ├── update.command.ts
 │   │   │   │   └── task-view.command.ts
 │   │   │   ├── index.ts              # CLI entry point
 │   │   │   └── cli.ts                # Command dispatcher
@@ -44,6 +46,11 @@ tech-manager-os/                     # Repository root
 │   │   │   ├── config/               # Configuration service
 │   │   │   │   ├── config.service.ts
 │   │   │   │   └── encryption.util.ts
+│   │   │   ├── scaffold/             # Vault scaffolding (tmr init)
+│   │   │   │   ├── scaffold.service.ts
+│   │   │   │   └── claude-md.generator.ts
+│   │   │   ├── skills/               # Skill install/update logic
+│   │   │   │   └── skill-registry.service.ts
 │   │   │   ├── repository/           # File system abstraction
 │   │   │   │   ├── filesystem.repository.ts
 │   │   │   │   ├── frontmatter.parser.ts
@@ -57,15 +64,6 @@ tech-manager-os/                     # Repository root
 │   │   ├── package.json
 │   │   └── tsconfig.json
 │   │
-│   ├── agents/                       # BMAD agent orchestration
-│   │   ├── src/
-│   │   │   ├── orchestrator.ts       # Agent orchestrator
-│   │   │   ├── skill-executor.ts     # BMAD skill execution
-│   │   │   └── agent-loader.ts       # Load BMAD definitions
-│   │   ├── tests/
-│   │   ├── package.json
-│   │   └── tsconfig.json
-│   │
 │   └── shared/                       # Shared utilities and types
 │       ├── src/
 │       │   ├── types/                # Shared TypeScript types
@@ -75,19 +73,13 @@ tech-manager-os/                     # Repository root
 │       ├── package.json
 │       └── tsconfig.json
 │
+├── skills/                           # Distributable Claude Code skills (published to registry)
+│   └── tmr-inbox/
+│       └── SKILL.md                  # Generalized inbox processor — no hardcoded user values
+│
 ├── .tmr-core/                        # BMAD agent and skill definitions
-│   ├── agents/                       # BMAD agent definitions
-│   │   ├── cycle-agent.md
-│   │   ├── tmr-people.md
-│   │   ├── tmr-project.md
-│   │   ├── tmr-career.md
-│   │   ├── tmr-hiring.md
-│   │   └── tmr-master.md
-│   ├── skills/                       # BMAD skill definitions
-│   │   ├── process-meeting-note.md
-│   │   ├── 1on1-prepare.md
-│   │   ├── feedback-generate.md
-│   │   └── status-report.md
+│   ├── agents/                       # BMAD agent definitions (cycle-agent only)
+│   │   └── cycle-agent.md
 │   ├── tasks/                        # Workflow task definitions
 │   ├── templates/                    # Document templates
 │   └── checklists/                   # Validation checklists
@@ -124,18 +116,11 @@ tech-manager-os/                     # Repository root
 ┌─────────────────────────────────────────┐
 │ packages/cli                            │
 │ ├─> packages/core                      │
-│ ├─> packages/agents                    │
 │ └─> packages/shared                    │
 └─────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────┐
 │ packages/core                           │
-│ └─> packages/shared                    │
-└─────────────────────────────────────────┘
-
-┌─────────────────────────────────────────┐
-│ packages/agents                         │
-│ ├─> packages/core                      │
 │ └─> packages/shared                    │
 └─────────────────────────────────────────┘
 ```

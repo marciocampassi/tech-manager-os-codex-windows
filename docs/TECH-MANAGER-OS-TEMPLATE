@@ -1,0 +1,311 @@
+# Tech Manager OS — Structure Reference
+
+## Purpose
+
+A personal operating system for an engineering manager or tech lead. Manages 1-on-1s, team feedback, company initiatives, career development, and meeting notes — all as Markdown files in Obsidian with Git version control.
+
+Designed for someone who:
+- Manages a team across one or more companies/clients
+- Runs recurring 1-on-1s and structured feedback cycles
+- Participates in company-wide and cross-team initiatives
+- Wants a durable, portable, plain-text system that survives tool changes
+
+---
+
+## Folder Structure
+
+```
+tech-manager-os/
+├── .claude/                  # Claude Code integration
+│   └── skills/               # Local workspace automation skills
+├── .obsidian/                # Obsidian configuration and plugins
+├── archive/                  # Archived/obsolete content
+├── config/                   # Messaging templates, email formats, process references
+├── inbox/                    # Incoming meeting notes awaiting processing
+├── knowledge-base/           # Reference materials
+│   ├── branding-guidelines/  # Company/client brand assets and rules
+│   ├── company/              # Company-level context and policies
+│   ├── people/               # Goal-setting guides, rubrics, frameworks
+│   ├── process/              # Engineering and delivery processes
+│   └── security/             # Security policies and references
+├── my-career/                # Your own professional development
+│   ├── <your-email>.md                                        # Your profile
+│   ├── YYYY-development-plan-<your-email>.md                  # Annual development plan
+│   ├── YYYY-performance-objectives-<your-email>.md            # Annual performance objectives
+│   ├── assessments/
+│   │   └── YYYY-MM-assessment-<your-email>.md                 # Self-assessments
+│   └── feedbacks/
+│       └── YYYY-MM-feedback-<reviewer-email>-<your-email>.md  # Feedback received from others
+├── my-company/               # Scope of the employing or anchor organization
+│   ├── members/              # All people profiles (organized by email)
+│   │   └── <email>/
+│   │       ├── <email>.md    # Their profile
+│   │       └── 1on1s/
+│   │           └── YYYY-MM-DD-1on1-<email>.md
+│   ├── meetings/             # Company-wide meeting notes
+│   └── projects/             # Active initiatives and programs
+│       └── <project-name>/
+│           ├── <project-name>-project.md   # Project overview (unique by project-name suffix)
+│           └── meetings/
+│               └── YYYY-MM-DD-<description>-<project-name>-project.md
+├── my-leadership/            # People above you — managers and skip-levels
+│   └── <email>/
+│       ├── <email>.md        # Their profile
+│       └── 1on1s/
+│           └── YYYY-MM-DD-1on1-<email>.md
+├── my-teams/                 # People you manage
+│   ├── members/              # One folder per direct report
+│   │   └── <email>/
+│   │       ├── <email>.md                                              # Their profile
+│   │       ├── 1on1s/
+│   │       │   └── YYYY-MM-DD-1on1-<email>.md
+│   │       ├── feedbacks/
+│   │       │   └── YYYY-MM-[<type>-]feedback-[<reviewer-email>-]<email>.md
+│   │       ├── assessments/
+│   │       │   └── YYYY-MM-assessment-<email>.md
+│   │       └── performance-reviews/
+│   │           ├── YYYY-performance-review-<email>.md
+│   │           └── YYYY-performance-review-manager-notes-<email>.md
+│   ├── teams/                # Named team groupings
+│   │   └── <team-name>/
+│   │       ├── <team-name>-members.md   # Team roster
+│   │       └── <team-name>-context.md  # Team goals and context
+│   └── feedback-templates/   # Feedback request templates and message wrappers
+└── my-tasks/                 # Personal task management
+    ├── tasks.md              # Master backlog
+    ├── today.md              # Today's focus
+    ├── this-week.md          # Weekly view
+    ├── this-month.md         # Monthly view
+    └── this-quarter.md       # Quarterly view
+└── CLAUDE.md                 # Company context and global rules
+```
+
+---
+
+## File Naming Patterns
+
+> **Naming rules — apply to every file and folder in this vault:**
+> 1. **Lowercase and kebab-case.** All descriptive words are lowercase, separated by hyphens. No spaces, no underscores, no camelCase. Email addresses embedded in filenames are exempt — use them verbatim since they are identifiers, not prose.
+> 2. **Globally unique names.** Obsidian resolves `[[wikilinks]]` by filename alone — two files with the same name make all links ambiguous and break the connection graph. Always include the subject person's email in any file that relates to a person. Generic names like `action-items.md` or `development-plan.md` without an email suffix are forbidden.
+
+### Person Profiles and Folders
+
+Use the person's actual email address exactly as it is — whatever format their company uses:
+
+```
+<email>.md    ← profile file (one per person, globally unique)
+<email>/      ← folder for that person's artifacts
+```
+
+Common email formats across companies:
+
+| Format | Example |
+|--------|---------|
+| `firstname.lastname@company.com` | `alice.smith@acme.com` |
+| `flastname@company.com` | `asmith@acme.com` |
+| `firstname_lastname@company.com` | `alice_smith@acme.com` |
+| `firstname@company.com` | `alice@acme.com` |
+| `firstnamelastname@company.com` | `alicesmith@acme.com` |
+
+The format does not matter — what matters is using the real email consistently. Never invent a format or normalize it; use exactly what the person uses to log in.
+
+### Meeting Notes
+```
+YYYY-MM-DD-<short-description>.md
+```
+Meeting notes are tied to a moment in time and a specific folder context, so the date + description is usually sufficient. When a meeting involves a specific person and might be linked from their profile, include their email:
+```
+YYYY-MM-DD-<description>-<email>.md
+```
+Examples:
+- `2026-03-12-engineering-managers-ai-discussion.md`
+- `2026-01-30-monthly-team-sync.md`
+
+### 1-on-1 Notes
+```
+YYYY-MM-DD-1on1-<email>.md
+```
+External tools (e.g. Granola) often auto-generate display-name variants like `2026-03-24-Alice _ You - Topic.md`. Always rename to the kebab-case + email pattern before filing.
+
+Examples:
+- `2026-01-30-1on1-alice.smith@company.com.md`
+- `2026-03-24-1on1-asmith@acme.com.md`
+
+### Feedback Files
+
+Feedback received by you:
+```
+YYYY-MM-feedback-<reviewer-email>-<your-email>.md
+```
+
+Feedback received by a team member:
+```
+YYYY-MM-feedback-<reviewer-email>-to-<member-email>.md
+```
+Examples:
+- `2026-04-feedback-alice.smith@partner.com-to-bob.jones@company.com.md`
+
+### Assessments
+```
+YYYY-MM-assessment-<email>.md
+```
+
+### Performance Reviews
+```
+YYYY-performance-review-<email>.md
+YYYY-performance-review-manager-notes-<email>.md
+```
+
+### Development and Objectives
+```
+YYYY-development-plan-<your-email>.md
+YYYY-performance-objectives-<your-email>.md
+```
+
+### Project Files
+The project name is used as a suffix to guarantee uniqueness across the vault:
+```
+<project-name>-project.md
+YYYY-MM-DD-<description>-<project-name>-project.md   ← meetings and documents
+```
+Examples:
+- `engineering-internship-program-project.md`
+- `2026-02-18-project-showcase-engineering-internship-program-project.md`
+
+### Team Files
+```
+<team-name>-members.md
+<team-name>-context.md
+```
+
+---
+
+## Task Management System
+
+`my-tasks/` uses a hub-and-spoke model: `tasks.md` is the single source of truth and the four view files are read-only Dataview lenses that filter it. Never add tasks directly to a view file.
+
+### tasks.md — the backlog
+
+Tasks are grouped under headings that identify their source context:
+
+```markdown
+### YYYY-MM-DD — <meeting or context name>
+
+- [ ] do the thing #this-week [[YYYY-MM-DD-1on1-alice.smith@acme.com]]
+- [x] done thing #this-week [[YYYY-MM-DD-1on1-alice.smith@acme.com]]
+```
+
+Each task has three components:
+
+| Component | Purpose | Values |
+|-----------|---------|--------|
+| `- [ ]` / `- [x]` | Completion state | open or done |
+| `#horizon-tag` | Time horizon — controls which view shows the task | `#today`, `#this-week`, `#this-month`, `#this-quarter` |
+| `[[wikilink]]` | Link to the source note that generated the task | any note in the vault |
+
+### View files — Dataview lenses
+
+Each view file contains a single Dataview query that reads `tasks.md` and filters by its tag. Example from `this-week.md`:
+
+```
+TASK
+FROM "my-tasks/tasks.md"
+WHERE !completed AND contains(text, "#this-week")
+SORT file.mday DESC
+```
+
+View files update automatically as tasks are added or checked off in `tasks.md`. They are never edited manually.
+
+### Workflow
+
+1. After a meeting, add action items to `tasks.md` under a heading with the meeting date and name
+2. Tag each task with the appropriate horizon (`#today`, `#this-week`, `#this-month`, `#this-quarter`)
+3. Link each task back to the source note with `[[wikilink]]`
+4. Open the relevant view file to see what is due in that horizon
+5. Check tasks off in `tasks.md` — views update automatically
+
+### Why the wikilink matters
+
+The `[[wikilink]]` on each task is not decorative. It connects the task to the meeting or note that generated it. In Obsidian's graph, you can navigate from any task to the conversation behind it, and from any meeting note, see all the tasks it produced. This is one of the primary connection types the vault is built around.
+
+---
+
+## People Organization
+
+All people — direct reports, stakeholders, peers — are identified by their email address. The email is a stable, unique key that works across folders, filenames, and note cross-references regardless of name changes or role changes.
+
+Use the email exactly as it is — do not normalize or invent a format. If someone's address is `asmith@acme.com`, that is their identifier, not `alice.smith@acme.com`. Consistency matters more than readability.
+
+The domain signals affiliation when managing across multiple companies or clients:
+- `asmith@your-company.com` — your own organization
+- `bjones@client.com` — client-side stakeholder
+- `c.lee@partner.com` — partner or vendor contact
+
+---
+
+## Obsidian Plugins
+
+| Plugin                  | Purpose                                                                         |
+| ----------------------- | ------------------------------------------------------------------------------- |
+| `dataview`              | Query and surface structured data from notes (e.g., list all open 1-on-1 items) |
+| `obsidian-granola-sync` | Sync meeting notes from Granola into inbox                                      |
+| `obsidian-git`          | Git version control within Obsidian — auto-commit and push                      |
+| `terminal`              | Embedded terminal for running CLI commands without leaving Obsidian             |
+
+---
+
+## Claude Code Skills (workspace-local)
+
+Skills live in `.claude/skills/` and extend Claude Code with domain-specific automation for this OS.
+
+| Skill                    | What it does                                                                                                                                 |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `inbox-processor`        | Routes new meeting notes from `inbox/` to the correct folder, normalizes filenames, scaffolds missing person profiles, extracts action items |
+| `presentation-generator` | Generates branded Marp presentations and exports to PPTX for a specific client or company style                                              |
+| `monthly-feedback`       | Sends outbound peer feedback requests, captures replies, and generates per-person digest summaries for 1-on-1 notes                          |
+| `objective-creator`      | Guided conversation that produces SMART performance objectives aligned to your company's review format                                       |
+
+To adapt these skills to your context: copy the skill folder, update the SKILL.md with your company's naming conventions, branding, and process specifics.
+
+---
+
+## Configuration Files
+
+| File/Path | Purpose |
+|-----------|---------|
+| `CLAUDE.md` | Claude Code project instructions — communication style rules, Slack formatting, etc. |
+| `config/messaging.md` | Messaging guidelines and tone rules |
+| `config/email/` | Email format templates |
+| `config/implementations/` | How-to references for recurring processes |
+| `.env` | API keys and environment variables (not committed) |
+| `.gitignore` | Excludes `.env`, large binaries, OS files |
+
+---
+
+## Core Conventions
+
+**Inbox as the entry point.** All externally generated content (meeting notes, synced docs) lands in `inbox/` first. A skill or manual process routes it to the right place. Nothing lives permanently in `inbox/`.
+
+**Email as identity — and as uniqueness guarantee.** Use email addresses — not display names — as primary identifiers for people in every filename that relates to a person. This is not just for organization: Obsidian resolves `[[wikilinks]]` by filename across the whole vault, so a file named `action-items.md` inside a person's folder is indistinguishable from another `action-items.md` elsewhere — the graph breaks. Including the email in the filename makes every file globally unique, which is what makes the connection graph reliable. This applies to you (the user) as much as to anyone else.
+
+**Lowercase kebab-case everywhere.** All filenames and folder names use lowercase words separated by hyphens — no spaces, no underscores, no capitals. Email addresses embedded in filenames are the only exception: use them exactly as they are, since they are identifiers, not descriptive text. This rule applies to every file in the vault, including your own.
+
+**ISO 8601 dates in filenames.** Always prefix time-bound files with `YYYY-MM-DD`. This keeps folders sorted chronologically without any plugin or database.
+
+**Flat files, deep folders.** Keep individual notes atomic. Use folder hierarchy to express context (project, person, time period) rather than cramming context into long filenames.
+
+**Plain text over databases.** Everything is Markdown. The system works without Obsidian — any text editor, any OS, any decade.
+
+---
+
+## Adapting This System
+
+To replicate this OS for a new context:
+
+1. Clone or copy the repo structure above
+2. Replace company-specific skill content (branding, review formats, tool names) in `.claude/skills/`
+3. Update `CLAUDE.md` with your communication style rules
+4. Update `config/messaging.md` with your messaging conventions
+5. Populate `knowledge-base/` with your company's rubrics, processes, and guidelines
+6. Add your people to `my-company/members/` and `my-leadership/` using the email naming pattern
+7. Configure the meeting sync plugin to point to your meeting tool's export folder
