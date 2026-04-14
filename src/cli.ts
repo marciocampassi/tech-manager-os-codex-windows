@@ -9,6 +9,7 @@ import { createLeadershipCommand } from './commands/leadership.command.js';
 import { createProjectCommand } from './commands/project.command.js';
 import { createTaskViewCommands } from './commands/task-view.command.js';
 import { createProcessCommand } from './commands/process.command.js';
+import { createWatchCommand } from './commands/watch.command.js';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json') as { version: string; description: string };
@@ -56,14 +57,7 @@ export function createProgram(): Command {
     });
 
   p.addCommand(createProcessCommand());
-
-  p.command('watch')
-    .description('watch inbox folder and auto-process new files')
-    .action(() => {
-      process.stdout.write(
-        "Command 'watch' coming soon — run 'tmr --help' for available commands\n",
-      );
-    });
+  p.addCommand(createWatchCommand());
 
   p.on('command:*', (operands: string[]) => {
     process.stderr.write(
