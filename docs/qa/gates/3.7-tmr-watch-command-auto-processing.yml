@@ -1,0 +1,46 @@
+schema: 1
+story: '3.7'
+story_title: 'tmr watch Command for Auto-Processing'
+gate: PASS
+status_reason: 'All 8 ACs implemented and test-verified. Re-review (2026-04-14) found and fixed a flaky integration test (race condition in timing); all 16 tests now pass reliably under full suite load.'
+reviewer: 'Quinn (Test Architect)'
+updated: '2026-04-14T22:45:00Z'
+
+top_issues: []
+waiver:
+  active: false
+
+quality_score: 97
+expires: '2026-04-28T00:00:00Z'
+
+evidence:
+  tests_reviewed: 16
+  risks_identified: 2
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7, 8]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'PID file contains only process.pid (non-sensitive). No external input accepted. No secrets handled.'
+  performance:
+    status: PASS
+    notes: 'Chokidar with awaitWriteFinish prevents partial-file events. 5-second debounce avoids thrashing on bulk file additions.'
+  reliability:
+    status: PASS
+    notes: 'SIGINT + SIGTERM handled via process.once with double-cleanup guard. Watcher error events caught and logged. Result<T> from InboxProcessService handled. Flaky timing race condition in integration test fixed (sleep 50→100ms).'
+  maintainability:
+    status: PASS
+    notes: 'Injectable watcher factory and debounceMs make the service testable. Minor debt: buildInboxProcessService() duplicated from process.command.ts.'
+
+recommendations:
+  immediate: []
+  future:
+    - action: 'Extract buildInboxProcessService() to a shared factory (e.g. src/commands/_shared/inbox-process-factory.ts) to avoid drift between process.command.ts and watch.command.ts'
+      refs:
+        - src/commands/process.command.ts
+        - src/commands/watch.command.ts
+    - action: 'Consider logging skipped non-matching extensions when --verbose is active for easier debugging'
+      refs:
+        - src/services/watch.service.ts

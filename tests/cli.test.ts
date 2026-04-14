@@ -105,10 +105,9 @@ describe('CLI — stub commands', () => {
     stdoutSpy.mockRestore();
   });
 
-  it('watch stub writes coming-soon message to stdout', async () => {
-    const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
-    await program.parseAsync(['node', 'tmr', 'watch']);
-    expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining("'watch' coming soon"));
-    stdoutSpy.mockRestore();
+  it('watch command is registered with correct name and description (Story 3.7)', () => {
+    const watchCmd = program.commands.find((c) => c.name() === 'watch');
+    expect(watchCmd).toBeDefined();
+    expect(watchCmd?.description()).toMatch(/watch|inbox|auto/i);
   });
 });
