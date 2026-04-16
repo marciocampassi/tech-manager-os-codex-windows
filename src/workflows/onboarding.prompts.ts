@@ -3,6 +3,13 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { LeadershipContext, ManagerProfile, TeamMember } from '../types/onboarding.types.js';
 
+export interface MinimalOnboardingAnswers {
+  name: string;
+  email: string;
+  role: string;
+  company: string;
+}
+
 export interface GoogleDriveSetupResult {
   enabled: boolean;
   folderDriveId: string;
@@ -214,6 +221,39 @@ export async function promptTeamMembers(): Promise<TeamMember[]> {
   }
 
   return members;
+}
+
+export async function promptMinimalOnboarding(): Promise<MinimalOnboardingAnswers> {
+  return inquirer.prompt<MinimalOnboardingAnswers>([
+    {
+      type: 'input',
+      name: 'name',
+      message: 'Your full name:',
+      validate: (v: string): ValidateResult =>
+        v.trim().length > 0 ? true : 'Name cannot be empty',
+    },
+    {
+      type: 'input',
+      name: 'email',
+      message: 'Your work email:',
+      validate: (v: string): ValidateResult =>
+        v.includes('@') ? true : 'Must be a valid email address',
+    },
+    {
+      type: 'input',
+      name: 'role',
+      message: 'Your current role / title:',
+      validate: (v: string): ValidateResult =>
+        v.trim().length > 0 ? true : 'Role cannot be empty',
+    },
+    {
+      type: 'input',
+      name: 'company',
+      message: 'Your company / domain (e.g. acme.com):',
+      validate: (v: string): ValidateResult =>
+        v.trim().length > 0 ? true : 'Company cannot be empty',
+    },
+  ]);
 }
 
 export async function promptGoogleDriveSetup(): Promise<GoogleDriveSetupResult> {
