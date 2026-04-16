@@ -22,7 +22,7 @@ The JSON must have this exact structure:
   "members": ["array of member names explicitly mentioned"],
   "projects": ["array of project names explicitly mentioned"],
   "insights": { "<member_or_project_name>": ["key insight 1", "key insight 2"] },
-  "destinations": ["workspace-relative path for filing this note, e.g. my-teams/alpha/john@co.com/1on1s/"],
+  "destinations": ["workspace-relative path for filing this note, e.g. my-teams/members/john@co.com/1on1s/"],
   "suggestedActions": ["specific follow-up action item"],
   "confidence": 0.95
 }

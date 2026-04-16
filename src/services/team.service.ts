@@ -192,7 +192,7 @@ export class TeamService {
 
       await this._fs.createDirectory(path.join(memberDir(workspaceRoot, normalizedEmail), '1on1s'));
       await this._fs.createDirectory(
-        path.join(memberDir(workspaceRoot, normalizedEmail), 'feedback'),
+        path.join(memberDir(workspaceRoot, normalizedEmail), 'feedbacks'),
       );
       await this._fs.createDirectory(
         path.join(memberDir(workspaceRoot, normalizedEmail), 'assessments'),
@@ -289,7 +289,7 @@ export class TeamService {
     if (hasDateFilter) {
       // Partial archive: move only files in subdirectories matching the date range
       // Use FileSystemService.listFiles() for each known subdirectory
-      const subDirs = ['1on1s', 'feedback', 'assessments', 'performance-reviews'];
+      const subDirs = ['1on1s', 'feedbacks', 'assessments', 'performance-reviews'];
       for (const subDir of subDirs) {
         const subPath = path.join(srcDir, subDir);
         if (!(await this._fs.exists(subPath))) continue;

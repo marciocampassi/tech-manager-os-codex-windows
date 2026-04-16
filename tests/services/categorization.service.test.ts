@@ -35,7 +35,7 @@ function makeValidPayload(overrides: Record<string, unknown> = {}): Record<strin
     members: ['John Doe'],
     projects: [],
     insights: { 'John Doe': ['Career growth discussed', 'Wants more mentorship'] },
-    destinations: ['my-teams/alpha/john.doe@co.com/1on1s/'],
+    destinations: ['my-teams/members/john.doe@co.com/1on1s/'],
     suggestedActions: ['Follow up on career plan by Friday'],
     confidence: 0.92,
     ...overrides,
@@ -64,7 +64,7 @@ describe('CategorizationService', () => {
     expect(result.data.insights).toEqual({
       'John Doe': ['Career growth discussed', 'Wants more mentorship'],
     });
-    expect(result.data.destinations).toEqual(['my-teams/alpha/john.doe@co.com/1on1s/']);
+    expect(result.data.destinations).toEqual(['my-teams/members/john.doe@co.com/1on1s/']);
     expect(result.data.suggestedActions).toEqual(['Follow up on career plan by Friday']);
     expect(result.data.confidence).toBe(0.92);
     expect(result.data.needsReview).toBe(false); // 0.92 >= 0.75

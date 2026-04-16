@@ -28,7 +28,7 @@ function makeCategorizationJson(emailLocal: string): string {
     insights: {
       'Jane Tester': ['Discussed roadmap'],
     },
-    destinations: [`my-teams/alpha/${emailLocal}/1on1s/`],
+    destinations: [`my-teams/members/${emailLocal}/1on1s/`],
     suggestedActions: ['Follow up next week'],
     confidence: 0.92,
   });
@@ -134,7 +134,7 @@ describe('InboxProcessService (integration)', () => {
         members: [],
         projects: [],
         insights: {},
-        destinations: ['my-teams/beta/bob@co.com/notes/'],
+        destinations: ['my-teams/members/bob@co.com/notes/'],
         suggestedActions: [],
         confidence: 0.9,
       });
@@ -164,5 +164,74 @@ describe('InboxProcessService (integration)', () => {
     if (!result.success) return;
     expect(result.data.dryRun).toBe(true);
     expect(await fs.pathExists(notePath)).toBe(true);
+  });
+
+  it('runs full process flow on a freshly scaffolded vault', async () => {
+    const { buildWorkspaceStructure } = await import('../../src/workflows/workspace-builder.js');
+    await buildWorkspaceStructure(tmpDir);
+
+    const teamSvc = new TeamService(fsSvc);
+    await teamSvc.createTeam('alpha', tmpDir);
+    await teamSvc.addMember(
+      'alpha',
+      'alice@co.com',
+      { name: 'Alice Dev', role: 'Engineer', location: 'Remote' },
+      tmpDir,
+    );
+
+    const notePath = path.join(tmpDir, 'inbox', 'alice-1on1.md');
+    await fs.writeFile(notePath, '# 1:1 with Alice\n\nDiscussed sprint goals.\n', 'utf-8');
+
+    const ai = new MockAIProvider((prompt) => {
+      if (prompt.includes('Existing tasks by period:')) {
+        return JSON.stringify({ tasks: [], completedDescriptions: [] });
+      }
+      return JSON.stringify({
+        type: '1on1_session',
+        members: ['Alice Dev'],
+        projects: [],
+        insights: { 'Alice Dev': ['Sprint goals aligned'] },
+        destinations: ['my-teams/members/alice@co.com/1on1s/'],
+        suggestedActions: ['Review sprint board'],
+        confidence: 0.95,
+      });
+    });
+
+    const categorization = new CategorizationService(ai, 0.75);
+    const inbox = new InboxService(fsSvc);
+    const context = new ContextService(fsSvc, sectionParserService);
+    const tasks = new TaskService(ai, fsSvc);
+    const organize = new FileOrganizationService(fsSvc);
+    const projectSvc = new ProjectService(fsSvc, templateService, emailResolutionService);
+
+    const proc = new InboxProcessService(
+      inbox,
+      categorization,
+      context,
+      tasks,
+      organize,
+      teamSvc,
+      projectSvc,
+      fsSvc,
+    );
+
+    const result = await proc.run(tmpDir, { dryRun: false, verbose: false, plain: true });
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+
+    expect(result.data.filesScanned).toBe(1);
+    expect(result.data.filesCategorizedOk).toBe(1);
+    expect(result.data.memberContextUpdates).toBe(1);
+    expect(result.data.filesOrganizedOk).toBe(1);
+    expect(await fs.pathExists(notePath)).toBe(false);
+
+    const ctxPath = path.join(tmpDir, 'my-teams', 'members', 'alice@co.com', 'context.md');
+    expect(await fs.pathExists(ctxPath)).toBe(true);
+    const ctxContent = await fs.readFile(ctxPath, 'utf-8');
+    expect(ctxContent).toContain('Sprint goals aligned');
+
+    const dest1on1Dir = path.join(tmpDir, 'my-teams', 'members', 'alice@co.com', '1on1s');
+    expect(await fs.pathExists(dest1on1Dir)).toBe(true);
   });
 });
