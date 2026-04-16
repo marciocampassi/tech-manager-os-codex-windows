@@ -9,19 +9,10 @@
 ## Epic 3: Process Intelligence Engine
 **Goal:** Build the AI-powered inbox processing system (`tmr process`) that scans, categorizes, and files transcripts/notes into appropriate multi-level folders (team/project/company), updates context summaries automatically using CLI commands for injection, extracts tasks, handles binary files, and provides actionable insights with Obsidian compatibility.
 
-## Epic 4: People Management Agent System
-**Goal:** Implement people-focused agent commands (1:1 prep, feedback generation, PDP creation/updates, PIP management, performance reviews) that leverage Epic 2 CLI commands for file manipulation, enabling multi-team member lifecycle management with email-based identification and token-optimized context operations.
+## Epic 4: Skills-Based Architecture Pivot
+**Goal:** Re-align the product to its proven architecture: `tmr init` scaffolds the full vault structure (per TECH-MANAGER-OS-TEMPLATE) and generates a `CLAUDE.md` context file; `tmr process` routing paths are corrected to match the template and retested end-to-end; `tmr-inbox` is generalized into a distributable Claude Code skill with no hardcoded user values; a skill install/update mechanism (`tmr install` / `tmr update`) is introduced so users receive new skills over time.
 
-## Epic 5: Leader's Career & Leadership Agent System
-**Goal:** Enable leaders to track their own career development with agent-assisted PDP management, brag document summarization, self-review generation, and leadership alignment tracking using CLI commands for context injection.
-
-## Epic 6: Project Management Agent System
-**Goal:** Implement project-focused agent commands (status reports, risk assessments, stakeholder communication) that use Epic 2 CLI for project lifecycle management, team composition tracking, and multi-level meeting organization.
-
-## Epic 7: Agent System & BMAD Builder Integration
-**Goal:** Build the complete agent and skill system using the BMAD Builder framework, implement all tmr-* agent definitions as BMAD-compliant modules, create the `process-meeting-note` skill for Granola note routing, generate IDE integration files for Cursor/Claude/Gemini/GitHub Copilot, and deliver SKILL.md-based extensibility with TMR branding.
-
-## Epic 8: Polish, Testing & Distribution
+## Epic 5: Polish, Testing & Distribution
 **Goal:** Comprehensive testing, documentation, IDE integration validation, and npm packaging for distribution.
 
 ---
