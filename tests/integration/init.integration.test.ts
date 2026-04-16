@@ -1,12 +1,11 @@
 /**
- * Integration test for InitCommand.
+ * Integration test for InitCommand (Story 4.1 pivot).
  *
- * Tests the full orchestration: prompts → data collection → template generation →
- * file system calls. FileSystemService is mocked so no real disk I/O occurs,
- * but the captures verify correct content and path routing end-to-end.
+ * Tests the full orchestration of the new minimal 4-question onboarding:
+ * workspace path prompt → minimal onboarding → scaffold → tasks → CLAUDE.md → plugins.
  *
- * Real file system + real dotdir creation is a CI-environment concern; the
- * template correctness and call-sequence are the valuable assertions here.
+ * FileSystemService is mocked so no real disk I/O occurs; all writeFile calls
+ * are captured in a Map to assert correct paths and content end-to-end.
  */
 import { describe, it, expect, jest, afterAll, beforeAll } from '@jest/globals';
 
@@ -43,24 +42,7 @@ jest.unstable_mockModule('chalk', () => ({
     gray: (s: string) => s,
     dim: (s: string) => s,
     cyan: (s: string) => s,
-  },
-}));
-
-jest.unstable_mockModule('../../src/providers/ai-provider-factory.js', () => ({
-  AIProviderFactory: {
-    create: jest.fn(() => ({
-      testConnection: jest.fn<() => Promise<boolean>>().mockResolvedValue(true),
-    })),
-  },
-}));
-
-jest.unstable_mockModule('../../src/services/config.service.js', () => ({
-  configService: {
-    initialize: jest.fn(),
-    set: jest.fn(),
-    setActiveProvider: jest.fn(),
-    addProvider: jest.fn(),
-    getProviderConfig: jest.fn().mockReturnValue(undefined),
+    green: (s: string) => s,
   },
 }));
 
@@ -82,30 +64,12 @@ jest.unstable_mockModule('../../src/services/file-system.service.js', () => ({
   },
 }));
 
+const mockInstallPlugins = jest
+  .fn<(workspacePath: string) => Promise<void>>()
+  .mockResolvedValue(undefined);
+
 jest.unstable_mockModule('../../src/services/obsidian-plugin.service.js', () => ({
-  obsidianPluginService: {
-    installPlugins: jest
-      .fn<(workspacePath: string) => Promise<void>>()
-      .mockResolvedValue(undefined),
-  },
-}));
-
-jest.unstable_mockModule('node:child_process', () => ({
-  execSync: jest.fn(),
-  spawnSync: jest.fn().mockReturnValue({ status: 1, stdout: '' }),
-}));
-
-jest.unstable_mockModule('../../src/services/google-drive.service.js', () => ({
-  googleDriveService: {
-    authenticate: jest.fn<() => Promise<Record<string, unknown>>>().mockResolvedValue({}),
-    createActionItemsDoc: jest
-      .fn<() => Promise<{ docId: string; url: string }>>()
-      .mockResolvedValue({ docId: 'doc-123', url: 'https://docs.google.com/d/doc-123' }),
-    shareDocument: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
-    createGdocPointerFile: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
-  },
-  generateSyncScript: jest.fn<(id: string) => string>().mockReturnValue('// sync script'),
-  generateSyncSetupGuide: jest.fn<() => string>().mockReturnValue('# setup guide'),
+  obsidianPluginService: { installPlugins: mockInstallPlugins },
 }));
 
 // ── Dynamic import (after all mocks) ─────────────────────────────────────────
@@ -115,48 +79,27 @@ const { InitCommand } = await import('../../src/commands/init.command.js');
 // ── Test data ─────────────────────────────────────────────────────────────────
 
 const WORKSPACE = '/tmp/integration-test-workspace';
-const MANAGER_NAME = 'Integration User';
-const MANAGER_EMAIL = 'integration@example.com';
-const TEAM_MEMBER_EMAIL = 'dev@example.com';
+const USER_NAME = 'Integration User';
+const USER_EMAIL = 'integration@example.com';
+const USER_ROLE = 'Senior Engineering Manager';
+const USER_COMPANY = 'example.com';
 
 // ── Suite ─────────────────────────────────────────────────────────────────────
 
-describe('InitCommand integration', () => {
+describe('InitCommand integration (Story 4.1 — minimal onboarding)', () => {
   beforeAll(async () => {
     jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
     try {
       mockPrompt
         // promptWorkspacePath
         .mockResolvedValueOnce({ workspacePath: WORKSPACE })
-        // promptProviderSelection
-        .mockResolvedValueOnce({ provider: 'openai' })
-        // promptApiKey
-        .mockResolvedValueOnce({ apiKey: 'sk-integration-test' })
-        // promptManagerProfile
+        // promptMinimalOnboarding — single call returning all 4 fields
         .mockResolvedValueOnce({
-          name: MANAGER_NAME,
-          email: MANAGER_EMAIL,
-          role: 'Senior Engineering Manager',
-          location: 'São Paulo, SP, Brasil',
-        })
-        // promptLeadershipContext
-        .mockResolvedValueOnce({
-          managerName: 'Director Dana',
-          managerEmail: 'dana@example.com',
-        })
-        // promptTeamMembers — loop iteration 1: email
-        .mockResolvedValueOnce({ email: TEAM_MEMBER_EMAIL })
-        // loop iteration 1: name/gender/role/location
-        .mockResolvedValueOnce({
-          name: 'Dev One',
-          gender: 'Female',
-          role: 'Software Engineer',
-          location: '',
-        })
-        // loop iteration 2: email (empty → exits)
-        .mockResolvedValueOnce({ email: '' })
-        // promptGoogleDriveSetup — disabled
-        .mockResolvedValueOnce({ enabled: false });
+          name: USER_NAME,
+          email: USER_EMAIL,
+          role: USER_ROLE,
+          company: USER_COMPANY,
+        });
 
       await new InitCommand().run();
     } catch (err) {
@@ -170,15 +113,30 @@ describe('InitCommand integration', () => {
     writtenFiles.clear();
   });
 
-  describe('directory structure', () => {
-    it('creates my-career/ directory', () => {
+  describe('directory structure — template directories (AC: 2)', () => {
+    it('creates inbox/ directory', () => {
       const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
-      expect(dirs.some((d) => d.includes('my-career'))).toBe(true);
+      expect(dirs.some((d) => d.endsWith('inbox'))).toBe(true);
     });
 
-    it('creates my-leadership/ directory', () => {
+    it('creates archive/ directory', () => {
       const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
-      expect(dirs.some((d) => d.includes('my-leadership'))).toBe(true);
+      expect(dirs.some((d) => d.endsWith('archive'))).toBe(true);
+    });
+
+    it('creates config/ directory', () => {
+      const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
+      expect(dirs.some((d) => d.endsWith('config'))).toBe(true);
+    });
+
+    it('creates my-career/assessments/ directory', () => {
+      const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
+      expect(dirs.some((d) => d.includes('my-career/assessments'))).toBe(true);
+    });
+
+    it('creates my-career/feedbacks/ directory', () => {
+      const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
+      expect(dirs.some((d) => d.includes('my-career/feedbacks'))).toBe(true);
     });
 
     it('creates my-teams/members/ directory', () => {
@@ -186,277 +144,131 @@ describe('InitCommand integration', () => {
       expect(dirs.some((d) => d.includes('my-teams/members'))).toBe(true);
     });
 
-    it('creates my-teams/teams/ directory', () => {
+    it('creates my-teams/feedback-templates/ directory', () => {
       const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
-      expect(dirs.some((d) => d.includes('my-teams/teams'))).toBe(true);
+      expect(dirs.some((d) => d.includes('my-teams/feedback-templates'))).toBe(true);
     });
 
-    it('does NOT create my-team/ (old path removed)', () => {
+    it('creates .claude/skills/ directory', () => {
       const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
-      expect(dirs.some((d) => /[/\\]my-team[/\\]?$/.test(d))).toBe(false);
+      expect(dirs.some((d) => d.includes('.claude/skills'))).toBe(true);
     });
 
-    it('creates inbox/ directory', () => {
+    it('creates knowledge-base/branding-guidelines/ directory', () => {
       const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
-      expect(dirs.some((d) => d.endsWith('inbox'))).toBe(true);
+      expect(dirs.some((d) => d.includes('knowledge-base/branding-guidelines'))).toBe(true);
     });
 
-    it('creates .cursor/rules/tmr/ directory', () => {
+    it('creates knowledge-base/security/ directory', () => {
       const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
-      expect(dirs.some((d) => d.includes('.cursor'))).toBe(true);
+      expect(dirs.some((d) => d.includes('knowledge-base/security'))).toBe(true);
     });
 
-    it('creates .claude/agents/ directory', () => {
+    it('creates .obsidian/plugins/dataview/ directory', () => {
       const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
-      expect(dirs.some((d) => d.includes('.claude'))).toBe(true);
+      expect(dirs.some((d) => d.includes('.obsidian/plugins/dataview'))).toBe(true);
     });
 
-    it('creates .gemini/agents/ directory', () => {
+    it('creates my-leadership/ directory', () => {
       const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
-      expect(dirs.some((d) => d.includes('.gemini'))).toBe(true);
-    });
-
-    it('creates my-leadership/{managerEmail}/1on1s/ directory', () => {
-      const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
-      expect(dirs.some((d) => d.includes('1on1s'))).toBe(true);
+      expect(dirs.some((d) => d.includes('my-leadership'))).toBe(true);
     });
   });
 
-  describe('generated files — paths', () => {
-    it('writes my-career/{email}/{email}.md (Epic-2 path)', () => {
+  describe('CLAUDE.md generation (AC: 4)', () => {
+    it('writes CLAUDE.md at the vault root', () => {
       const paths = Array.from(writtenFiles.keys());
-      expect(paths.some((p) => p.includes(`my-career/${MANAGER_EMAIL}/${MANAGER_EMAIL}.md`))).toBe(
-        true,
-      );
+      expect(paths.some((p) => p === `${WORKSPACE}/CLAUDE.md`)).toBe(true);
     });
 
-    it('writes my-career/{email}/pdp.md', () => {
-      const paths = Array.from(writtenFiles.keys());
-      expect(paths.some((p) => p.includes(`my-career/${MANAGER_EMAIL}/pdp.md`))).toBe(true);
+    it('CLAUDE.md contains the identity block with user name', () => {
+      const content = writtenFiles.get(`${WORKSPACE}/CLAUDE.md`);
+      expect(content).toBeDefined();
+      expect(content).toContain(USER_NAME);
     });
 
-    it('writes my-leadership/{managerEmail}/{managerEmail}.md (Epic-2 path)', () => {
-      const paths = Array.from(writtenFiles.keys());
-      expect(
-        paths.some((p) => p.includes('my-leadership/dana@example.com/dana@example.com.md')),
-      ).toBe(true);
+    it('CLAUDE.md contains the identity block with user email', () => {
+      const content = writtenFiles.get(`${WORKSPACE}/CLAUDE.md`);
+      expect(content).toContain(USER_EMAIL);
     });
 
-    it('writes .cursor process-agent.mdc', () => {
-      const paths = Array.from(writtenFiles.keys());
-      expect(paths.some((p) => p.endsWith('process-agent.mdc'))).toBe(true);
+    it('CLAUDE.md contains the identity block with user role', () => {
+      const content = writtenFiles.get(`${WORKSPACE}/CLAUDE.md`);
+      expect(content).toContain(USER_ROLE);
     });
 
-    it('writes two process-agent.md stubs (.claude and .gemini)', () => {
-      const paths = Array.from(writtenFiles.keys());
-      expect(paths.filter((p) => p.endsWith('process-agent.md'))).toHaveLength(2);
+    it('CLAUDE.md contains the identity block with company', () => {
+      const content = writtenFiles.get(`${WORKSPACE}/CLAUDE.md`);
+      expect(content).toContain(USER_COMPANY);
     });
 
-    it('writes team member profile under my-teams/members/{email}/{email}.md', () => {
-      const paths = Array.from(writtenFiles.keys());
-      expect(
-        paths.some((p) =>
-          p.includes(`my-teams/members/${TEAM_MEMBER_EMAIL}/${TEAM_MEMBER_EMAIL}.md`),
-        ),
-      ).toBe(true);
+    it('CLAUDE.md contains Vault Structure section', () => {
+      const content = writtenFiles.get(`${WORKSPACE}/CLAUDE.md`);
+      expect(content).toContain('## Vault Structure');
     });
 
-    it('writes default-context.md and default-members.md for default team', () => {
-      const paths = Array.from(writtenFiles.keys());
-      expect(paths.some((p) => p.endsWith('teams/default/default-context.md'))).toBe(true);
-      expect(paths.some((p) => p.endsWith('teams/default/default-members.md'))).toBe(true);
+    it('CLAUDE.md contains Communication Style section with placeholders', () => {
+      const content = writtenFiles.get(`${WORKSPACE}/CLAUDE.md`);
+      expect(content).toContain('## Communication Style');
+      expect(content).toContain('Preferred tone');
+    });
+
+    it('CLAUDE.md contains pointer to my-company/', () => {
+      const content = writtenFiles.get(`${WORKSPACE}/CLAUDE.md`);
+      expect(content).toContain('my-company/');
     });
   });
 
-  describe('generated files — content', () => {
-    it('career profile contains the manager name', () => {
-      const profilePath = Array.from(writtenFiles.keys()).find((p) =>
-        p.includes(`my-career/${MANAGER_EMAIL}/${MANAGER_EMAIL}.md`),
-      );
-      expect(profilePath).toBeDefined();
-      const content = writtenFiles.get(profilePath!)!;
-      expect(content).toContain(MANAGER_NAME);
-    });
-
-    it('career profile uses [[email]] wiki-link notation', () => {
-      const profilePath = Array.from(writtenFiles.keys()).find((p) =>
-        p.includes(`my-career/${MANAGER_EMAIL}/${MANAGER_EMAIL}.md`),
-      );
-      const content = writtenFiles.get(profilePath!)!;
-      expect(content).toContain(`[[${MANAGER_EMAIL}]]`);
-    });
-
-    it('career profile has reports_to as [[managerEmail]] wiki-link', () => {
-      const profilePath = Array.from(writtenFiles.keys()).find((p) =>
-        p.includes(`my-career/${MANAGER_EMAIL}/${MANAGER_EMAIL}.md`),
-      );
-      const content = writtenFiles.get(profilePath!)!;
-      expect(content).toContain('reports_to: "[[dana@example.com]]"');
-    });
-
-    it('pdp contains ## Career Goals section', () => {
-      const pdpPath = Array.from(writtenFiles.keys()).find((p) =>
-        p.includes(`my-career/${MANAGER_EMAIL}/pdp.md`),
-      );
-      expect(pdpPath).toBeDefined();
-      const content = writtenFiles.get(pdpPath!)!;
-      expect(content).toContain('## Career Goals');
-    });
-
-    it('leadership profile contains the manager name', () => {
-      const leaderPath = Array.from(writtenFiles.keys()).find((p) =>
-        p.includes('my-leadership/dana@example.com/dana@example.com.md'),
-      );
-      expect(leaderPath).toBeDefined();
-      const content = writtenFiles.get(leaderPath!)!;
-      expect(content).toContain('Director Dana');
-    });
-
-    it('leadership profile uses [[email]] wiki-link notation', () => {
-      const leaderPath = Array.from(writtenFiles.keys()).find((p) =>
-        p.includes('my-leadership/dana@example.com/dana@example.com.md'),
-      );
-      const content = writtenFiles.get(leaderPath!)!;
-      expect(content).toContain('[[dana@example.com]]');
-    });
-
-    it('process-agent.mdc contains placeholder notice', () => {
-      const mdcPath = Array.from(writtenFiles.keys()).find((p) => p.endsWith('process-agent.mdc'));
-      expect(mdcPath).toBeDefined();
-      const content = writtenFiles.get(mdcPath!)!;
-      expect(content).toContain('sync-agents');
-    });
-
-    it('team member profile contains the member email and role', () => {
-      const memberPath = Array.from(writtenFiles.keys()).find((p) =>
-        p.includes(`my-teams/members/${TEAM_MEMBER_EMAIL}/${TEAM_MEMBER_EMAIL}.md`),
-      );
-      expect(memberPath).toBeDefined();
-      const content = writtenFiles.get(memberPath!)!;
-      expect(content).toContain(TEAM_MEMBER_EMAIL);
-      expect(content).toContain('Software Engineer');
-    });
-
-    it('team member profile has [[email]] wiki-link notation and gender field', () => {
-      const memberPath = Array.from(writtenFiles.keys()).find((p) =>
-        p.includes(`my-teams/members/${TEAM_MEMBER_EMAIL}/${TEAM_MEMBER_EMAIL}.md`),
-      );
-      const content = writtenFiles.get(memberPath!)!;
-      expect(content).toContain(`"[[${TEAM_MEMBER_EMAIL}]]"`);
-      expect(content).toContain('gender: Female');
-    });
-
-    it('team member profile has manager wiki-link in Current Manager section', () => {
-      const memberPath = Array.from(writtenFiles.keys()).find((p) =>
-        p.includes(`my-teams/members/${TEAM_MEMBER_EMAIL}/${TEAM_MEMBER_EMAIL}.md`),
-      );
-      const content = writtenFiles.get(memberPath!)!;
-      // Manager link points to the system user's own career profile (they are the team's manager)
-      expect(content).toContain(
-        `[[../../my-career/${MANAGER_EMAIL}/${MANAGER_EMAIL}|${MANAGER_EMAIL}]]`,
-      );
-    });
-
-    it('default-members.md contains wiki-links to team members', () => {
-      const defaultMembersPath = Array.from(writtenFiles.keys()).find((p) =>
-        p.endsWith('teams/default/default-members.md'),
-      );
-      expect(defaultMembersPath).toBeDefined();
-      const content = writtenFiles.get(defaultMembersPath!)!;
-      expect(content).toContain(
-        `[[../../members/${TEAM_MEMBER_EMAIL}/${TEAM_MEMBER_EMAIL}|${TEAM_MEMBER_EMAIL}]]`,
-      );
-    });
-  });
-
-  describe('action items files (Story 2.10)', () => {
-    it('writes action-items-{email}.md for each team member', () => {
+  describe('task files (AC: 2)', () => {
+    it('writes my-tasks/tasks.md', () => {
       const paths = Array.from(writtenFiles.keys());
-      expect(
-        paths.some((p) =>
-          p.includes(`my-teams/members/${TEAM_MEMBER_EMAIL}/action-items-${TEAM_MEMBER_EMAIL}.md`),
-        ),
-      ).toBe(true);
+      expect(paths.some((p) => p.includes('my-tasks/tasks.md'))).toBe(true);
     });
 
-    it('action-items file contains correct frontmatter', () => {
-      const actionItemsPath = Array.from(writtenFiles.keys()).find((p) =>
-        p.includes(`action-items-${TEAM_MEMBER_EMAIL}.md`),
-      );
-      expect(actionItemsPath).toBeDefined();
-      const content = writtenFiles.get(actionItemsPath!)!;
-      expect(content).toContain(`email: "[[${TEAM_MEMBER_EMAIL}]]"`);
-      expect(content).toContain('type: action-items');
-    });
-
-    it('action-items file contains ACTION ITEMS TRACKER heading', () => {
-      const actionItemsPath = Array.from(writtenFiles.keys()).find((p) =>
-        p.includes(`action-items-${TEAM_MEMBER_EMAIL}.md`),
-      );
-      const content = writtenFiles.get(actionItemsPath!)!;
-      expect(content).toContain('## ACTION ITEMS TRACKER');
-    });
-
-    it('member profile contains ## Action Items section with wiki-link', () => {
-      const memberPath = Array.from(writtenFiles.keys()).find((p) =>
-        p.includes(`my-teams/members/${TEAM_MEMBER_EMAIL}/${TEAM_MEMBER_EMAIL}.md`),
-      );
-      expect(memberPath).toBeDefined();
-      const content = writtenFiles.get(memberPath!)!;
-      expect(content).toContain('## Action Items');
-      expect(content).toContain(`[[action-items-${TEAM_MEMBER_EMAIL}|Action Items Tracker]]`);
-    });
-
-    it('member profile frontmatter includes action_items_gdoc field', () => {
-      const memberPath = Array.from(writtenFiles.keys()).find((p) =>
-        p.includes(`my-teams/members/${TEAM_MEMBER_EMAIL}/${TEAM_MEMBER_EMAIL}.md`),
-      );
-      const content = writtenFiles.get(memberPath!)!;
-      expect(content).toContain("action_items_gdoc: ''");
-    });
-
-    it('does not create .gdoc pointer file when google_drive_enabled is false', () => {
-      const paths = Array.from(writtenFiles.keys());
-      expect(paths.some((p) => p.endsWith('.gdoc'))).toBe(false);
-    });
-  });
-
-  describe('task files (Story 2.9)', () => {
-    it('writes my-tasks/today.md with default template', () => {
+    it('writes my-tasks/today.md', () => {
       const paths = Array.from(writtenFiles.keys());
       expect(paths.some((p) => p.includes('my-tasks/today.md'))).toBe(true);
     });
 
-    it('writes my-tasks/this-week.md with default template', () => {
+    it('writes my-tasks/this-week.md', () => {
       const paths = Array.from(writtenFiles.keys());
       expect(paths.some((p) => p.includes('my-tasks/this-week.md'))).toBe(true);
     });
 
-    it('writes my-tasks/this-month.md with default template', () => {
+    it('writes my-tasks/this-month.md', () => {
       const paths = Array.from(writtenFiles.keys());
       expect(paths.some((p) => p.includes('my-tasks/this-month.md'))).toBe(true);
     });
 
-    it('writes my-tasks/this-quarter.md with default template', () => {
+    it('writes my-tasks/this-quarter.md', () => {
       const paths = Array.from(writtenFiles.keys());
       expect(paths.some((p) => p.includes('my-tasks/this-quarter.md'))).toBe(true);
     });
+  });
 
-    it('task file content contains expected template header', () => {
-      const todayPath = Array.from(writtenFiles.keys()).find((p) =>
-        p.includes('my-tasks/today.md'),
-      );
-      expect(todayPath).toBeDefined();
-      const content = writtenFiles.get(todayPath!)!;
-      expect(content).toContain('# Tasks — Today');
-      expect(content).toContain('tmr process');
+  describe('Obsidian plugin installation (AC: 3)', () => {
+    it('calls obsidianPluginService.installPlugins with workspace path', () => {
+      expect(mockInstallPlugins).toHaveBeenCalledWith(WORKSPACE);
+    });
+  });
+
+  describe('no old onboarding data written (AC: 1, 6)', () => {
+    it('does NOT write any my-career/{email}.md profile (removed in pivot)', () => {
+      const paths = Array.from(writtenFiles.keys());
+      expect(
+        paths.some((p) => p.includes('my-career/') && p.endsWith('.md') && p.includes('@')),
+      ).toBe(false);
     });
 
-    it('does not overwrite existing task files (idempotent)', () => {
-      // mockFsExists returns false by default in beforeAll — all files are created.
-      // This test verifies all 4 files are written (exists=false → writeFile called).
-      const taskPaths = Array.from(writtenFiles.keys()).filter((p) => p.includes('my-tasks/'));
-      expect(taskPaths).toHaveLength(4);
+    it('does NOT write any my-leadership/{email}.md profile (removed in pivot)', () => {
+      const paths = Array.from(writtenFiles.keys());
+      expect(
+        paths.some((p) => p.includes('my-leadership/') && p.endsWith('.md') && p.includes('@')),
+      ).toBe(false);
+    });
+
+    it('uses exactly 2 prompt calls — workspace path + minimal onboarding (no API key prompts)', () => {
+      expect(mockPrompt).toHaveBeenCalledTimes(2);
     });
   });
 });

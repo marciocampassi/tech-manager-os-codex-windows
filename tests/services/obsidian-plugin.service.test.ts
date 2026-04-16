@@ -117,17 +117,17 @@ describe('ObsidianPluginService', () => {
   // ── installPlugins ──────────────────────────────────────────────────────────
 
   describe('installPlugins', () => {
-    it('calls fetch for all 3 plugins × 3 files = 9 fetch calls', async () => {
+    it('calls fetch for all 4 plugins × 3 files = 12 fetch calls', async () => {
       const fetchMock = jest.fn<() => Promise<unknown>>();
       fetchMock.mockResolvedValue({ ok: true, arrayBuffer: async () => Buffer.from('x').buffer });
       globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
 
       await service.installPlugins(WORKSPACE);
 
-      expect(fetchMock).toHaveBeenCalledTimes(9);
+      expect(fetchMock).toHaveBeenCalledTimes(12);
     });
 
-    it('writes community-plugins.json with the three plugin ids', async () => {
+    it('writes community-plugins.json with all four plugin ids including dataview', async () => {
       globalThis.fetch = mockFetchOk();
 
       await service.installPlugins(WORKSPACE);
@@ -141,6 +141,7 @@ describe('ObsidianPluginService', () => {
         'obsidian-git',
         'obsidian-granola-sync',
         'obsidian-terminal',
+        'dataview',
       ]);
     });
 
@@ -185,7 +186,7 @@ describe('ObsidianPluginService', () => {
       expect(writtenPaths).toContain(join(WORKSPACE, '.obsidian', 'app.json'));
     });
 
-    it('runs downloads concurrently (all 9 fetch calls initiated before any resolve)', async () => {
+    it('runs downloads concurrently (all 12 fetch calls initiated before any resolve)', async () => {
       let concurrentCount = 0;
       let maxConcurrent = 0;
 
@@ -204,7 +205,7 @@ describe('ObsidianPluginService', () => {
       await service.installPlugins(WORKSPACE);
 
       expect(maxConcurrent).toBeGreaterThan(1);
-      expect(concurrentMock).toHaveBeenCalledTimes(9);
+      expect(concurrentMock).toHaveBeenCalledTimes(12);
     });
   });
 });

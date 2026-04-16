@@ -6,6 +6,7 @@ const OBSIDIAN_PLUGINS = [
   { id: 'obsidian-git', owner: 'Vinzent03', repo: 'obsidian-git' },
   { id: 'obsidian-granola-sync', owner: 'tomelliot', repo: 'obsidian-granola-sync' },
   { id: 'obsidian-terminal', owner: 'polyipseity', repo: 'obsidian-terminal' },
+  { id: 'dataview', owner: 'blacksmithgu', repo: 'obsidian-dataview' },
 ] as const;
 
 const PLUGIN_FILES = ['main.js', 'manifest.json', 'styles.css'] as const;
