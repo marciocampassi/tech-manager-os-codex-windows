@@ -104,7 +104,7 @@ describe('TeamService', () => {
       );
       // Subdirectories created
       expect(mockFS.createDirectory).toHaveBeenCalledWith(expect.stringContaining('1on1s'));
-      expect(mockFS.createDirectory).toHaveBeenCalledWith(expect.stringContaining('feedback'));
+      expect(mockFS.createDirectory).toHaveBeenCalledWith(expect.stringContaining('feedbacks'));
       // Wiki-link appended
       expect(mockFS.appendFile).toHaveBeenCalledWith(
         expect.stringContaining('alpha-members.md'),

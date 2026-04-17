@@ -54,7 +54,7 @@ function makeValidAIResponse(type: string, confidence: number): string {
       'John Doe': ['Wants to grow into senior role in 6 months'],
       'api-redesign': ['Timeline concern raised'],
     },
-    destinations: ['my-teams/alpha/john.doe@co.com/1on1s/'],
+    destinations: ['my-teams/members/john.doe@co.com/1on1s/'],
     suggestedActions: ['Set up career growth plan by Friday'],
     confidence,
   });
@@ -133,7 +133,7 @@ describe('CategorizationService (integration)', () => {
           'Jane Smith': ['Excellent presentation'],
           'platform-v2': ['Demo well received'],
         },
-        destinations: ['my-teams/beta/meetings/'],
+        destinations: ['my-company/meetings/'],
         suggestedActions: [],
         confidence: 0.88,
       }),

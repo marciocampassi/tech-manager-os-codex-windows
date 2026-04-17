@@ -17,8 +17,6 @@ const WORKSPACE_DIRS = [
   'my-company/meetings',
   'my-company/members',
   'my-company/projects',
-  'operations/hiring',
-  'operations/finance',
   'knowledge-base/branding-guidelines',
   'knowledge-base/company',
   'knowledge-base/people',

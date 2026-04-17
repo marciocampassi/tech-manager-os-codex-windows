@@ -82,7 +82,7 @@ describe('Team Integration', () => {
       true,
     );
     expect(
-      fs.existsSync(path.join(workspace, 'my-teams', 'members', 'john@co.com', 'feedback')),
+      fs.existsSync(path.join(workspace, 'my-teams', 'members', 'john@co.com', 'feedbacks')),
     ).toBe(true);
 
     // Wiki-link in members file
