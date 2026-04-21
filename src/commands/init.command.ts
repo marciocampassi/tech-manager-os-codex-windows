@@ -2,6 +2,7 @@ import boxen from 'boxen';
 import chalk from 'chalk';
 import ora from 'ora';
 import { join } from 'node:path';
+import { configService } from '../services/config.service.js';
 import { fileSystemService } from '../services/file-system.service.js';
 import { promptWorkspacePath, promptMinimalOnboarding } from '../workflows/onboarding.prompts.js';
 import { buildWorkspaceStructure } from '../workflows/workspace-builder.js';
@@ -50,6 +51,9 @@ export class InitCommand {
 
     const workspacePath = await promptWorkspacePath();
     const answers = await promptMinimalOnboarding();
+
+    configService.initialize();
+    configService.setWorkspacePath(workspacePath);
 
     const scaffoldSpinner = ora('Creating workspace…').start();
     await buildWorkspaceStructure(workspacePath);

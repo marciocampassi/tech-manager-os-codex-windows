@@ -8,7 +8,9 @@ import { createRelationshipCommand } from './commands/relationship.command.js';
 import { createLeadershipCommand } from './commands/leadership.command.js';
 import { createProjectCommand } from './commands/project.command.js';
 import { createTaskViewCommands } from './commands/task-view.command.js';
+import { createInstallCommand } from './commands/install.command.js';
 import { createProcessCommand } from './commands/process.command.js';
+import { createUpdateCommand } from './commands/update.command.js';
 import { createWatchCommand } from './commands/watch.command.js';
 
 const require = createRequire(import.meta.url);
@@ -58,6 +60,8 @@ export function createProgram(): Command {
 
   p.addCommand(createProcessCommand());
   p.addCommand(createWatchCommand());
+  p.addCommand(createInstallCommand());
+  p.addCommand(createUpdateCommand());
 
   p.on('command:*', (operands: string[]) => {
     process.stderr.write(

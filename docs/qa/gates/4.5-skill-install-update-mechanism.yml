@@ -1,0 +1,74 @@
+schema: 1
+story: '4.5'
+story_title: 'Skill Install/Update Mechanism'
+gate: PASS
+status_reason: >
+  All 5 acceptance criteria are fully implemented and tested across
+  src/commands/install.command.ts, src/commands/update.command.ts,
+  and src/services/skill-registry.service.ts. One refactoring applied
+  (redundant manifest reads eliminated in runInstall). 741 tests passing;
+  1 pre-existing EPERM integration failure unrelated to this story.
+reviewer: 'Quinn (Test Architect)'
+updated: '2026-04-21T00:00:00Z'
+
+top_issues: []
+waiver:
+  active: false
+
+quality_score: 93
+expires: '2026-05-05T00:00:00Z'
+
+evidence:
+  tests_reviewed: 15
+  risks_identified: 2
+  trace:
+    ac_covered: [1, 2, 3, 4, 5]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: >
+      Registry URL is hardcoded (not user-controlled) — no SSRF risk.
+      Skill content is plain Markdown natural language instructions, not
+      executable code — no injection risk. No credentials handled or logged.
+      Network response buffered with 10-second timeout.
+  performance:
+    status: PASS
+    notes: >
+      Manifest reads are synchronous and operate on small JSON files (<1KB typical).
+      Refactor eliminated one redundant read in the install path.
+      Update scans skills sequentially to avoid GitHub CDN rate-limiting — intentional.
+  reliability:
+    status: PASS
+    notes: >
+      Network errors caught and returned as Result<T> failures — no unhandled rejections.
+      fetch timeout prevents hanging. manifest read returns [] on missing or corrupt file
+      (defensive). Per-skill failure in update continues to next skill rather than aborting.
+  maintainability:
+    status: PASS
+    notes: >
+      SkillRegistryService is single-responsibility and independently testable.
+      All constants UPPER_SNAKE_CASE with inline comments. isNewerVersion is a
+      pure function with no side effects. Command pattern matches existing commands exactly.
+
+recommendations:
+  immediate: []
+  future:
+    - action: >
+        Add Zod schema validation to readManifest() to guard against corrupt
+        manifest files — consistent with coding standards for input validation.
+      refs: ['src/services/skill-registry.service.ts']
+    - action: >
+        Add a version field (<!-- version: X.Y.Z -->) to skills/tmr-inbox/SKILL.md
+        now that the install/update mechanism is in place — enables tmr update
+        to detect and apply new versions of tmr-inbox.
+      refs: ['skills/tmr-inbox/SKILL.md', 'docs/qa/gates/4.4-generalize-tmr-inbox-skill.yml']
+    - action: >
+        Extract isNewerVersion() to a shared utility module and add direct unit tests
+        for edge cases (major version rollback, pre-release strings, missing patch segment).
+      refs: ['src/commands/update.command.ts']
+    - action: >
+        Add an ADR clarifying when direct node:fs calls are acceptable vs
+        FileSystemRepository, to formalize the system-install vs vault-content boundary.
+      refs: ['src/services/skill-registry.service.ts', 'docs/architecture/coding-standards.md']
