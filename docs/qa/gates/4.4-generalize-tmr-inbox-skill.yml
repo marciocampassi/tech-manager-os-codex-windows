@@ -1,0 +1,62 @@
+schema: 1
+story: '4.4'
+story_title: 'Generalize tmr-inbox Skill'
+gate: PASS
+status_reason: >
+  All 5 acceptance criteria are fully addressed in skills/tmr-inbox/SKILL.md.
+  One Dataview query correction was applied (refactor) improving functional accuracy.
+  No TypeScript changes; no regressions. Pre-existing integration test failures are
+  unrelated sandbox EPERM issues documented since Story 4.3.
+reviewer: 'Quinn (Test Architect)'
+updated: '2026-04-21T00:00:00Z'
+
+top_issues: []
+waiver:
+  active: false
+
+quality_score: 95
+expires: '2026-05-05T00:00:00Z'
+
+evidence:
+  tests_reviewed: 0
+  risks_identified: 1
+  trace:
+    ac_covered: [1, 2, 3, 4, 5]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: >
+      No secrets, credentials, or API keys handled. Reads only CLAUDE.md (local vault file).
+      No user data leaves the vault. No attack surface introduced.
+  performance:
+    status: PASS
+    notes: >
+      SKILL.md is a static Markdown instruction file — no runtime execution overhead.
+      N/A for traditional performance measurement.
+  reliability:
+    status: PASS
+    notes: >
+      Ambiguous file handling documented (leaves file in inbox with needs-review frontmatter tag).
+      All error/edge cases covered: missing profiles, unknown emails, missing CLAUDE.md (blocked
+      at prerequisites). Deduplication check on task extraction prevents double-appending.
+  maintainability:
+    status: PASS
+    notes: >
+      SKILL.md is well-organized with clear section hierarchy. All variables named descriptively
+      (OWNER_EMAIL, OWNER_DOMAIN, TASKS_FILE, etc.). Classification logic in a table for
+      at-a-glance understanding. Dataview queries corrected to use FROM+WHERE text-search
+      pattern matching the actual task format output by the skill.
+
+recommendations:
+  immediate: []
+  future:
+    - action: >
+        Consider adding a /tmr-inbox status command that reports how many tasks are in
+        each period bucket in tasks.md, giving users a quick health check without opening Obsidian.
+      refs: ['skills/tmr-inbox/SKILL.md']
+    - action: >
+        Once Story 4.5 (skill install/update mechanism) ships, add a version field to SKILL.md
+        so tmr update can detect when a new version is available.
+      refs: ['skills/tmr-inbox/SKILL.md']
