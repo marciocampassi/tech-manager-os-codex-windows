@@ -1,6 +1,6 @@
 import { Command, CommanderError } from 'commander';
 import { createRequire } from 'module';
-import { InitCommand } from './commands/init.command.js';
+// Lightweight commands — imported statically (file-I/O only, no AI SDKs or heavy deps)
 import { createConfigCommand } from './commands/config.command.js';
 import { createTeamCommand, runShow } from './commands/team.command.js';
 import { createMemberCommand } from './commands/member.command.js';
@@ -8,10 +8,9 @@ import { createRelationshipCommand } from './commands/relationship.command.js';
 import { createLeadershipCommand } from './commands/leadership.command.js';
 import { createProjectCommand } from './commands/project.command.js';
 import { createTaskViewCommands } from './commands/task-view.command.js';
-import { createInstallCommand } from './commands/install.command.js';
-import { createProcessCommand } from './commands/process.command.js';
-import { createUpdateCommand } from './commands/update.command.js';
-import { createWatchCommand } from './commands/watch.command.js';
+// Heavy commands (AI SDKs, inquirer, googleapis, chokidar) are lazy-loaded via dynamic
+// import() so that `tmr --version`, `tmr --help`, and lightweight commands don't pay
+// their startup cost. tsup splitting is enabled to create separate chunks for each.
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json') as { version: string; description: string };
@@ -35,9 +34,11 @@ export function createProgram(): Command {
     .option('--plain', 'disable colors and formatting')
     .option('--json', 'output as machine-readable JSON');
 
+  // Lazy: init loads inquirer, boxen, googleapis chain — only needed when actually running init
   p.command('init')
     .description('interactive setup wizard — configure your workspace')
     .action(async () => {
+      const { InitCommand } = await import('./commands/init.command.js');
       await new InitCommand(pkg.version).run();
     });
 
@@ -58,10 +59,68 @@ export function createProgram(): Command {
       await runShow(email);
     });
 
-  p.addCommand(createProcessCommand());
-  p.addCommand(createWatchCommand());
-  p.addCommand(createInstallCommand());
-  p.addCommand(createUpdateCommand());
+  // Lazy: process loads all AI providers + inbox/categorization services
+  p.addCommand(
+    new Command('process')
+      .description(
+        'process inbox files: scan, categorize, update contexts, extract tasks, organize',
+      )
+      .option('--dry-run', 'preview without writing files or updating tasks', false)
+      .action(async (opts: { dryRun?: boolean }, command: Command): Promise<void> => {
+        const globals = command.parent?.opts() as
+          | { verbose?: boolean; plain?: boolean }
+          | undefined;
+        const plain = globals?.plain ?? false;
+        const verbose = globals?.verbose ?? false;
+        const dryRun = opts.dryRun === true;
+        const { runProcess } = await import('./commands/process.command.js');
+        await runProcess({ dryRun, verbose, plain });
+      }),
+  );
+
+  // Lazy: watch loads chokidar + all process command deps
+  p.addCommand(
+    new Command('watch')
+      .description('watch inbox folder and auto-process new files when added')
+      .action(async (_opts: Record<string, unknown>, command: Command): Promise<void> => {
+        const globals = command.parent?.opts() as
+          | { verbose?: boolean; plain?: boolean }
+          | undefined;
+        const plain = globals?.plain ?? false;
+        const verbose = globals?.verbose ?? false;
+        const { runWatch } = await import('./commands/watch.command.js');
+        await runWatch({ verbose, plain });
+      }),
+  );
+
+  // Lazy: install loads SkillRegistryService + node:https
+  p.addCommand(
+    new Command('install')
+      .description('install a skill into your vault from the official registry')
+      .argument('<skill-name>', 'name of the skill to install (e.g. tmr-inbox)')
+      .option('-f, --force', 'reinstall even if already installed', false)
+      .action(
+        async (skillName: string, opts: { force?: boolean }, command: Command): Promise<void> => {
+          const globals = command.parent?.opts() as { plain?: boolean } | undefined;
+          const plain = globals?.plain ?? false;
+          const force = opts.force ?? false;
+          const { runInstall } = await import('./commands/install.command.js');
+          await runInstall(skillName, { plain, force });
+        },
+      ),
+  );
+
+  // Lazy: update shares deps with install
+  p.addCommand(
+    new Command('update')
+      .description('update all installed skills to their latest versions from the registry')
+      .action(async (_opts: unknown, command: Command): Promise<void> => {
+        const globals = command.parent?.opts() as { plain?: boolean } | undefined;
+        const plain = globals?.plain ?? false;
+        const { runUpdate } = await import('./commands/update.command.js');
+        await runUpdate({ plain });
+      }),
+  );
 
   p.on('command:*', (operands: string[]) => {
     process.stderr.write(

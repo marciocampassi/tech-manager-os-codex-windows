@@ -93,6 +93,13 @@ describe('BaseAIProvider — withRetry', () => {
     await expect(provider.runWithRetry(fn, 2)).rejects.toMatchObject({ status: 429 });
     expect(fn).toHaveBeenCalledTimes(3); // initial + 2 retries
   });
+
+  it('throws after exhausting 5 retries (default maxRetries)', async () => {
+    const retryableError = Object.assign(new Error('server error'), { status: 503 });
+    const fn = jest.fn<() => Promise<string>>().mockRejectedValue(retryableError);
+    await expect(provider.runWithRetry(fn)).rejects.toMatchObject({ status: 503 });
+    expect(fn).toHaveBeenCalledTimes(6); // initial + 5 retries
+  });
 });
 
 describe('BaseAIProvider — enforceRateLimit', () => {

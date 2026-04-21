@@ -1,4 +1,6 @@
 import chalk from 'chalk';
+import path from 'node:path';
+import ora from 'ora';
 import type { CategorizationContext, CategorizationResult } from '../types/categorization.types.js';
 import type { InboxFile } from '../types/inbox.types.js';
 import type { ProcessRunOptions, ProcessSummary } from '../types/process.types.js';
@@ -18,6 +20,36 @@ type CatEntry = {
   file: InboxFile;
   result: CategorizationResult;
 };
+
+interface SpinnerHandle {
+  text: string;
+  succeed(msg: string): void;
+  fail(msg: string): void;
+  stop(): void;
+}
+
+/**
+ * Returns an ora spinner when running in a terminal (plain=false), or a plain-text
+ * no-op shim that writes to stdout when plain=true or when output is non-interactive.
+ * This keeps AI-heavy steps (categorisation, task extraction) visually informative
+ * without emitting ANSI codes in CI or pipe contexts.
+ */
+function makeSpinner(initialText: string, plain: boolean): SpinnerHandle {
+  if (plain) {
+    process.stdout.write(`${initialText}\n`);
+    return {
+      text: '',
+      succeed(msg: string): void {
+        process.stdout.write(`${msg}\n`);
+      },
+      fail(msg: string): void {
+        process.stdout.write(`${msg}\n`);
+      },
+      stop(): void {},
+    };
+  }
+  return ora({ text: initialText }).start();
+}
 
 export class InboxProcessService {
   private _progress(message: string, options: ProcessRunOptions): void {
@@ -153,10 +185,15 @@ export class InboxProcessService {
     }
     const catCtx = ctxLoaded.data;
 
-    this._progress('[3/5] Categorizing and updating contexts…', options);
+    // Step 3: AI categorisation — one call per file; can exceed 500ms for any batch.
+    // Use a spinner so the user sees live progress per file.
+    const catSpinner = makeSpinner(`[3/5] Categorizing files… (0/${files.length})`, options.plain);
     const categorized: CatEntry[] = [];
+    let catIndex = 0;
 
     for (const file of files) {
+      catIndex += 1;
+      catSpinner.text = `[3/5] Categorizing ${path.basename(file.filepath)} (${catIndex}/${files.length})…`;
       const cat = await this._categorization.categorize(file, catCtx);
       if (!cat.success) {
         summary.categorizeErrors.push(`${file.filepath}: ${cat.error}`);
@@ -170,6 +207,14 @@ export class InboxProcessService {
       categorized.push({ file, result: cat.data });
     }
 
+    if (summary.categorizeErrors.length > 0 && categorized.length === 0) {
+      catSpinner.fail(`[3/5] Categorization failed for all ${files.length} file(s)`);
+    } else {
+      catSpinner.succeed(
+        `[3/5] Categorized ${summary.filesCategorizedOk} / ${files.length} file(s)`,
+      );
+    }
+
     for (const { result } of categorized) {
       const applied = await this._applyInsights(result, catCtx, workspaceRoot, dryRun);
       summary.memberContextUpdates += applied.member;
@@ -177,14 +222,19 @@ export class InboxProcessService {
       summary.contextErrors.push(...applied.errors);
     }
 
+    // Step 4: AI task extraction — one call covering all files; can exceed 500ms.
     if (!dryRun) {
-      this._progress('[4/5] Extracting tasks…', options);
+      const taskSpinner = makeSpinner('[4/5] Extracting tasks…', options.plain);
       const taskRes = await this._tasks.extractTasks(files, workspaceRoot);
       if (taskRes.success) {
         summary.tasksAdded = taskRes.data.tasksAdded;
         summary.tasksMarkedDone = taskRes.data.tasksMarkedDone;
+        taskSpinner.succeed(
+          `[4/5] Tasks: +${taskRes.data.tasksAdded} added, ${taskRes.data.tasksMarkedDone} done`,
+        );
       } else {
         summary.taskError = taskRes.error;
+        taskSpinner.fail(`[4/5] Task extraction failed`);
       }
     } else {
       this._progress('[4/5] Skipping task extraction (dry-run)…', options);
