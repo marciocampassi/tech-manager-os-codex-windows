@@ -101,6 +101,11 @@ export class ConfigService {
     return this.get('workspace_path') as string | undefined;
   }
 
+  /** Persist the active workspace path — called by `tmr init` after scaffolding. */
+  setWorkspacePath(workspacePath: string): void {
+    this.set('workspace_path', workspacePath);
+  }
+
   /** AI routing confidence threshold. Defaults to 0.75 per architecture. */
   getConfidenceThreshold(): number {
     const stored = this.get('confidence_threshold');

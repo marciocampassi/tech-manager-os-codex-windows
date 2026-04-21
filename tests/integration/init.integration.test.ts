@@ -72,6 +72,13 @@ jest.unstable_mockModule('../../src/services/obsidian-plugin.service.js', () => 
   obsidianPluginService: { installPlugins: mockInstallPlugins },
 }));
 
+jest.unstable_mockModule('../../src/services/config.service.js', () => ({
+  configService: {
+    initialize: jest.fn<() => void>(),
+    setWorkspacePath: jest.fn<(p: string) => void>(),
+  },
+}));
+
 // ── Dynamic import (after all mocks) ─────────────────────────────────────────
 
 const { InitCommand } = await import('../../src/commands/init.command.js');

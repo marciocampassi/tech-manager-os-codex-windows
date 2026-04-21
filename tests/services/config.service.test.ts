@@ -182,6 +182,19 @@ describe('ConfigService — getWorkspacePath', () => {
   });
 });
 
+describe('ConfigService — setWorkspacePath', () => {
+  it('persists the workspace path so getWorkspacePath returns it', () => {
+    service.setWorkspacePath('/Users/me/my-vault');
+    expect(service.getWorkspacePath()).toBe('/Users/me/my-vault');
+  });
+
+  it('overwrites a previously set workspace path', () => {
+    service.setWorkspacePath('/Users/me/old-vault');
+    service.setWorkspacePath('/Users/me/new-vault');
+    expect(service.getWorkspacePath()).toBe('/Users/me/new-vault');
+  });
+});
+
 describe('ConfigService — getConfidenceThreshold', () => {
   it('returns default threshold (0.75) when not configured', () => {
     expect(service.getConfidenceThreshold()).toBe(0.75);

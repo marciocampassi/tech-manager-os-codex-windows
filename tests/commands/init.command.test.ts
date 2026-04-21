@@ -61,6 +61,16 @@ jest.unstable_mockModule('../../src/services/obsidian-plugin.service.js', () => 
   obsidianPluginService: { installPlugins: mockInstallPlugins },
 }));
 
+const mockConfigInitialize = jest.fn<() => void>();
+const mockSetWorkspacePath = jest.fn<(p: string) => void>();
+
+jest.unstable_mockModule('../../src/services/config.service.js', () => ({
+  configService: {
+    initialize: mockConfigInitialize,
+    setWorkspacePath: mockSetWorkspacePath,
+  },
+}));
+
 // ── Dynamic import (after all mocks) ─────────────────────────────────────────
 
 const { InitCommand } = await import('../../src/commands/init.command.js');
@@ -111,6 +121,13 @@ describe('InitCommand', () => {
   });
 
   describe('happy path', () => {
+    it('persists the workspace path to config so other commands use the correct vault', async () => {
+      setupMinimalHappyPath();
+      await new InitCommand().run();
+      expect(mockConfigInitialize).toHaveBeenCalledTimes(1);
+      expect(mockSetWorkspacePath).toHaveBeenCalledWith('/tmp/test-workspace');
+    });
+
     it('calls obsidianPluginService.installPlugins with the workspace path', async () => {
       setupMinimalHappyPath();
       await new InitCommand().run();
