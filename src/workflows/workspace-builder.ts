@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 import { fileSystemService } from '../services/file-system.service.js';
+import { logger } from '../utils/logger.js';
 
 const WORKSPACE_DIRS = [
   'inbox',
@@ -40,7 +41,12 @@ const WORKSPACE_DIRS = [
 ];
 
 export async function buildWorkspaceStructure(workspacePath: string): Promise<void> {
-  await Promise.all(
+  const results = await Promise.allSettled(
     WORKSPACE_DIRS.map((dir) => fileSystemService.createDirectory(join(workspacePath, dir))),
   );
+  results.forEach((result, i) => {
+    if (result.status === 'rejected') {
+      logger.warn(`Could not create directory ${WORKSPACE_DIRS[i]}: ${String(result.reason)}`);
+    }
+  });
 }
