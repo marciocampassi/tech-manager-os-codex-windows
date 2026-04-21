@@ -1,0 +1,55 @@
+schema: 1
+story: '5.2'
+story_title: 'Documentation'
+gate: CONCERNS
+status_reason: 'All 7 ACs implemented and verified. Two low-severity documentation accuracy items remain: (1) verify tmr config --show flag exists, (2) verify tmr install ./local-path is supported. CHANGELOG link added to README during review.'
+reviewer: 'Quinn (Test Architect)'
+updated: '2026-04-21T00:00:00Z'
+
+top_issues:
+  - id: 'DOC-01'
+    severity: low
+    finding: 'docs/user-guide.md references `tmr config --show` flag which may not be implemented in the CLI'
+    suggested_action: 'Verify flag exists in config.command.ts; remove if not implemented'
+    suggested_owner: dev
+  - id: 'DOC-02'
+    severity: low
+    finding: 'docs/skill-authoring-guide.md references `tmr install ./my-skill` (local path) which may not be supported by the install command'
+    suggested_action: 'Verify local path install is supported; if not, replace with manual copy instruction'
+    suggested_owner: dev
+
+waiver:
+  active: false
+
+quality_score: 90
+
+expires: '2026-05-05T00:00:00Z'
+
+evidence:
+  tests_reviewed: 0
+  risks_identified: 2
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'SECURITY.md accurately describes encryption model and data transmission scope. No security surface changes — documentation only.'
+  performance:
+    status: PASS
+    notes: 'N/A — documentation files only. No performance impact.'
+  reliability:
+    status: PASS
+    notes: 'All cross-document links verified as internally consistent. Stale package name corrected.'
+  maintainability:
+    status: CONCERNS
+    notes: 'Two documentation accuracy items (DOC-01, DOC-02) need verification against actual CLI implementation to avoid user confusion.'
+
+recommendations:
+  immediate: []
+  future:
+    - action: 'Verify tmr config --show and tmr install ./local-path flags exist; update docs if not'
+      refs: ['docs/user-guide.md', 'docs/skill-authoring-guide.md', 'src/commands/config.command.ts', 'src/commands/install.command.ts']
+    - action: 'Add examples/ directory to .npmignore when publishing (Story 5.5) to exclude from npm package'
+      refs: ['.npmignore']

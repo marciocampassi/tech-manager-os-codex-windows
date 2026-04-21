@@ -1,5 +1,7 @@
 # Obsidian Setup Guide
 
+> Part of the [tech-manager-os](../../README.md) documentation. See also: [User Guide](../user-guide.md).
+
 This guide covers setting up Obsidian as the primary daily workspace for Tech Leadership OS, including the two required plugins: **Granola Sync** (meeting note ingestion) and **Obsidian Terminal** (run `tmr` commands without leaving Obsidian).
 
 ---
@@ -217,7 +219,7 @@ By default, the Granola plugin syncs every 15 minutes. You can adjust this in pl
 ### Obsidian Terminal
 
 **Terminal opens but `tmr` command not found:**
-- Ensure you ran `npm install -g @marlonvidal/tech-leadership-os` (or the local equivalent) in your regular shell first
+- Ensure you ran `npm install -g tech-manager-os` (or the local equivalent) in your regular shell first
 - The terminal inherits your shell's `PATH` — confirm `which tmr` works in a regular terminal window
 - If using `zsh`, make sure your `.zshrc` is sourced: try opening the profile as `zsh --login`
 
