@@ -25,13 +25,13 @@ export abstract class BaseAIProvider implements AIProvider {
     this.lastCallTime = Date.now();
   }
 
-  protected async withRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> {
+  protected async withRetry<T>(fn: () => Promise<T>, maxRetries = 5): Promise<T> {
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         return await fn();
       } catch (err) {
         if (!this.isRetryable(err) || attempt === maxRetries) throw err;
-        const delay = Math.min(1000 * Math.pow(2, attempt), 10_000);
+        const delay = Math.min(1000 * Math.pow(2, attempt), 16_000);
         await this.sleep(delay);
       }
     }

@@ -49,29 +49,33 @@ function buildInboxProcessService(): InboxProcessService {
   );
 }
 
+export async function runWatch(opts: { verbose: boolean; plain: boolean }): Promise<void> {
+  configService.initialize();
+  const { plain, verbose } = opts;
+
+  let processSvc: InboxProcessService;
+  try {
+    processSvc = buildInboxProcessService();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    process.stdout.write(`${plain ? msg : chalk.red(msg)}\n`);
+    process.exitCode = 1;
+    return;
+  }
+
+  const watchSvc = new WatchService(processSvc, fileSystemService);
+  const workspaceRoot = getWorkspaceRoot();
+  await watchSvc.start(workspaceRoot, { verbose, plain });
+}
+
 export function createWatchCommand(): Command {
   const cmd = new Command('watch')
     .description('watch inbox folder and auto-process new files when added')
     .action(async (_opts: Record<string, unknown>, command: Command): Promise<void> => {
-      configService.initialize();
-
       const globals = command.parent?.opts() as { verbose?: boolean; plain?: boolean } | undefined;
       const plain = globals?.plain ?? false;
       const verbose = globals?.verbose ?? false;
-
-      let processSvc: InboxProcessService;
-      try {
-        processSvc = buildInboxProcessService();
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        process.stdout.write(`${plain ? msg : chalk.red(msg)}\n`);
-        process.exitCode = 1;
-        return;
-      }
-
-      const watchSvc = new WatchService(processSvc, fileSystemService);
-      const workspaceRoot = getWorkspaceRoot();
-      await watchSvc.start(workspaceRoot, { verbose, plain });
+      await runWatch({ verbose, plain });
     });
 
   return cmd;
