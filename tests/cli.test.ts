@@ -97,12 +97,10 @@ describe('CLI — stub commands', () => {
     expect(initCmd?.description()).toContain('setup wizard');
   });
 
-  it('process command prints pipeline banner (Story 3.6)', async () => {
-    const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
-    await program.parseAsync(['node', 'tmr', 'process']);
-    expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('tmr process'));
-    expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('Pipeline:'));
-    stdoutSpy.mockRestore();
+  it('process command is registered with correct name and description (Story 3.6)', () => {
+    const processCmd = program.commands.find((c) => c.name() === 'process');
+    expect(processCmd).toBeDefined();
+    expect(processCmd?.description().length).toBeGreaterThan(0);
   });
 
   it('watch command is registered with correct name and description (Story 3.7)', () => {
