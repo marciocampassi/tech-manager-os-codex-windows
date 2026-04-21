@@ -1,0 +1,43 @@
+schema: 1
+story: '4.3'
+story_title: '`tmr config` First-Run Check in `tmr process`'
+gate: PASS
+status_reason: 'All 5 ACs fully implemented and covered by 3 targeted unit tests. No security, performance, or maintainability issues. Clean discriminated-union design with correct exit code differentiation (78 vs 1).'
+reviewer: 'Quinn (Test Architect)'
+updated: '2026-04-16T00:00:00Z'
+
+top_issues: []
+waiver:
+  active: false
+
+quality_score: 100
+expires: '2026-04-30T00:00:00Z'
+
+evidence:
+  tests_reviewed: 3
+  risks_identified: 0
+  trace:
+    ac_covered: [1, 2, 3, 4, 5]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'API key checked for presence only; encrypted value never logged or exposed. No new external inputs.'
+  performance:
+    status: PASS
+    notes: 'Pre-check is two synchronous in-memory reads — negligible. Early-exit avoids full factory construction on no-key path.'
+  reliability:
+    status: PASS
+    notes: 'Both error paths (no provider, no key) handled with correct exit code 78. Defensive fallbacks in buildInboxProcessService() also updated.'
+  maintainability:
+    status: PASS
+    notes: 'Clean single-responsibility helper. Discriminated union return type is self-documenting. Constant has sysexits.h comment for context.'
+
+recommendations:
+  immediate: []
+  future:
+    - action: 'Consider migrating CONFIG_ERROR_EXIT_CODE to an ExitCode enum when multiple exit codes accumulate in the codebase'
+      refs: ['src/commands/process.command.ts']
+    - action: 'Align docs/architecture/tech-stack.md to reflect Jest (not Vitest) as the actual test runner'
+      refs: ['docs/architecture/tech-stack.md']

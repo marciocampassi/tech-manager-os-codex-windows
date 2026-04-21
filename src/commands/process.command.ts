@@ -15,18 +15,34 @@ import { teamService } from '../services/team.service.js';
 import { getWorkspaceRoot } from '../utils/workspace.js';
 import type { ProcessSummary } from '../types/process.types.js';
 
-function buildInboxProcessService(): InboxProcessService {
+const CONFIG_ERROR_EXIT_CODE = 78; // EX_CONFIG: configuration error (sysexits.h)
+
+function checkApiKeyConfigured(): { ok: true } | { ok: false; message: string } {
   const provider = configService.getActiveProvider();
   if (!provider) {
-    throw new Error(
-      'No AI provider configured. Run `tmr init` or `tmr config switch-provider` and set an API key.',
-    );
+    return {
+      ok: false,
+      message: 'tmr process requires an AI API key. Run `tmr config` to set one up.',
+    };
   }
   const pc = configService.getProviderConfig(provider);
   if (!pc?.api_key_encrypted) {
-    throw new Error(
-      `No API key for provider "${provider}". Run \`tmr config set-key\` to configure it.`,
-    );
+    return {
+      ok: false,
+      message: 'tmr process requires an AI API key. Run `tmr config` to set one up.',
+    };
+  }
+  return { ok: true };
+}
+
+function buildInboxProcessService(): InboxProcessService {
+  const provider = configService.getActiveProvider();
+  if (!provider) {
+    throw new Error('tmr process requires an AI API key. Run `tmr config` to set one up.');
+  }
+  const pc = configService.getProviderConfig(provider);
+  if (!pc?.api_key_encrypted) {
+    throw new Error('tmr process requires an AI API key. Run `tmr config` to set one up.');
   }
 
   const ai = AIProviderFactory.create(provider, pc.api_key_encrypted);
@@ -126,6 +142,13 @@ export async function runProcess(opts: {
   plain: boolean;
 }): Promise<void> {
   configService.initialize();
+
+  const configCheck = checkApiKeyConfigured();
+  if (!configCheck.ok) {
+    process.stdout.write(`${opts.plain ? configCheck.message : chalk.red(configCheck.message)}\n`);
+    process.exitCode = CONFIG_ERROR_EXIT_CODE;
+    return;
+  }
 
   const workspaceRoot = getWorkspaceRoot();
   let processSvc: InboxProcessService;
