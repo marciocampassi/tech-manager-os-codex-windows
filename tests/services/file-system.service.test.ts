@@ -1,7 +1,6 @@
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 
 const mockEnsureDir = jest.fn<() => Promise<void>>();
-const mockWriteFile = jest.fn<() => Promise<void>>();
 const mockReadFile = jest.fn<() => Promise<unknown>>();
 const mockRename = jest.fn<() => Promise<void>>();
 const mockRemove = jest.fn<() => Promise<void>>();
@@ -13,7 +12,6 @@ const mockUnlink = jest.fn<() => Promise<void>>();
 
 jest.unstable_mockModule('fs-extra', () => ({
   ensureDir: mockEnsureDir,
-  writeFile: mockWriteFile,
   readFile: mockReadFile,
   rename: mockRename,
   remove: mockRemove,
@@ -24,6 +22,22 @@ jest.unstable_mockModule('fs-extra', () => ({
   unlink: mockUnlink,
 }));
 
+// ── Mock node:fs/promises (used by FileSystemService.writeFile via fsOpen) ───
+
+const mockFhWriteFile = jest.fn<() => Promise<void>>();
+const mockFhClose = jest.fn<() => Promise<void>>();
+
+const mockFileHandle = {
+  writeFile: mockFhWriteFile,
+  close: mockFhClose,
+};
+
+const mockOpen = jest.fn<() => Promise<typeof mockFileHandle>>();
+
+jest.unstable_mockModule('node:fs/promises', () => ({
+  open: mockOpen,
+}));
+
 const { FileSystemService, FileSystemError } =
   await import('../../src/services/file-system.service.js');
 
@@ -32,7 +46,6 @@ let service: InstanceType<typeof FileSystemService>;
 beforeEach(() => {
   service = new FileSystemService();
   mockEnsureDir.mockReset();
-  mockWriteFile.mockReset();
   mockReadFile.mockReset();
   mockRename.mockReset();
   mockRemove.mockReset();
@@ -41,6 +54,13 @@ beforeEach(() => {
   mockAppendFile.mockReset();
   mockReaddir.mockReset();
   mockUnlink.mockReset();
+  mockOpen.mockReset();
+  mockFhWriteFile.mockReset();
+  mockFhClose.mockReset();
+  // Default: open returns the mock FileHandle; FileHandle methods succeed.
+  mockOpen.mockResolvedValue(mockFileHandle as never);
+  mockFhWriteFile.mockResolvedValue(undefined);
+  mockFhClose.mockResolvedValue(undefined);
 });
 
 // ─── FileSystemError ─────────────────────────────────────────────────────────
@@ -104,77 +124,84 @@ describe('FileSystemService — createDirectory', () => {
 // ─── writeFile ───────────────────────────────────────────────────────────────
 
 describe('FileSystemService — writeFile', () => {
-  it('calls ensureDir, writeFile, rename in order', async () => {
+  it('calls ensureDir, open (write), close, rename in order', async () => {
     const calls: string[] = [];
     mockEnsureDir.mockImplementation(async () => {
       calls.push('ensureDir');
     });
-    mockWriteFile.mockImplementation(async () => {
-      calls.push('writeFile');
+    mockOpen.mockImplementation(async () => {
+      calls.push('open');
+      return {
+        writeFile: jest.fn<() => Promise<void>>().mockImplementation(async () => {
+          calls.push('fh.writeFile');
+        }),
+        close: jest.fn<() => Promise<void>>().mockImplementation(async () => {
+          calls.push('fh.close');
+        }),
+      } as never;
     });
     mockRename.mockImplementation(async () => {
       calls.push('rename');
     });
 
     await service.writeFile('/some/dir/file.txt', 'hello');
-    expect(calls).toEqual(['ensureDir', 'writeFile', 'rename']);
+    expect(calls).toEqual(['ensureDir', 'open', 'fh.writeFile', 'fh.close', 'rename']);
   });
 
   it('calls ensureDir with the parent directory', async () => {
     mockEnsureDir.mockResolvedValue(undefined);
-    mockWriteFile.mockResolvedValue(undefined);
-    mockRename.mockResolvedValue(undefined);
 
     await service.writeFile('/some/dir/file.txt', 'content');
     expect(mockEnsureDir).toHaveBeenCalledWith('/some/dir');
   });
 
-  it('passes content and utf8 encoding to fs.writeFile', async () => {
+  it('opens temp path derived from the target path for writing', async () => {
     mockEnsureDir.mockResolvedValue(undefined);
-    mockWriteFile.mockResolvedValue(undefined);
-    mockRename.mockResolvedValue(undefined);
-
-    await service.writeFile('/file.txt', 'my content');
-    expect(mockWriteFile).toHaveBeenCalledWith(
-      expect.stringContaining('/file.txt'),
-      'my content',
-      'utf8',
-    );
-  });
-
-  it('temp path is derived from the target path', async () => {
-    mockEnsureDir.mockResolvedValue(undefined);
-    mockWriteFile.mockResolvedValue(undefined);
     mockRename.mockResolvedValue(undefined);
 
     await service.writeFile('/tmp/out.txt', '');
-    const tmpArg = (mockWriteFile.mock.calls[0] as string[])[0];
-    expect(tmpArg).toMatch(/^\/tmp\/out\.txt\.\d+\.tmp$/);
+    const openCall = mockOpen.mock.calls[0] as unknown as [string, string];
+    expect(openCall[0]).toMatch(/^\/tmp\/out\.txt\.\d+\.tmp$/);
+    expect(openCall[1]).toBe('w');
+  });
+
+  it('passes content and utf8 encoding to FileHandle.writeFile', async () => {
+    mockEnsureDir.mockResolvedValue(undefined);
+    mockRename.mockResolvedValue(undefined);
+
+    await service.writeFile('/file.txt', 'my content');
+    expect(mockFhWriteFile).toHaveBeenCalledWith('my content', 'utf8');
   });
 
   it('renames temp to final path', async () => {
     mockEnsureDir.mockResolvedValue(undefined);
-    mockWriteFile.mockResolvedValue(undefined);
-    mockRename.mockResolvedValue(undefined);
 
     await service.writeFile('/final/file.txt', '');
     const [, finalPath] = mockRename.mock.calls[0] as string[];
     expect(finalPath).toBe('/final/file.txt');
   });
 
-  it('cleans up temp file and throws FileSystemError when writeFile fails', async () => {
+  it('always closes the FileHandle even when writeFile throws', async () => {
     mockEnsureDir.mockResolvedValue(undefined);
-    mockWriteFile.mockRejectedValue(new Error('disk full'));
+    mockFhWriteFile.mockRejectedValue(new Error('disk full'));
+    mockRemove.mockResolvedValue(undefined);
+
+    await expect(service.writeFile('/tmp/out.txt', 'x')).rejects.toBeInstanceOf(FileSystemError);
+    expect(mockFhClose).toHaveBeenCalledTimes(1);
+    expect(mockRename).not.toHaveBeenCalled();
+  });
+
+  it('cleans up temp file and throws FileSystemError when FileHandle.writeFile fails', async () => {
+    mockEnsureDir.mockResolvedValue(undefined);
+    mockFhWriteFile.mockRejectedValue(new Error('disk full'));
     mockRemove.mockResolvedValue(undefined);
 
     await expect(service.writeFile('/tmp/out.txt', 'x')).rejects.toBeInstanceOf(FileSystemError);
     expect(mockRemove).toHaveBeenCalledTimes(1);
-    expect(mockRename).not.toHaveBeenCalled();
   });
 
   it('cleans up temp file and throws FileSystemError when rename fails', async () => {
     mockEnsureDir.mockResolvedValue(undefined);
-    mockWriteFile.mockResolvedValue(undefined);
     mockRename.mockRejectedValue(new Error('EXDEV'));
     mockRemove.mockResolvedValue(undefined);
 
@@ -185,7 +212,7 @@ describe('FileSystemService — writeFile', () => {
   it('FileSystemError has operation "writeFile", correct path, and cause', async () => {
     const root = new Error('ENOSPC');
     mockEnsureDir.mockResolvedValue(undefined);
-    mockWriteFile.mockRejectedValue(root);
+    mockFhWriteFile.mockRejectedValue(root);
     mockRemove.mockResolvedValue(undefined);
 
     await expect(service.writeFile('/tmp/f.txt', '')).rejects.toMatchObject({
@@ -197,7 +224,7 @@ describe('FileSystemService — writeFile', () => {
 
   it('proceeds even if remove cleanup fails', async () => {
     mockEnsureDir.mockResolvedValue(undefined);
-    mockWriteFile.mockRejectedValue(new Error('disk full'));
+    mockFhWriteFile.mockRejectedValue(new Error('disk full'));
     mockRemove.mockRejectedValue(new Error('already gone'));
 
     await expect(service.writeFile('/tmp/out.txt', 'x')).rejects.toBeInstanceOf(FileSystemError);
