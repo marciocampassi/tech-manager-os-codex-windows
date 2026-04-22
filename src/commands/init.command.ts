@@ -1,6 +1,5 @@
 import boxen from 'boxen';
 import chalk from 'chalk';
-import ora from 'ora';
 import { join } from 'node:path';
 import { configService } from '../services/config.service.js';
 import { fileSystemService } from '../services/file-system.service.js';
@@ -9,15 +8,29 @@ import { buildWorkspaceStructure } from '../workflows/workspace-builder.js';
 import { obsidianPluginService } from '../services/obsidian-plugin.service.js';
 import { generateClaudeMd } from '../services/claude-md.generator.js';
 import { generateTaskFileTemplate } from '../templates/onboarding.templates.js';
+import { startSpinner } from '../utils/display.js';
 import type { TaskPeriod } from '../types/task.types.js';
 
 const TASKS_MD_TEMPLATE =
   '# Tasks\n\n<!-- Backlog: add tasks here — tmr process will append extracted tasks automatically -->\n';
 
 export class InitCommand {
-  constructor(private readonly version: string = '1.0.0') {}
+  constructor(
+    private readonly version: string = '1.0.0',
+    private readonly plain: boolean = false,
+  ) {}
 
-  private displayWelcomeBanner(): void {
+  /**
+   * Displays the branded welcome banner.
+   * Branding uses cyan — intentional exception to the green/yellow/blue/red color contract.
+   * In --plain mode, renders a simple text header instead.
+   */
+  displayWelcomeBanner(): void {
+    if (this.plain) {
+      process.stdout.write(`Tech Manager OS v${this.version}\n`);
+      process.stdout.write('AI-powered workspace for engineering leaders\n\n');
+      return;
+    }
     const banner = boxen(
       [
         chalk.bold.cyan('Tech Manager OS'),
@@ -31,6 +44,18 @@ export class InitCommand {
   }
 
   private displayNextSteps(workspacePath: string): void {
+    if (this.plain) {
+      process.stdout.write(`\n✓ Workspace created at ${workspacePath}\n`);
+      process.stdout.write('\nNext steps:\n');
+      process.stdout.write('  1. Run `tmr config` to set your AI API key\n');
+      process.stdout.write('  2. Run `tmr install tmr-inbox` to install the inbox skill\n');
+      process.stdout.write(`  3. Open ${workspacePath} in Obsidian — plugins are ready\n`);
+      process.stdout.write('  4. Run `tmr --help` to explore all commands\n');
+      process.stdout.write(
+        '\nObsidian plugins installed (obsidian-git, granola-sync, terminal, dataview)\n',
+      );
+      return;
+    }
     const lines = [
       chalk.bold.green(`\n✓ Workspace created at ${workspacePath}`),
       '',
@@ -55,7 +80,7 @@ export class InitCommand {
     configService.initialize();
     configService.setWorkspacePath(workspacePath);
 
-    const scaffoldSpinner = ora('Creating workspace…').start();
+    const scaffoldSpinner = startSpinner('Creating workspace', this.plain);
     await buildWorkspaceStructure(workspacePath);
 
     const taskPeriods: TaskPeriod[] = ['today', 'this-week', 'this-month', 'this-quarter'];
@@ -78,11 +103,11 @@ export class InitCommand {
 
     scaffoldSpinner.succeed('Workspace ready');
 
-    const claudeSpinner = ora('Generating CLAUDE.md…').start();
+    const claudeSpinner = startSpinner('Generating CLAUDE.md', this.plain);
     await fileSystemService.writeFile(join(workspacePath, 'CLAUDE.md'), generateClaudeMd(answers));
     claudeSpinner.succeed('CLAUDE.md generated');
 
-    const pluginSpinner = ora('Downloading Obsidian plugins…').start();
+    const pluginSpinner = startSpinner('Downloading Obsidian plugins', this.plain);
     await obsidianPluginService.installPlugins(workspacePath);
     pluginSpinner.succeed('Obsidian plugins installed');
 

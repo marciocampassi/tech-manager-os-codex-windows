@@ -54,15 +54,18 @@ function fail(error: string): FailResult {
 
 describe('runUpdate', () => {
   let stdoutSpy: ReturnType<typeof jest.spyOn>;
+  let stderrSpy: ReturnType<typeof jest.spyOn>;
 
   beforeEach(() => {
     jest.clearAllMocks();
     process.exitCode = undefined;
     stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    stderrSpy = jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
   });
 
   afterEach(() => {
     stdoutSpy.mockRestore();
+    stderrSpy.mockRestore();
   });
 
   it('Test A: no skills installed — prints helpful message', async () => {
@@ -112,9 +115,9 @@ describe('runUpdate', () => {
 
     await runUpdate({ plain: true });
 
-    const output = (stdoutSpy.mock.calls as unknown[][]).map((c) => String(c[0])).join('');
-    expect(output).toContain('could not reach registry');
-    expect(output).toContain('tmr-inbox');
+    const errOutput = (stderrSpy.mock.calls as unknown[][]).map((c) => String(c[0])).join('');
+    expect(errOutput).toContain('could not reach registry');
+    expect(errOutput).toContain('tmr-inbox');
     expect(mockInstallSkill).toHaveBeenCalledWith('tmr-other', expect.any(String), '2.1.0');
   });
 });

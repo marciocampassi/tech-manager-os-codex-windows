@@ -100,17 +100,20 @@ const FULL_PROCESS_SUMMARY = {
 
 describe('runProcess — API key pre-check (AC: 1, 2, 3, 5)', () => {
   let stdoutSpy: ReturnType<typeof jest.spyOn>;
+  let stderrSpy: ReturnType<typeof jest.spyOn>;
   const originalExitCode = process.exitCode;
 
   beforeEach(() => {
     jest.clearAllMocks();
     process.exitCode = 0;
     stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    stderrSpy = jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
     mockRun.mockResolvedValue(FULL_PROCESS_SUMMARY);
   });
 
   afterEach(() => {
     stdoutSpy.mockRestore();
+    stderrSpy.mockRestore();
     process.exitCode = originalExitCode;
   });
 
@@ -119,9 +122,9 @@ describe('runProcess — API key pre-check (AC: 1, 2, 3, 5)', () => {
 
     await runProcess({ dryRun: false, verbose: false, plain: true });
 
-    const output = (stdoutSpy.mock.calls as [string][]).map((c) => c[0]).join('');
-    expect(output).toContain('tmr config');
-    expect(output).toContain('API key');
+    const errOutput = (stderrSpy.mock.calls as [string][]).map((c) => c[0]).join('');
+    expect(errOutput).toContain('tmr config');
+    expect(errOutput).toContain('API key');
     expect(process.exitCode).toBe(78);
   });
 
@@ -131,9 +134,9 @@ describe('runProcess — API key pre-check (AC: 1, 2, 3, 5)', () => {
 
     await runProcess({ dryRun: false, verbose: false, plain: true });
 
-    const output = (stdoutSpy.mock.calls as [string][]).map((c) => c[0]).join('');
-    expect(output).toContain('tmr config');
-    expect(output).toContain('API key');
+    const errOutput = (stderrSpy.mock.calls as [string][]).map((c) => c[0]).join('');
+    expect(errOutput).toContain('tmr config');
+    expect(errOutput).toContain('API key');
     expect(process.exitCode).toBe(78);
   });
 

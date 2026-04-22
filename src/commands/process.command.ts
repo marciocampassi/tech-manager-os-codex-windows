@@ -13,6 +13,7 @@ import { sectionParserService } from '../services/section-parser.service.js';
 import { TaskService } from '../services/task.service.js';
 import { teamService } from '../services/team.service.js';
 import { getWorkspaceRoot } from '../utils/workspace.js';
+import { printError, printJson } from '../utils/display.js';
 import type { ProcessSummary } from '../types/process.types.js';
 
 const CONFIG_ERROR_EXIT_CODE = 78; // EX_CONFIG: configuration error (sysexits.h)
@@ -140,12 +141,18 @@ export async function runProcess(opts: {
   dryRun: boolean;
   verbose: boolean;
   plain: boolean;
+  json?: boolean;
 }): Promise<void> {
   configService.initialize();
+  const { plain, json = false } = opts;
 
   const configCheck = checkApiKeyConfigured();
   if (!configCheck.ok) {
-    process.stdout.write(`${opts.plain ? configCheck.message : chalk.red(configCheck.message)}\n`);
+    if (json) {
+      printJson({ status: 'error', message: configCheck.message });
+    } else {
+      printError(configCheck.message, 'Run `tmr config` to add an API key.', plain);
+    }
     process.exitCode = CONFIG_ERROR_EXIT_CODE;
     return;
   }
@@ -156,27 +163,33 @@ export async function runProcess(opts: {
     processSvc = buildInboxProcessService();
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    process.stdout.write(`${opts.plain ? msg : chalk.red(msg)}\n`);
+    if (json) {
+      printJson({ status: 'error', message: msg });
+    } else {
+      printError(msg, 'Run `tmr config` to configure your AI provider.', plain);
+    }
     process.exitCode = 1;
     return;
   }
 
-  const bold: (t: string) => string = opts.plain
-    ? (t: string): string => t
-    : (t: string): string => chalk.bold(t);
-  const yellow: (t: string) => string = opts.plain
-    ? (t: string): string => t
-    : (t: string): string => chalk.yellow(t);
-  const dim: (t: string) => string = opts.plain
-    ? (t: string): string => t
-    : (t: string): string => chalk.dim(t);
-  process.stdout.write(bold('tmr process') + (opts.dryRun ? yellow(' (dry-run)') : '') + '\n');
-  process.stdout.write(
-    dim('Pipeline: scan → categorize → update contexts → extract tasks → organize\n\n'),
-  );
+  if (!json) {
+    const bold: (t: string) => string = plain
+      ? (t: string): string => t
+      : (t: string): string => chalk.bold(t);
+    const yellow: (t: string) => string = plain
+      ? (t: string): string => t
+      : (t: string): string => chalk.yellow(t);
+    const dim: (t: string) => string = plain
+      ? (t: string): string => t
+      : (t: string): string => chalk.dim(t);
+    process.stdout.write(bold('tmr process') + (opts.dryRun ? yellow(' (dry-run)') : '') + '\n');
+    process.stdout.write(
+      dim('Pipeline: scan → categorize → update contexts → extract tasks → organize\n\n'),
+    );
 
-  if (opts.verbose) {
-    process.stdout.write(dim(`Workspace: ${workspaceRoot}\n\n`));
+    if (opts.verbose) {
+      process.stdout.write(dim(`Workspace: ${workspaceRoot}\n\n`));
+    }
   }
 
   const result = await processSvc.run(workspaceRoot, {
@@ -186,24 +199,48 @@ export async function runProcess(opts: {
   });
 
   if (!result.success) {
-    process.stdout.write(`${opts.plain ? result.error : chalk.red(result.error)}\n`);
+    if (json) {
+      printJson({ status: 'error', message: result.error });
+    } else {
+      printError(result.error, 'Check your workspace path and AI provider configuration.', plain);
+    }
     process.exitCode = 1;
     return;
   }
 
-  process.stdout.write(formatSummary(result.data, opts.plain));
+  if (json) {
+    const s = result.data;
+    printJson({
+      processed: s.filesCategorizedOk,
+      skipped: s.needsReviewCount,
+      errors: s.categorizeErrors.length + s.contextErrors.length + s.organizeErrors.length,
+      tasksAdded: s.tasksAdded,
+      tasksMarkedDone: s.tasksMarkedDone,
+      filesOrganized: s.filesOrganizedOk,
+      dryRun: s.dryRun,
+    });
+  } else {
+    process.stdout.write(formatSummary(result.data, plain));
+  }
 }
 
 export function createProcessCommand(): Command {
   const cmd = new Command('process')
     .description('process inbox files: scan, categorize, update contexts, extract tasks, organize')
     .option('--dry-run', 'preview without writing files or updating tasks', false)
+    .addHelpText(
+      'after',
+      '\nExamples:\n  tmr process\n  tmr process --dry-run\n  tmr process --json\n',
+    )
     .action(async (opts: { dryRun?: boolean }, command: Command): Promise<void> => {
-      const globals = command.parent?.opts() as { verbose?: boolean; plain?: boolean } | undefined;
+      const globals = command.parent?.opts() as
+        | { verbose?: boolean; plain?: boolean; json?: boolean }
+        | undefined;
       const plain = globals?.plain ?? false;
       const verbose = globals?.verbose ?? false;
+      const json = globals?.json ?? false;
       const dryRun = opts.dryRun === true;
-      await runProcess({ dryRun, verbose, plain });
+      await runProcess({ dryRun, verbose, plain, json });
     });
 
   return cmd;

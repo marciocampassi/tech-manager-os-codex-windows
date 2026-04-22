@@ -1,5 +1,6 @@
 import { Command, CommanderError } from 'commander';
 import { createRequire } from 'module';
+import { printError } from './utils/display.js';
 // Lightweight commands — imported statically (file-I/O only, no AI SDKs or heavy deps)
 import { createConfigCommand } from './commands/config.command.js';
 import { createTeamCommand, runShow } from './commands/team.command.js';
@@ -37,9 +38,11 @@ export function createProgram(): Command {
   // Lazy: init loads inquirer, boxen, googleapis chain — only needed when actually running init
   p.command('init')
     .description('interactive setup wizard — configure your workspace')
-    .action(async () => {
+    .action(async (_opts: unknown, command: Command) => {
+      const globals = command.parent?.opts() as { plain?: boolean } | undefined;
+      const plain = globals?.plain ?? false;
       const { InitCommand } = await import('./commands/init.command.js');
-      await new InitCommand(pkg.version).run();
+      await new InitCommand(pkg.version, plain).run();
     });
 
   p.addCommand(createConfigCommand());
@@ -147,11 +150,12 @@ export async function run(argv = process.argv): Promise<void> {
       throw err;
     }
     const opts = program.opts<GlobalOptions>();
+    const plain = opts.plain ?? false;
     const msg = err instanceof Error ? err.message : String(err);
     if (opts.verbose && err instanceof Error) {
-      process.stderr.write(`Error: ${msg}\n${err.stack ?? ''}\n`);
+      printError(`${msg}\n${err.stack ?? ''}`, undefined, plain);
     } else {
-      process.stderr.write(`Error: ${msg}\nRun 'tmr --help' for usage information.\n`);
+      printError(msg, "Run 'tmr --help' for usage information.", plain);
     }
     process.exit(1);
   }

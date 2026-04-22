@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { memberService, MemberService } from '../services/member.service.js';
+import { printError } from '../utils/display.js';
 import type { FileType } from '../types/member.types.js';
 
 // ── Type guard ────────────────────────────────────────────────────────────────
@@ -64,8 +65,9 @@ export async function runMemberAdd(
 
   // Routing: type-first mode
   if (!isFileType(typeArg)) {
-    process.stdout.write(
-      `${chalk.red('✖')} Unknown type "${typeArg}". Valid types: ${VALID_TYPES.join(', ')}, or pass an email address to create a member profile\n`,
+    printError(
+      `Unknown type "${typeArg}".`,
+      `Valid types: ${VALID_TYPES.join(', ')}, or pass an email address to create a member profile`,
     );
     process.exitCode = 1;
     return;
@@ -92,7 +94,7 @@ export async function runMemberAdd(
     result = await svc.createMemberFile(email, typeArg, opts, ws);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    process.stdout.write(`${chalk.red('✖')} ${message}\n`);
+    printError(message, 'Check that the member exists: tmr team list');
     process.exitCode = 1;
     return;
   }

@@ -118,6 +118,36 @@ describe('InitCommand', () => {
       expect(typeof firstCall).toBe('string');
       expect(firstCall.length).toBeGreaterThan(0);
     });
+
+    it('plain mode: banner writes "Tech Manager OS" to stdout directly', () => {
+      const cmd = new InitCommand('1.2.3', true);
+      cmd.displayWelcomeBanner();
+      const allOutput = (stdoutSpy.mock.calls as [string][]).map((c) => c[0]).join('');
+      expect(allOutput).toContain('Tech Manager OS');
+    });
+
+    it('plain mode: banner includes version string', () => {
+      const cmd = new InitCommand('2.5.0', true);
+      cmd.displayWelcomeBanner();
+      const allOutput = (stdoutSpy.mock.calls as [string][]).map((c) => c[0]).join('');
+      expect(allOutput).toContain('2.5.0');
+    });
+
+    it('plain mode: no boxen output (uses plain text instead)', () => {
+      const cmd = new InitCommand('1.0.0', true);
+      cmd.displayWelcomeBanner();
+      const allOutput = (stdoutSpy.mock.calls as [string][]).map((c) => c[0]).join('');
+      // In plain mode boxen is not called — '[boxen]' should not appear
+      expect(allOutput).not.toContain('[boxen]');
+    });
+
+    it('color mode: uses boxen (output contains [boxen] from mock)', () => {
+      const cmd = new InitCommand('1.0.0', false);
+      cmd.displayWelcomeBanner();
+      const allOutput = (stdoutSpy.mock.calls as [string][]).map((c) => c[0]).join('');
+      // The mock returns '[boxen]' — verify boxen was called
+      expect(allOutput).toContain('[boxen]');
+    });
   });
 
   describe('happy path', () => {

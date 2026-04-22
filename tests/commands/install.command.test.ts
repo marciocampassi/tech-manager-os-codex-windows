@@ -44,6 +44,8 @@ const { runInstall } = await import('../../src/commands/install.command.js');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+const ANSI_RE = /\x1b\[[0-9;]*m/g;
+
 function makeSuccessResult(version = '1.0.0') {
   return {
     success: true as const,
@@ -59,15 +61,18 @@ function makeErrorResult(error: string) {
 
 describe('runInstall', () => {
   let stdoutSpy: ReturnType<typeof jest.spyOn>;
+  let stderrSpy: ReturnType<typeof jest.spyOn>;
 
   beforeEach(() => {
     jest.clearAllMocks();
     process.exitCode = undefined;
     stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    stderrSpy = jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
   });
 
   afterEach(() => {
     stdoutSpy.mockRestore();
+    stderrSpy.mockRestore();
   });
 
   it('Test A: install happy path — skill not installed, fetch succeeds', async () => {
@@ -109,7 +114,7 @@ describe('runInstall', () => {
     expect(output).toContain('Installed');
   });
 
-  it('Test D: fetch fails (network error) — exitCode 1', async () => {
+  it('Test D: fetch fails (network error) — exitCode 1, error on stderr', async () => {
     mockIsInstalled.mockReturnValue(false);
     mockGetInstalledVersion.mockReturnValue(undefined);
     mockFetchSkillContent.mockResolvedValue(makeErrorResult('Network error: connection refused'));
@@ -117,8 +122,9 @@ describe('runInstall', () => {
     await runInstall('tmr-inbox', { plain: true, force: false });
 
     expect(mockInstallSkill).not.toHaveBeenCalled();
-    const output = (stdoutSpy.mock.calls as unknown[][]).map((c) => String(c[0])).join('');
-    expect(output).toContain('Network error');
+    const errOutput = (stderrSpy.mock.calls as unknown[][]).map((c) => String(c[0])).join('');
+    expect(errOutput).toContain('Network error');
+    expect(errOutput).toContain('internet connection');
     expect(process.exitCode).toBe(1);
   });
 
@@ -132,8 +138,73 @@ describe('runInstall', () => {
     await runInstall('unknown-skill', { plain: true, force: false });
 
     expect(mockInstallSkill).not.toHaveBeenCalled();
-    const output = (stdoutSpy.mock.calls as unknown[][]).map((c) => String(c[0])).join('');
-    expect(output).toContain('not found');
+    const errOutput = (stderrSpy.mock.calls as unknown[][]).map((c) => String(c[0])).join('');
+    expect(errOutput).toContain('not found');
     expect(process.exitCode).toBe(1);
+  });
+
+  it('Test F: --plain flag produces no ANSI codes', async () => {
+    mockIsInstalled.mockReturnValue(false);
+    mockGetInstalledVersion.mockReturnValue(undefined);
+    mockFetchSkillContent.mockResolvedValue(makeSuccessResult('1.0.0'));
+
+    await runInstall('tmr-inbox', { plain: true, force: false });
+
+    const allOutput = [
+      ...(stdoutSpy.mock.calls as unknown[][]),
+      ...(stderrSpy.mock.calls as unknown[][]),
+    ]
+      .map((c) => String(c[0]))
+      .join('');
+    expect(ANSI_RE.test(allOutput)).toBe(false);
+  });
+
+  it('Test G: --json flag — success outputs valid JSON', async () => {
+    mockIsInstalled.mockReturnValue(false);
+    mockGetInstalledVersion.mockReturnValue(undefined);
+    mockFetchSkillContent.mockResolvedValue(makeSuccessResult('2.0.0'));
+
+    await runInstall('tmr-inbox', { plain: false, force: false, json: true });
+
+    const output = (stdoutSpy.mock.calls as unknown[][]).map((c) => String(c[0])).join('');
+    const parsed = JSON.parse(output) as { skill: string; version: string; status: string };
+    expect(parsed.skill).toBe('tmr-inbox');
+    expect(parsed.version).toBe('2.0.0');
+    expect(parsed.status).toBe('installed');
+  });
+
+  it('Test H: --json flag — already installed outputs valid JSON', async () => {
+    mockIsInstalled.mockReturnValue(true);
+    mockGetInstalledVersion.mockReturnValue('1.0.0');
+
+    await runInstall('tmr-inbox', { plain: false, force: false, json: true });
+
+    const output = (stdoutSpy.mock.calls as unknown[][]).map((c) => String(c[0])).join('');
+    const parsed = JSON.parse(output) as { status: string };
+    expect(parsed.status).toBe('already_installed');
+  });
+
+  it('Test I: --json flag — error outputs valid JSON', async () => {
+    mockIsInstalled.mockReturnValue(false);
+    mockGetInstalledVersion.mockReturnValue(undefined);
+    mockFetchSkillContent.mockResolvedValue(makeErrorResult('Registry unavailable'));
+
+    await runInstall('tmr-inbox', { plain: false, force: false, json: true });
+
+    const output = (stdoutSpy.mock.calls as unknown[][]).map((c) => String(c[0])).join('');
+    const parsed = JSON.parse(output) as { status: string; message: string };
+    expect(parsed.status).toBe('error');
+    expect(parsed.message).toContain('Registry unavailable');
+  });
+
+  it('Test J: --json flag output contains no ANSI codes', async () => {
+    mockIsInstalled.mockReturnValue(false);
+    mockGetInstalledVersion.mockReturnValue(undefined);
+    mockFetchSkillContent.mockResolvedValue(makeSuccessResult('1.0.0'));
+
+    await runInstall('tmr-inbox', { plain: false, force: false, json: true });
+
+    const output = (stdoutSpy.mock.calls as unknown[][]).map((c) => String(c[0])).join('');
+    expect(ANSI_RE.test(output)).toBe(false);
   });
 });

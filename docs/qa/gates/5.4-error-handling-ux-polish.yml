@@ -1,0 +1,22 @@
+story: 5.4-error-handling-ux-polish
+date: 2026-04-21
+reviewer: Quinn (QA Agent)
+gate: PASS
+risk_profile: Medium
+nfr_status:
+  security: PASS
+  performance: PASS
+  reliability: PASS
+  accessibility: PASS
+concerns:
+  - id: QA-5.4-01
+    severity: low
+    description: >
+      update.command.ts error path calls both spinner.fail() and printError() for the same
+      fetch failure event, producing two ✗ lines. Recommend consolidating to one.
+    blocking: false
+tests_passing: 822
+tests_total: 822
+lint: PASS
+typecheck: PASS
+new_dependencies: none

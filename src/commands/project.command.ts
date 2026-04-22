@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { projectService, ProjectService } from '../services/project.service.js';
+import { printError } from '../utils/display.js';
 import type { IProjectFileOptions } from '../types/project.types.js';
 
 // ── Formatting helpers ────────────────────────────────────────────────────────
@@ -49,7 +50,7 @@ export async function runProjectStandup(
 ): Promise<void> {
   const name = nameArg?.trim() ?? '';
   if (!name) {
-    process.stdout.write(`${chalk.red('✖')} Project name is required\n`);
+    printError('Project name is required', 'Usage: tmr project standup <name>');
     process.exitCode = 1;
     return;
   }
@@ -59,7 +60,10 @@ export async function runProjectStandup(
   try {
     result = await svc.addStandup(name, opts, ws);
   } catch (err) {
-    process.stdout.write(`${chalk.red('✖')} ${err instanceof Error ? err.message : String(err)}\n`);
+    printError(
+      err instanceof Error ? err.message : String(err),
+      'Check that the project exists: tmr project list',
+    );
     process.exitCode = 1;
     return;
   }
@@ -74,7 +78,7 @@ export async function runProjectDiscussion(
 ): Promise<void> {
   const name = nameArg?.trim() ?? '';
   if (!name) {
-    process.stdout.write(`${chalk.red('✖')} Project name is required\n`);
+    printError('Project name is required', 'Usage: tmr project discussion <name>');
     process.exitCode = 1;
     return;
   }
@@ -84,7 +88,10 @@ export async function runProjectDiscussion(
   try {
     result = await svc.addDiscussion(name, opts, ws);
   } catch (err) {
-    process.stdout.write(`${chalk.red('✖')} ${err instanceof Error ? err.message : String(err)}\n`);
+    printError(
+      err instanceof Error ? err.message : String(err),
+      'Check that the project exists: tmr project list',
+    );
     process.exitCode = 1;
     return;
   }
@@ -99,7 +106,7 @@ export async function runProjectPresentation(
 ): Promise<void> {
   const name = nameArg?.trim() ?? '';
   if (!name) {
-    process.stdout.write(`${chalk.red('✖')} Project name is required\n`);
+    printError('Project name is required', 'Usage: tmr project presentation <name>');
     process.exitCode = 1;
     return;
   }
@@ -122,7 +129,10 @@ export async function runProjectPresentation(
   try {
     result = await svc.addPresentation(name, topic, opts, ws);
   } catch (err) {
-    process.stdout.write(`${chalk.red('✖')} ${err instanceof Error ? err.message : String(err)}\n`);
+    printError(
+      err instanceof Error ? err.message : String(err),
+      'Check that the project exists: tmr project list',
+    );
     process.exitCode = 1;
     return;
   }
@@ -139,7 +149,10 @@ export async function runProjectLinkMember(
   const email = emailArg?.trim().toLowerCase() ?? '';
 
   if (!name || !email) {
-    process.stdout.write(`${chalk.red('✖')} Project name and email are required\n`);
+    printError(
+      'Project name and email are required',
+      'Usage: tmr project <name> link-member <email>',
+    );
     process.exitCode = 1;
     return;
   }
@@ -149,7 +162,10 @@ export async function runProjectLinkMember(
   try {
     result = await svc.linkMember(name, email, ws);
   } catch (err) {
-    process.stdout.write(`${chalk.red('✖')} ${err instanceof Error ? err.message : String(err)}\n`);
+    printError(
+      err instanceof Error ? err.message : String(err),
+      'Check that the project exists: tmr project list',
+    );
     process.exitCode = 1;
     return;
   }
@@ -172,7 +188,10 @@ export async function runProjectLinkMembers(
     .filter(Boolean);
 
   if (!name || emails.length === 0) {
-    process.stdout.write(`${chalk.red('✖')} Project name and at least one email are required\n`);
+    printError(
+      'Project name and at least one email are required',
+      'Usage: tmr project <name> link-members <email1,email2>',
+    );
     process.exitCode = 1;
     return;
   }
@@ -184,7 +203,10 @@ export async function runProjectLinkMembers(
   try {
     result = await svc.linkMembers(name, emails, ws);
   } catch (err) {
-    process.stdout.write(`${chalk.red('✖')} ${err instanceof Error ? err.message : String(err)}\n`);
+    printError(
+      err instanceof Error ? err.message : String(err),
+      'Check that the project exists: tmr project list',
+    );
     process.exitCode = 1;
     return;
   }
@@ -203,7 +225,10 @@ export async function runProjectLinkStakeholder(
   const email = emailArg?.trim().toLowerCase() ?? '';
 
   if (!name || !email) {
-    process.stdout.write(`${chalk.red('✖')} Project name and email are required\n`);
+    printError(
+      'Project name and email are required',
+      'Usage: tmr project <name> link-stakeholder <email>',
+    );
     process.exitCode = 1;
     return;
   }
@@ -213,7 +238,10 @@ export async function runProjectLinkStakeholder(
   try {
     result = await svc.linkStakeholder(name, email, ws);
   } catch (err) {
-    process.stdout.write(`${chalk.red('✖')} ${err instanceof Error ? err.message : String(err)}\n`);
+    printError(
+      err instanceof Error ? err.message : String(err),
+      'Check that the project exists: tmr project list',
+    );
     process.exitCode = 1;
     return;
   }
@@ -236,7 +264,10 @@ export async function runProjectLinkStakeholders(
     .filter(Boolean);
 
   if (!name || emails.length === 0) {
-    process.stdout.write(`${chalk.red('✖')} Project name and at least one email are required\n`);
+    printError(
+      'Project name and at least one email are required',
+      'Usage: tmr project <name> link-stakeholders <email1,email2>',
+    );
     process.exitCode = 1;
     return;
   }
@@ -248,7 +279,10 @@ export async function runProjectLinkStakeholders(
   try {
     result = await svc.linkStakeholders(name, emails, ws);
   } catch (err) {
-    process.stdout.write(`${chalk.red('✖')} ${err instanceof Error ? err.message : String(err)}\n`);
+    printError(
+      err instanceof Error ? err.message : String(err),
+      'Check that the project exists: tmr project list',
+    );
     process.exitCode = 1;
     return;
   }
@@ -338,9 +372,9 @@ export function createProjectCommand(): Command {
       } else if (action === 'presentation') {
         await runProjectPresentation(svc, name, {});
       } else {
-        process.stdout.write(
-          `${chalk.red('✖')} Unknown project action "${action ?? first}". ` +
-            `Valid: add, list, standup, discussion, presentation, link-member, link-members, link-stakeholder, link-stakeholders\n`,
+        printError(
+          `Unknown project action "${action ?? first}".`,
+          'Valid actions: add, list, standup, discussion, presentation, link-member, link-members, link-stakeholder, link-stakeholders',
         );
         process.exitCode = 1;
       }

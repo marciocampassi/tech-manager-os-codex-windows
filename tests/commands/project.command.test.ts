@@ -8,23 +8,17 @@ const mockAddProject = jest
   .fn<() => Promise<{ created: boolean }>>()
   .mockResolvedValue({ created: true });
 
-const mockAddStandup = jest
-  .fn<() => Promise<{ filePath: string }>>()
-  .mockResolvedValue({
-    filePath: '/fake/ws/my-projects/platform/standup/2026-03-09-platform-standup.md',
-  });
+const mockAddStandup = jest.fn<() => Promise<{ filePath: string }>>().mockResolvedValue({
+  filePath: '/fake/ws/my-projects/platform/standup/2026-03-09-platform-standup.md',
+});
 
-const mockAddDiscussion = jest
-  .fn<() => Promise<{ filePath: string }>>()
-  .mockResolvedValue({
-    filePath: '/fake/ws/my-projects/platform/discussion/2026-03-09-platform-discussion.md',
-  });
+const mockAddDiscussion = jest.fn<() => Promise<{ filePath: string }>>().mockResolvedValue({
+  filePath: '/fake/ws/my-projects/platform/discussion/2026-03-09-platform-discussion.md',
+});
 
-const mockAddPresentation = jest
-  .fn<() => Promise<{ filePath: string }>>()
-  .mockResolvedValue({
-    filePath: '/fake/ws/my-projects/platform/presentation/2026-03-09-platform-presentation-q1.md',
-  });
+const mockAddPresentation = jest.fn<() => Promise<{ filePath: string }>>().mockResolvedValue({
+  filePath: '/fake/ws/my-projects/platform/presentation/2026-03-09-platform-presentation-q1.md',
+});
 
 const mockLinkMember = jest
   .fn<() => Promise<{ wikiLink: string; created: boolean }>>()
@@ -107,14 +101,17 @@ const {
 type SvcType = import('../../src/services/project.service.js').ProjectService;
 
 let writeSpy: ReturnType<typeof jest.spyOn>;
+let stderrSpy: ReturnType<typeof jest.spyOn>;
 
 beforeEach(() => {
   jest.clearAllMocks();
   writeSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
+  stderrSpy = jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
 });
 
 afterEach(() => {
   writeSpy.mockRestore();
+  stderrSpy.mockRestore();
 });
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -151,7 +148,8 @@ describe('runProjectStandup', () => {
     mockAddStandup.mockRejectedValueOnce(new Error("Project 'platform' not found"));
     await runProjectStandup(mockSvcInstance as unknown as SvcType, 'platform', {});
     expect(process.exitCode).toBe(1);
-    expect(writeSpy).toHaveBeenCalledWith(expect.stringContaining('not found'));
+    const errOutput = (stderrSpy.mock.calls as unknown[][]).map((c) => String(c[0])).join('');
+    expect(errOutput).toContain('not found');
   });
 
   it('sets exitCode when no name provided', async () => {
