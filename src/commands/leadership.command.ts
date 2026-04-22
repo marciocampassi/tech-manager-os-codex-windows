@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { leadershipService, LeadershipService } from '../services/leadership.service.js';
+import { printError } from '../utils/display.js';
 import type { IAddLeadershipOptions } from '../types/leadership.types.js';
 
 // ── Formatting helpers ────────────────────────────────────────────────────────
@@ -84,7 +85,7 @@ export async function runLeadership1on1(
     result = await svc.add1on1(email, opts, ws);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    process.stdout.write(`${chalk.red('✖')} ${message}\n`);
+    printError(message, 'Check that the leadership contact exists: tmr leadership list');
     process.exitCode = 1;
     return;
   }

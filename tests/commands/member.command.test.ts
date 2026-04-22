@@ -50,10 +50,12 @@ const { createMemberCommand, runMemberAdd } = await import('../../src/commands/m
 
 describe('member command', () => {
   let stdoutSpy: ReturnType<typeof jest.spyOn>;
+  let stderrSpy: ReturnType<typeof jest.spyOn>;
   let exitCodeSpy: ReturnType<typeof jest.spyOn>;
 
   beforeEach(() => {
     stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    stderrSpy = jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
     exitCodeSpy = jest.spyOn(process, 'exitCode', 'set').mockImplementation(() => {});
     jest.clearAllMocks();
     mockGetWorkspaceRoot.mockReturnValue('/fake/ws');
@@ -68,6 +70,7 @@ describe('member command', () => {
 
   afterEach(() => {
     stdoutSpy.mockRestore();
+    stderrSpy.mockRestore();
     exitCodeSpy.mockRestore();
   });
 
@@ -211,8 +214,8 @@ describe('member command', () => {
     it('prints error and sets exitCode when type is invalid', async () => {
       await runMemberAdd(mockMemberServiceInstance as never, 'invalid-type', 'john@co.com', {});
 
-      const output = stdoutSpy.mock.calls.map((c: unknown[]) => c[0]).join('');
-      expect(output).toContain('Unknown type');
+      const errOutput = stderrSpy.mock.calls.map((c: unknown[]) => c[0]).join('');
+      expect(errOutput).toContain('Unknown type');
       expect(exitCodeSpy).toHaveBeenCalledWith(1);
     });
 
@@ -223,8 +226,8 @@ describe('member command', () => {
 
       await runMemberAdd(mockMemberServiceInstance as never, '1on1', 'john@co.com', {});
 
-      const output = stdoutSpy.mock.calls.map((c: unknown[]) => c[0]).join('');
-      expect(output).toContain('not found');
+      const errOutput = stderrSpy.mock.calls.map((c: unknown[]) => c[0]).join('');
+      expect(errOutput).toContain('not found');
       expect(exitCodeSpy).toHaveBeenCalledWith(1);
     });
   });

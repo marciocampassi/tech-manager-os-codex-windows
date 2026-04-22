@@ -1,4 +1,3 @@
-import chalk from 'chalk';
 import { Command } from 'commander';
 import { AIProviderFactory } from '../providers/ai-provider-factory.js';
 import { configService } from '../services/config.service.js';
@@ -14,6 +13,7 @@ import { TaskService } from '../services/task.service.js';
 import { teamService } from '../services/team.service.js';
 import { WatchService } from '../services/watch.service.js';
 import { getWorkspaceRoot } from '../utils/workspace.js';
+import { printError } from '../utils/display.js';
 
 function buildInboxProcessService(): InboxProcessService {
   const provider = configService.getActiveProvider();
@@ -58,7 +58,7 @@ export async function runWatch(opts: { verbose: boolean; plain: boolean }): Prom
     processSvc = buildInboxProcessService();
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    process.stdout.write(`${plain ? msg : chalk.red(msg)}\n`);
+    printError(msg, 'Run `tmr config` to configure your AI provider.', plain);
     process.exitCode = 1;
     return;
   }

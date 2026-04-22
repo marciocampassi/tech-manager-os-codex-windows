@@ -3,6 +3,7 @@ import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { relationshipService, RelationshipService } from '../services/relationship.service.js';
 import { projectService } from '../services/project.service.js';
+import { printError } from '../utils/display.js';
 import type { IAddRelationshipOptions } from '../types/relationship.types.js';
 
 // ── Formatting helpers ────────────────────────────────────────────────────────
@@ -126,7 +127,7 @@ export async function runRelationship1on1(
     result = await svc.add1on1(email, opts, ws);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    process.stdout.write(`${chalk.red('✖')} ${message}\n`);
+    printError(message, 'Check that the relationship exists: tmr relationship list');
     process.exitCode = 1;
     return;
   }

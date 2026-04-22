@@ -85,10 +85,12 @@ const { createRelationshipCommand, runRelationshipAdd, runRelationship1on1, runR
 
 describe('relationship command', () => {
   let stdoutSpy: ReturnType<typeof jest.spyOn>;
+  let stderrSpy: ReturnType<typeof jest.spyOn>;
   let exitCodeSpy: ReturnType<typeof jest.spyOn>;
 
   beforeEach(() => {
     stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    stderrSpy = jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
     exitCodeSpy = jest.spyOn(process, 'exitCode', 'set').mockImplementation(() => {});
     jest.clearAllMocks();
     mockGetWorkspaceRoot.mockReturnValue('/fake/ws');
@@ -99,6 +101,7 @@ describe('relationship command', () => {
 
   afterEach(() => {
     stdoutSpy.mockRestore();
+    stderrSpy.mockRestore();
     exitCodeSpy.mockRestore();
   });
 
@@ -250,8 +253,8 @@ describe('relationship command', () => {
       );
       await runRelationship1on1(mockSvcInstance as never, 'alice@co.com', {});
 
-      const output = stdoutSpy.mock.calls.map((c: unknown[]) => c[0]).join('');
-      expect(output).toContain('not found');
+      const errOutput = stderrSpy.mock.calls.map((c: unknown[]) => c[0]).join('');
+      expect(errOutput).toContain('not found');
       expect(exitCodeSpy).toHaveBeenCalledWith(1);
     });
 

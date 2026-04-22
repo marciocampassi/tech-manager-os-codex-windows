@@ -119,7 +119,7 @@ describe('createWatchCommand', () => {
   it('prints error and sets exitCode=1 when no provider configured', async () => {
     mockGetActiveProvider.mockReturnValue(null);
 
-    const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const stderrSpy = jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
     const { Command } = await import('commander');
     const program = new Command();
     program.exitOverride();
@@ -127,16 +127,17 @@ describe('createWatchCommand', () => {
 
     await program.parseAsync(['node', 'tmr', 'watch']);
 
-    expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('No AI provider configured'));
+    const errOutput = (stderrSpy.mock.calls as [string][]).map((c) => c[0]).join('');
+    expect(errOutput).toContain('No AI provider configured');
     expect(process.exitCode).toBe(1);
     process.exitCode = 0;
-    stdoutSpy.mockRestore();
+    stderrSpy.mockRestore();
   });
 
   it('prints error and sets exitCode=1 when no API key configured', async () => {
     mockGetProviderConfig.mockReturnValue(null);
 
-    const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const stderrSpy = jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
     const { Command } = await import('commander');
     const program = new Command();
     program.exitOverride();
@@ -144,9 +145,10 @@ describe('createWatchCommand', () => {
 
     await program.parseAsync(['node', 'tmr', 'watch']);
 
-    expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('No API key'));
+    const errOutput = (stderrSpy.mock.calls as [string][]).map((c) => c[0]).join('');
+    expect(errOutput).toContain('No API key');
     expect(process.exitCode).toBe(1);
     process.exitCode = 0;
-    stdoutSpy.mockRestore();
+    stderrSpy.mockRestore();
   });
 });
