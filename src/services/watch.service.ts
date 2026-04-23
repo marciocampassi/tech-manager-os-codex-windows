@@ -13,6 +13,8 @@ export interface WatchOptions {
   debounceMs?: number;
   /** Injectable watcher factory — for testing only. Defaults to chokidar.watch. */
   _watcherFactory?: (watchPath: string, opts: Record<string, unknown>) => FSWatcher;
+  /** Called once all event handlers are registered and the service is ready — for testing only. */
+  _onReady?: () => void;
 }
 
 const DEBOUNCE_MS = 5000;
@@ -121,6 +123,8 @@ export class WatchService {
     process.once('SIGTERM', (): void => {
       void cleanup();
     });
+
+    opts._onReady?.();
 
     // Block until cleanup signals done, then delegate to process.exit.
     await new Promise<void>((resolve) => {

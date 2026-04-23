@@ -121,18 +121,20 @@ describe('WatchService (integration)', () => {
     for (const l of listeners) l();
   }
 
-  function startWatcher(): void {
-    void watchSvc.start(tmpDir, {
-      verbose: false,
-      plain: true,
-      debounceMs: 50,
-      _watcherFactory: () => mockWatcher as FSWatcher,
+  function startWatcher(): Promise<void> {
+    return new Promise<void>((resolve) => {
+      void watchSvc.start(tmpDir, {
+        verbose: false,
+        plain: true,
+        debounceMs: 50,
+        _watcherFactory: () => mockWatcher as FSWatcher,
+        _onReady: resolve,
+      });
     });
   }
 
   it('writes PID file to .system/watch.pid on start', async () => {
-    startWatcher();
-    await sleep(100);
+    await startWatcher();
 
     const pidPath = path.join(tmpDir, '.system', 'watch.pid');
     expect(await fs.pathExists(pidPath)).toBe(true);
@@ -141,8 +143,7 @@ describe('WatchService (integration)', () => {
   });
 
   it('calls InboxProcessService.run after debounce when a .md file is added', async () => {
-    startWatcher();
-    await sleep(50);
+    await startWatcher();
 
     mockWatcher._emit('add', path.join(tmpDir, 'inbox', 'meeting-note.md'));
 
@@ -158,8 +159,7 @@ describe('WatchService (integration)', () => {
   });
 
   it('calls InboxProcessService.run when a .txt file is added', async () => {
-    startWatcher();
-    await sleep(50);
+    await startWatcher();
 
     mockWatcher._emit('add', path.join(tmpDir, 'inbox', 'note.txt'));
     await sleep(200);
@@ -168,8 +168,7 @@ describe('WatchService (integration)', () => {
   });
 
   it('calls InboxProcessService.run when a .json file is added', async () => {
-    startWatcher();
-    await sleep(50);
+    await startWatcher();
 
     mockWatcher._emit('add', path.join(tmpDir, 'inbox', 'data.json'));
     await sleep(200);
@@ -178,8 +177,7 @@ describe('WatchService (integration)', () => {
   });
 
   it('ignores files with unsupported extensions (.pdf, .docx)', async () => {
-    startWatcher();
-    await sleep(50);
+    await startWatcher();
 
     mockWatcher._emit('add', path.join(tmpDir, 'inbox', 'report.pdf'));
     mockWatcher._emit('add', path.join(tmpDir, 'inbox', 'doc.docx'));
@@ -190,8 +188,7 @@ describe('WatchService (integration)', () => {
   });
 
   it('removes PID file and calls process.exit(0) on SIGINT', async () => {
-    startWatcher();
-    await sleep(100);
+    await startWatcher();
 
     const pidPath = path.join(tmpDir, '.system', 'watch.pid');
     expect(await fs.pathExists(pidPath)).toBe(true);
@@ -204,8 +201,7 @@ describe('WatchService (integration)', () => {
   });
 
   it('removes PID file and calls process.exit(0) on SIGTERM', async () => {
-    startWatcher();
-    await sleep(100);
+    await startWatcher();
 
     const pidPath = path.join(tmpDir, '.system', 'watch.pid');
     triggerSignal('SIGTERM');
@@ -216,8 +212,7 @@ describe('WatchService (integration)', () => {
   });
 
   it('debounces multiple rapid file additions into a single process run', async () => {
-    startWatcher();
-    await sleep(50);
+    await startWatcher();
 
     mockWatcher._emit('add', path.join(tmpDir, 'inbox', 'file1.md'));
     await sleep(20);
@@ -232,8 +227,7 @@ describe('WatchService (integration)', () => {
   });
 
   it('runs process again if new file added after first debounce completes', async () => {
-    startWatcher();
-    await sleep(50);
+    await startWatcher();
 
     mockWatcher._emit('add', path.join(tmpDir, 'inbox', 'first.md'));
     await sleep(200); // let first debounce fire
@@ -245,16 +239,14 @@ describe('WatchService (integration)', () => {
   });
 
   it('prints banner on start', async () => {
-    startWatcher();
-    await sleep(100);
+    await startWatcher();
 
     expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('tmr watch'));
     expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('Monitoring:'));
   });
 
   it('logs file name when a watched file is added', async () => {
-    startWatcher();
-    await sleep(100); // match banner test: ensure start() registers listeners before emitting
+    await startWatcher();
 
     mockWatcher._emit('add', path.join(tmpDir, 'inbox', 'note.md'));
     await sleep(100);
