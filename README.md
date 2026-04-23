@@ -13,7 +13,7 @@
 ## Quick Start
 
 ```bash
-npm install -g @marlonvidal/tech-manager-os
+npm install -g tech-manager-os
 tmr init          # Scaffold vault + generate CLAUDE.md (5 quick prompts)
 tmr config        # Set your AI provider and API key
 tmr install tmr-inbox   # Install the inbox processing skill
@@ -120,7 +120,7 @@ See `examples/sample-vault/` for a realistic starter vault.
 ## Requirements
 
 - **Node.js 18+** (20.17.0 LTS recommended)
-- **npm** (or use `npx @marlonvidal/tech-manager-os` without installing globally)
+- **npm** (or use `npx tech-manager-os` without installing globally)
 - **AI API key** — OpenAI, Anthropic (Claude), or Google Gemini — required for `tmr process`
 - **Claude Code** (optional) — required for skill-based workflows (`/tmr-inbox`)
 - **Obsidian + Granola plugin** (optional) — recommended for automatic meeting note sync
