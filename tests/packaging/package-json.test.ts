@@ -30,8 +30,8 @@ describe('package.json — npm distribution readiness (AC: 1)', () => {
     pkg = readPackageJson();
   });
 
-  it('name is unscoped tech-manager-os (enables npx tech-manager-os init)', () => {
-    expect(pkg.name).toBe('tech-manager-os');
+  it('name is @marlonvidal/tech-manager-os (enables npx @marlonvidal/tech-manager-os init)', () => {
+    expect(pkg.name).toBe('@marlonvidal/tech-manager-os');
   });
 
   it('version is a valid semver string', () => {
