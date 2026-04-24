@@ -1,0 +1,39 @@
+# Source code
+src/
+
+# Tests
+tests/
+coverage/
+__snapshots__/
+
+# TypeScript / build config
+tsup.config.ts
+jest.config.ts
+tsconfig*.json
+
+# Linting / formatting
+.eslintrc*
+eslint.config.*
+.prettierrc*
+.prettierignore
+.editorconfig
+
+# Dev tooling
+.husky/
+.github/
+.cursor/
+.bmad-core/
+.ai/
+
+# Documentation
+docs/
+
+# Skills source (served from GitHub raw URL, not npm)
+skills/
+
+# Examples and samples
+examples/
+
+# Misc
+*.tgz
+.env*

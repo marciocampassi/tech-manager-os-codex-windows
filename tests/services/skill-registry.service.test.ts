@@ -77,6 +77,21 @@ describe('SkillRegistryService', () => {
     jest.restoreAllMocks();
   });
 
+  describe('getRegistryUrl', () => {
+    it('Test E: returns correct GitHub raw URL for tmr-inbox skill (AC: 6)', () => {
+      const url = service.getRegistryUrl('tmr-inbox');
+      expect(url).toBe(
+        'https://raw.githubusercontent.com/marlonvidal/tech-manager-os/main/skills/tmr-inbox/SKILL.md',
+      );
+    });
+
+    it('constructs URL for any skill name', () => {
+      const url = service.getRegistryUrl('my-skill');
+      expect(url).toContain('my-skill/SKILL.md');
+      expect(url).toContain('https://raw.githubusercontent.com');
+    });
+  });
+
   describe('fetchSkillContent', () => {
     it('Test A: happy path — returns content and parses version comment', async () => {
       const content = '<!-- version: 1.2.3 -->\n# tmr-inbox\n\nSkill content here.';

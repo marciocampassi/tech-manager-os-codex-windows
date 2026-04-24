@@ -1,6 +1,6 @@
 # tech-manager-os
 
-[![npm version](https://img.shields.io/npm/v/tech-manager-os.svg)](https://www.npmjs.com/package/tech-manager-os)
+[![npm version](https://img.shields.io/npm/v/@marlonvidal/tech-manager-os.svg)](https://www.npmjs.com/package/@marlonvidal/tech-manager-os)
 [![CI](https://github.com/marlonvidal/tech-manager-os/actions/workflows/ci.yml/badge.svg)](https://github.com/marlonvidal/tech-manager-os/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 

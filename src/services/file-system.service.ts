@@ -1,4 +1,5 @@
 import * as fsNs from 'fs-extra';
+import { open as fsOpen } from 'node:fs/promises';
 import path from 'node:path';
 import { FileSystemError } from '../errors/tmr-error.js';
 
@@ -30,11 +31,21 @@ export class FileSystemService {
   // Atomic write: write to a temp file then rename so partial writes are never observable.
   // The temp file lives in the same directory as the target to guarantee same-filesystem
   // rename semantics (POSIX rename is atomic on same FS).
+  //
+  // Uses node:fs/promises.open directly (bypassing the fs-extra CJS/ESM shim) so that
+  // FileHandle.close() flushes the kernel buffer and makes the directory entry visible
+  // to the subsequent rename syscall. This fixes an ENOENT-on-rename race on macOS APFS
+  // where fs-extra's promisified writeFile can resolve before the VFS entry is committed.
   async writeFile(filePath: string, content: string): Promise<void> {
     const tmpPath = `${filePath}.${process.pid}.tmp`;
     try {
       await fs.ensureDir(path.dirname(filePath));
-      await fs.writeFile(tmpPath, content, 'utf8');
+      const fh = await fsOpen(tmpPath, 'w');
+      try {
+        await fh.writeFile(content, 'utf8');
+      } finally {
+        await fh.close();
+      }
       await fs.rename(tmpPath, filePath);
     } catch (err) {
       await fs.remove(tmpPath).catch(() => {});

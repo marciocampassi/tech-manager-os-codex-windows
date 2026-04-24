@@ -4,7 +4,7 @@
   "description": "AI-powered CLI for engineering managers — process meeting notes, manage your team, track your career.",
   "type": "module",
   "bin": {
-    "tmr": "./dist/cli.js"
+    "tmr": "dist/cli.js"
   },
   "scripts": {
     "build": "tsup",
@@ -14,7 +14,7 @@
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
     "format": "prettier --write src",
-    "prepare": "husky install",
+    "prepare": "[ -d .git ] && husky || true",
     "typecheck": "tsc --noEmit",
     "validate": "npm run lint && npm run typecheck && npm test && npm run build"
   },
