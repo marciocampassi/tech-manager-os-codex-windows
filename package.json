@@ -1,5 +1,5 @@
 {
-  "name": "tech-manager-os",
+  "name": "@marlonvidal/tech-manager-os",
   "version": "1.0.0",
   "description": "AI-powered CLI for engineering managers — process meeting notes, manage your team, track your career.",
   "type": "module",

@@ -31,3 +31,6 @@ coverage/
 # TypeScript cache
 *.tsbuildinfo
 .test-workspaces/
+
+# Internal docs (not for public repo)
+docs/publishing.md
