@@ -2,12 +2,10 @@
  * Domain interfaces for project management (Epic 2, Story 2.5).
  *
  * Directory layout:
- *   my-company/projects/{name}-project.md    project overview
- *   my-projects/{name}/
- *     {name}-composition.md                  team members + stakeholders
- *     standup/                               standup notes
- *     discussion/                            discussion notes
- *     presentation/                          presentation notes
+ *   my-company/projects/{name}-project/
+ *     {name}-project.md    project overview (includes Team Members + Stakeholders sections)
+ *     standups/            standup notes
+ *     meetings/            meeting notes
  */
 
 /** Frontmatter written into my-company/projects/{name}-project.md */

@@ -71,75 +71,6 @@ export async function runProjectStandup(
   process.stdout.write(`${chalk.green('✔')} Created: ${result.filePath}\n`);
 }
 
-export async function runProjectDiscussion(
-  svc: ProjectService,
-  nameArg: string | undefined,
-  opts: IProjectFileOptions,
-): Promise<void> {
-  const name = nameArg?.trim() ?? '';
-  if (!name) {
-    printError('Project name is required', 'Usage: tmr project discussion <name>');
-    process.exitCode = 1;
-    return;
-  }
-
-  const ws = svc.getWorkspaceRoot();
-  let result;
-  try {
-    result = await svc.addDiscussion(name, opts, ws);
-  } catch (err) {
-    printError(
-      err instanceof Error ? err.message : String(err),
-      'Check that the project exists: tmr project list',
-    );
-    process.exitCode = 1;
-    return;
-  }
-
-  process.stdout.write(`${chalk.green('✔')} Created: ${result.filePath}\n`);
-}
-
-export async function runProjectPresentation(
-  svc: ProjectService,
-  nameArg: string | undefined,
-  opts: IProjectFileOptions,
-): Promise<void> {
-  const name = nameArg?.trim() ?? '';
-  if (!name) {
-    printError('Project name is required', 'Usage: tmr project presentation <name>');
-    process.exitCode = 1;
-    return;
-  }
-
-  let topic = opts.topic?.trim() ?? '';
-  if (!topic) {
-    const { resolvedTopic } = await inquirer.prompt<{ resolvedTopic: string }>([
-      {
-        type: 'input',
-        name: 'resolvedTopic',
-        message: 'Presentation topic:',
-        validate: (v: string): boolean | string => v.trim().length > 0 || 'Topic is required',
-      },
-    ]);
-    topic = resolvedTopic.trim();
-  }
-
-  const ws = svc.getWorkspaceRoot();
-  let result;
-  try {
-    result = await svc.addPresentation(name, topic, opts, ws);
-  } catch (err) {
-    printError(
-      err instanceof Error ? err.message : String(err),
-      'Check that the project exists: tmr project list',
-    );
-    process.exitCode = 1;
-    return;
-  }
-
-  process.stdout.write(`${chalk.green('✔')} Created: ${result.filePath}\n`);
-}
-
 export async function runProjectLinkMember(
   svc: ProjectService,
   nameArg: string | undefined,
@@ -317,67 +248,55 @@ export async function runProjectList(svc: ProjectService): Promise<void> {
 export function createProjectCommand(): Command {
   const svc = projectService;
 
-  const cmd = new Command('project')
-    .description('manage projects and team composition')
-    .passThroughOptions()
-    .allowUnknownOption()
+  const cmd = new Command('project').description('manage projects and team composition');
+
+  cmd
+    .command('list')
+    .description('list all projects')
     .action(async () => {
-      // Raw argv routing for: tmr project <name> <link-action> [args]
-      // process.argv = ['node', 'tmr', 'project', nameOrAction, actionOrArg?, ...]
-      const args = process.argv.slice(3);
-      const [first, second, third] = args;
+      await runProjectList(svc);
+    });
 
-      if (!first || first === 'list') {
-        await runProjectList(svc);
-        return;
-      }
+  cmd
+    .command('add [name]')
+    .description('create a new project')
+    .action(async (name: string | undefined) => {
+      await runProjectAdd(svc, name, {});
+    });
 
-      if (first === 'add') {
-        await runProjectAdd(svc, second, {});
-        return;
-      }
+  cmd
+    .command('standup <name>')
+    .description('create a standup note for a project')
+    .action(async (name: string) => {
+      await runProjectStandup(svc, name, {});
+    });
 
-      if (first === 'standup') {
-        await runProjectStandup(svc, second, {});
-        return;
-      }
+  cmd
+    .command('link-member <name> <email>')
+    .description('link a team member to a project')
+    .action(async (name: string, email: string) => {
+      await runProjectLinkMember(svc, name, email);
+    });
 
-      if (first === 'discussion') {
-        await runProjectDiscussion(svc, second, {});
-        return;
-      }
+  cmd
+    .command('link-members <name> <emails>')
+    .description('link multiple team members (comma-separated emails)')
+    .action(async (name: string, emails: string) => {
+      await runProjectLinkMembers(svc, name, emails);
+    });
 
-      if (first === 'presentation') {
-        await runProjectPresentation(svc, second, {});
-        return;
-      }
+  cmd
+    .command('link-stakeholder <name> <email>')
+    .description('link a stakeholder to a project')
+    .action(async (name: string, email: string) => {
+      await runProjectLinkStakeholder(svc, name, email);
+    });
 
-      // tmr project <name> <link-action> [arg]
-      const name = first;
-      const action = second;
-      const arg = third;
-
-      if (action === 'link-member') {
-        await runProjectLinkMember(svc, name, arg);
-      } else if (action === 'link-members') {
-        await runProjectLinkMembers(svc, name, arg);
-      } else if (action === 'link-stakeholder') {
-        await runProjectLinkStakeholder(svc, name, arg);
-      } else if (action === 'link-stakeholders') {
-        await runProjectLinkStakeholders(svc, name, arg);
-      } else if (action === 'standup') {
-        await runProjectStandup(svc, name, {});
-      } else if (action === 'discussion') {
-        await runProjectDiscussion(svc, name, {});
-      } else if (action === 'presentation') {
-        await runProjectPresentation(svc, name, {});
-      } else {
-        printError(
-          `Unknown project action "${action ?? first}".`,
-          'Valid actions: add, list, standup, discussion, presentation, link-member, link-members, link-stakeholder, link-stakeholders',
-        );
-        process.exitCode = 1;
-      }
+  cmd
+    .command('link-stakeholders <name> <emails>')
+    .description('link multiple stakeholders (comma-separated emails)')
+    .action(async (name: string, emails: string) => {
+      await runProjectLinkStakeholders(svc, name, emails);
     });
 
   return cmd;
