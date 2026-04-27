@@ -66,7 +66,7 @@ export class ConfigService {
 
   /** Active AI provider name ('openai' | 'claude' | 'gemini'). */
   getActiveProvider(): string | undefined {
-    return (this.get('active_provider') ?? this.get('provider')) as string | undefined;
+    return this.get('active_provider') as string | undefined;
   }
 
   /** Switch the active provider — persists immediately. */
