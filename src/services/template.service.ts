@@ -21,11 +21,8 @@ date_created: ${date}
 ## Timeline
 
 ## Notes
-`;
-  }
 
-  getProjectCompositionTemplate(): string {
-    return `# Team Members
+# Team Members
 
 # Stakeholders
 `;
@@ -45,43 +42,6 @@ type: standup
 ## Today
 
 ## Blockers
-`;
-  }
-
-  getDiscussionTemplate(date: string, name: string): string {
-    return `---
-date: ${date}
-project: ${name}
-type: discussion
----
-
-# ${name} Discussion — ${date}
-
-## Topic
-
-## Attendees
-
-## Decisions
-
-## Action Items
-`;
-  }
-
-  getPresentationTemplate(date: string, name: string, topic: string): string {
-    return `---
-date: ${date}
-project: ${name}
-topic: ${topic}
-type: presentation
----
-
-# ${name} — ${topic}
-
-## Slides Outline
-
-## Talking Points
-
-## Q&A
 `;
   }
 

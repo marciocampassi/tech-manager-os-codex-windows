@@ -33,29 +33,16 @@ function projectOverviewPath(ws: string, name: string): string {
   return path.join(projectBaseDir(ws, name), `${normalized}.md`);
 }
 
-function compositionPath(ws: string, name: string): string {
-  const normalized = normalizeProjectName(name);
-  return path.join(projectBaseDir(ws, name), `${normalized}-composition.md`);
+function projectStandupsDir(ws: string, name: string): string {
+  return path.join(projectBaseDir(ws, name), 'standups');
 }
 
-function projectStandupDir(ws: string, name: string): string {
-  return path.join(projectBaseDir(ws, name), 'standup');
-}
-
-function projectDiscussionDir(ws: string, name: string): string {
-  return path.join(projectBaseDir(ws, name), 'discussion');
-}
-
-function projectPresentationDir(ws: string, name: string): string {
-  return path.join(projectBaseDir(ws, name), 'presentation');
+function projectMeetingsDir(ws: string, name: string): string {
+  return path.join(projectBaseDir(ws, name), 'meetings');
 }
 
 function todayIso(): string {
   return new Date().toISOString().split('T')[0] as string;
-}
-
-function toSlug(text: string): string {
-  return text.toLowerCase().replace(/\s+/g, '-');
 }
 
 // ── ProjectService ────────────────────────────────────────────────────────────
@@ -76,7 +63,7 @@ export class ProjectService {
   /**
    * Appends `line` to a `# sectionName` section in the content string.
    * Creates the section at the end if missing.
-   * Handles `# ` (single hash) headers — composition file format.
+   * Handles `# ` (single hash) headers — project file format.
    */
   private appendToHashSection(content: string, sectionName: string, line: string): string {
     const lines = content.split('\n');
@@ -116,141 +103,86 @@ export class ProjectService {
    * Returns { created: false } if the project already exists (idempotent).
    */
   async addProject(name: string, ws: string): Promise<{ created: boolean }> {
-    const compPath = compositionPath(ws, name);
+    const overviewPath = projectOverviewPath(ws, name);
 
-    if (await this._fs.exists(compPath)) {
+    if (await this._fs.exists(overviewPath)) {
       return { created: false };
     }
 
     const normalized = normalizeProjectName(name);
     const date = todayIso();
 
-    // my-company/projects/{name}-project/{name}-project.md (overview)
     await this._fs.writeFile(
-      projectOverviewPath(ws, name),
+      overviewPath,
       this._template.getProjectOverviewTemplate(normalized, date),
     );
 
-    // subdirectories inside the project folder
-    await this._fs.createDirectory(projectStandupDir(ws, name));
-    await this._fs.createDirectory(projectDiscussionDir(ws, name));
-    await this._fs.createDirectory(projectPresentationDir(ws, name));
-
-    // {name}-project/{name}-project-composition.md
-    await this._fs.writeFile(compPath, this._template.getProjectCompositionTemplate());
+    await this._fs.createDirectory(projectStandupsDir(ws, name));
+    await this._fs.createDirectory(projectMeetingsDir(ws, name));
 
     return { created: true };
   }
 
   /**
-   * Creates a standup file in my-projects/{name}/standup/.
+   * Creates a standup file in the project's standups/ directory.
    */
   async addStandup(
     name: string,
     opts: IProjectFileOptions,
     ws: string,
   ): Promise<{ filePath: string }> {
-    const compPath = compositionPath(ws, name);
-    if (!(await this._fs.exists(compPath))) {
+    const overviewPath = projectOverviewPath(ws, name);
+    if (!(await this._fs.exists(overviewPath))) {
       throw new Error(`Project '${name}' not found. Run 'tmr project add ${name}' first.`);
     }
 
     const normalized = normalizeProjectName(name);
     const date = opts.date ?? todayIso();
     const fileName = `${date}-${normalized}-standup.md`;
-    const filePath = path.join(projectStandupDir(ws, name), fileName);
+    const filePath = path.join(projectStandupsDir(ws, name), fileName);
     await this._fs.writeFile(filePath, this._template.getStandupTemplate(date, normalized));
 
     return { filePath };
   }
 
   /**
-   * Creates a discussion file inside the project directory.
-   */
-  async addDiscussion(
-    name: string,
-    opts: IProjectFileOptions,
-    ws: string,
-  ): Promise<{ filePath: string }> {
-    const compPath = compositionPath(ws, name);
-    if (!(await this._fs.exists(compPath))) {
-      throw new Error(`Project '${name}' not found. Run 'tmr project add ${name}' first.`);
-    }
-
-    const normalized = normalizeProjectName(name);
-    const date = opts.date ?? todayIso();
-    const fileName = `${date}-${normalized}-discussion.md`;
-    const filePath = path.join(projectDiscussionDir(ws, name), fileName);
-    await this._fs.writeFile(filePath, this._template.getDiscussionTemplate(date, normalized));
-
-    return { filePath };
-  }
-
-  /**
-   * Creates a presentation file inside the project directory.
-   */
-  async addPresentation(
-    name: string,
-    topic: string,
-    opts: IProjectFileOptions,
-    ws: string,
-  ): Promise<{ filePath: string }> {
-    const compPath = compositionPath(ws, name);
-    if (!(await this._fs.exists(compPath))) {
-      throw new Error(`Project '${name}' not found. Run 'tmr project add ${name}' first.`);
-    }
-
-    const normalized = normalizeProjectName(name);
-    const date = opts.date ?? todayIso();
-    const slug = toSlug(topic);
-    const fileName = `${date}-${normalized}-presentation-${slug}.md`;
-    const filePath = path.join(projectPresentationDir(ws, name), fileName);
-    await this._fs.writeFile(
-      filePath,
-      this._template.getPresentationTemplate(date, normalized, topic),
-    );
-
-    return { filePath };
-  }
-
-  /**
-   * Links an email to the `# Team Members` section of the project composition file.
+   * Links an email to the `# Team Members` section of the project overview file.
    */
   async linkMember(name: string, email: string, ws: string): Promise<ILinkResult> {
     const normalizedEmail = email.toLowerCase();
-    const compPath = compositionPath(ws, name);
+    const overviewPath = projectOverviewPath(ws, name);
 
-    if (!(await this._fs.exists(compPath))) {
+    if (!(await this._fs.exists(overviewPath))) {
       throw new Error(`Project '${name}' not found. Run 'tmr project add ${name}' first.`);
     }
 
     const resolved = await this._emailResolution.resolve(normalizedEmail, ws);
-    const wikiLink = `- ${this._emailResolution.generateWikiLink(normalizedEmail, resolved.absolutePath, compPath)}`;
+    const wikiLink = `- ${this._emailResolution.generateWikiLink(normalizedEmail, resolved.absolutePath, overviewPath)}`;
 
-    const content = await this._fs.readFile(compPath);
+    const content = await this._fs.readFile(overviewPath);
     const updated = this.appendToHashSection(content, 'Team Members', wikiLink);
-    await this._fs.writeFile(compPath, updated);
+    await this._fs.writeFile(overviewPath, updated);
 
     return { wikiLink, created: resolved.created };
   }
 
   /**
-   * Links an email to the `# Stakeholders` section of the project composition file.
+   * Links an email to the `# Stakeholders` section of the project overview file.
    */
   async linkStakeholder(name: string, email: string, ws: string): Promise<ILinkResult> {
     const normalizedEmail = email.toLowerCase();
-    const compPath = compositionPath(ws, name);
+    const overviewPath = projectOverviewPath(ws, name);
 
-    if (!(await this._fs.exists(compPath))) {
+    if (!(await this._fs.exists(overviewPath))) {
       throw new Error(`Project '${name}' not found. Run 'tmr project add ${name}' first.`);
     }
 
     const resolved = await this._emailResolution.resolve(normalizedEmail, ws);
-    const wikiLink = `- ${this._emailResolution.generateWikiLink(normalizedEmail, resolved.absolutePath, compPath)}`;
+    const wikiLink = `- ${this._emailResolution.generateWikiLink(normalizedEmail, resolved.absolutePath, overviewPath)}`;
 
-    const content = await this._fs.readFile(compPath);
+    const content = await this._fs.readFile(overviewPath);
     const updated = this.appendToHashSection(content, 'Stakeholders', wikiLink);
-    await this._fs.writeFile(compPath, updated);
+    await this._fs.writeFile(overviewPath, updated);
 
     return { wikiLink, created: resolved.created };
   }
@@ -266,13 +198,13 @@ export class ProjectService {
       const normalizedEmail = email.trim().toLowerCase();
       if (!normalizedEmail) continue;
 
-      const compPath = compositionPath(ws, name);
+      const overviewPath = projectOverviewPath(ws, name);
       const resolved = await this._emailResolution.resolve(normalizedEmail, ws);
-      const wikiLink = `- ${this._emailResolution.generateWikiLink(normalizedEmail, resolved.absolutePath, compPath)}`;
+      const wikiLink = `- ${this._emailResolution.generateWikiLink(normalizedEmail, resolved.absolutePath, overviewPath)}`;
 
-      const content = await this._fs.readFile(compPath);
+      const content = await this._fs.readFile(overviewPath);
       await this._fs.writeFile(
-        compPath,
+        overviewPath,
         this.appendToHashSection(content, 'Team Members', wikiLink),
       );
 
@@ -294,13 +226,13 @@ export class ProjectService {
       const normalizedEmail = email.trim().toLowerCase();
       if (!normalizedEmail) continue;
 
-      const compPath = compositionPath(ws, name);
+      const overviewPath = projectOverviewPath(ws, name);
       const resolved = await this._emailResolution.resolve(normalizedEmail, ws);
-      const wikiLink = `- ${this._emailResolution.generateWikiLink(normalizedEmail, resolved.absolutePath, compPath)}`;
+      const wikiLink = `- ${this._emailResolution.generateWikiLink(normalizedEmail, resolved.absolutePath, overviewPath)}`;
 
-      const content = await this._fs.readFile(compPath);
+      const content = await this._fs.readFile(overviewPath);
       await this._fs.writeFile(
-        compPath,
+        overviewPath,
         this.appendToHashSection(content, 'Stakeholders', wikiLink),
       );
 
@@ -324,11 +256,11 @@ export class ProjectService {
 
     return Promise.all(
       projectNames.map(async (name): Promise<IProjectSummary> => {
-        const compPath = compositionPath(ws, name);
-        if (!(await this._fs.exists(compPath))) {
+        const overviewPath = projectOverviewPath(ws, name);
+        if (!(await this._fs.exists(overviewPath))) {
           return { name, memberCount: 0, stakeholderCount: 0 };
         }
-        const content = await this._fs.readFile(compPath);
+        const content = await this._fs.readFile(overviewPath);
         return {
           name,
           memberCount: this.countHashSection(content, 'Team Members'),

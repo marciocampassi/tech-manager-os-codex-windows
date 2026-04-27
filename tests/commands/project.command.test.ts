@@ -9,15 +9,8 @@ const mockAddProject = jest
   .mockResolvedValue({ created: true });
 
 const mockAddStandup = jest.fn<() => Promise<{ filePath: string }>>().mockResolvedValue({
-  filePath: '/fake/ws/my-projects/platform/standup/2026-03-09-platform-standup.md',
-});
-
-const mockAddDiscussion = jest.fn<() => Promise<{ filePath: string }>>().mockResolvedValue({
-  filePath: '/fake/ws/my-projects/platform/discussion/2026-03-09-platform-discussion.md',
-});
-
-const mockAddPresentation = jest.fn<() => Promise<{ filePath: string }>>().mockResolvedValue({
-  filePath: '/fake/ws/my-projects/platform/presentation/2026-03-09-platform-presentation-q1.md',
+  filePath:
+    '/fake/ws/my-company/projects/platform-project/standups/2026-03-09-platform-project-standup.md',
 });
 
 const mockLinkMember = jest
@@ -50,8 +43,6 @@ const mockSvcInstance = {
   getWorkspaceRoot: mockGetWorkspaceRoot,
   addProject: mockAddProject,
   addStandup: mockAddStandup,
-  addDiscussion: mockAddDiscussion,
-  addPresentation: mockAddPresentation,
   linkMember: mockLinkMember,
   linkMembers: mockLinkMembers,
   linkStakeholder: mockLinkStakeholder,
@@ -87,8 +78,6 @@ jest.unstable_mockModule('node:child_process', () => ({
 const {
   runProjectAdd,
   runProjectStandup,
-  runProjectDiscussion,
-  runProjectPresentation,
   runProjectLinkMember,
   runProjectLinkMembers,
   runProjectLinkStakeholder,
@@ -156,59 +145,6 @@ describe('runProjectStandup', () => {
     await runProjectStandup(mockSvcInstance as unknown as SvcType, undefined, {});
     expect(process.exitCode).toBe(1);
     expect(mockAddStandup).not.toHaveBeenCalled();
-  });
-});
-
-describe('runProjectDiscussion', () => {
-  it('calls addDiscussion and prints file path', async () => {
-    await runProjectDiscussion(mockSvcInstance as unknown as SvcType, 'platform', { noEdit: true });
-    expect(mockAddDiscussion).toHaveBeenCalledWith('platform', { noEdit: true }, '/fake/ws');
-    expect(writeSpy).toHaveBeenCalledWith(expect.stringContaining('Created'));
-  });
-
-  it('sets exitCode when project not found', async () => {
-    mockAddDiscussion.mockRejectedValueOnce(new Error("Project 'platform' not found"));
-    await runProjectDiscussion(mockSvcInstance as unknown as SvcType, 'platform', {});
-    expect(process.exitCode).toBe(1);
-  });
-});
-
-describe('runProjectPresentation', () => {
-  it('calls addPresentation with provided topic', async () => {
-    await runProjectPresentation(mockSvcInstance as unknown as SvcType, 'platform', {
-      topic: 'Q1 Review',
-      noEdit: true,
-    });
-    expect(mockAddPresentation).toHaveBeenCalledWith(
-      'platform',
-      'Q1 Review',
-      expect.any(Object),
-      '/fake/ws',
-    );
-    expect(writeSpy).toHaveBeenCalledWith(expect.stringContaining('Created'));
-  });
-
-  it('prompts for topic when not provided', async () => {
-    mockPrompt.mockResolvedValueOnce({ resolvedTopic: 'My Topic' });
-    await runProjectPresentation(mockSvcInstance as unknown as SvcType, 'platform', {
-      noEdit: true,
-    });
-    expect(mockPrompt).toHaveBeenCalled();
-    expect(mockAddPresentation).toHaveBeenCalledWith(
-      'platform',
-      'My Topic',
-      expect.any(Object),
-      '/fake/ws',
-    );
-  });
-
-  it('sets exitCode when project not found', async () => {
-    mockAddPresentation.mockRejectedValueOnce(new Error("Project 'platform' not found"));
-    await runProjectPresentation(mockSvcInstance as unknown as SvcType, 'platform', {
-      topic: 'T',
-      noEdit: true,
-    });
-    expect(process.exitCode).toBe(1);
   });
 });
 

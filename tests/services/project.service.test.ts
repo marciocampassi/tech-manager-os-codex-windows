@@ -52,9 +52,9 @@ function createMockEmailResolution(): MockEmailResolution {
 const WS = '/fake/workspace';
 const NAME = 'platform';
 const NORMALIZED = 'platform-project';
-const COMP_PATH = `${WS}/my-company/projects/${NORMALIZED}/${NORMALIZED}-composition.md`;
+const OVERVIEW_PATH = `${WS}/my-company/projects/${NORMALIZED}/${NORMALIZED}.md`;
 
-function compContent(members: string[] = [], stakeholders: string[] = []): string {
+function overviewContent(members: string[] = [], stakeholders: string[] = []): string {
   const memberLines = members.map((e) => `- [[${e}]]`).join('\n');
   const stakeholderLines = stakeholders.map((e) => `- [[${e}]]`).join('\n');
   return `# Team Members\n${memberLines}\n\n# Stakeholders\n${stakeholderLines}\n`;
@@ -81,23 +81,41 @@ describe('ProjectService', () => {
   // ── addProject ────────────────────────────────────────────────────────────────
 
   describe('addProject', () => {
-    it('returns created: true and creates all files for a new project', async () => {
+    it('returns created: true and creates overview file and correct directories', async () => {
       mockFS.exists.mockResolvedValue(false);
 
       const result = await svc.addProject(NAME, WS);
 
       expect(result.created).toBe(true);
-      expect(mockFS.createDirectory).toHaveBeenCalledWith(expect.stringContaining('standup'));
-      expect(mockFS.createDirectory).toHaveBeenCalledWith(expect.stringContaining('discussion'));
-      expect(mockFS.createDirectory).toHaveBeenCalledWith(expect.stringContaining('presentation'));
+      expect(mockFS.createDirectory).toHaveBeenCalledWith(expect.stringContaining('standups'));
+      expect(mockFS.createDirectory).toHaveBeenCalledWith(expect.stringContaining('meetings'));
+      expect(mockFS.createDirectory).not.toHaveBeenCalledWith(
+        expect.stringContaining('discussion'),
+      );
+      expect(mockFS.createDirectory).not.toHaveBeenCalledWith(
+        expect.stringContaining('presentation'),
+      );
       expect(mockFS.writeFile).toHaveBeenCalledWith(
         expect.stringContaining(`${NAME}-project.md`),
         expect.stringContaining('type: project'),
       );
-      expect(mockFS.writeFile).toHaveBeenCalledWith(
-        expect.stringContaining(`${NORMALIZED}-composition.md`),
-        expect.stringContaining('# Team Members'),
-      );
+    });
+
+    it('overview file contains Team Members and Stakeholders sections', async () => {
+      mockFS.exists.mockResolvedValue(false);
+      await svc.addProject(NAME, WS);
+
+      const written = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
+      expect(written).toContain('# Team Members');
+      expect(written).toContain('# Stakeholders');
+    });
+
+    it('does not create a composition file', async () => {
+      mockFS.exists.mockResolvedValue(false);
+      await svc.addProject(NAME, WS);
+
+      const allPaths = (mockFS.writeFile.mock.calls as [string, string][]).map(([p]) => p);
+      expect(allPaths.some((p) => p.includes('composition'))).toBe(false);
     });
 
     it('returns created: false when project already exists', async () => {
@@ -115,16 +133,6 @@ describe('ProjectService', () => {
 
       expect(mockFS.writeFile).toHaveBeenCalledWith(
         expect.stringContaining(`my-company/projects/${NORMALIZED}/${NORMALIZED}.md`),
-        expect.any(String),
-      );
-    });
-
-    it('places composition file under my-company/projects/{name}-project/', async () => {
-      mockFS.exists.mockResolvedValue(false);
-      await svc.addProject(NAME, WS);
-
-      expect(mockFS.writeFile).toHaveBeenCalledWith(
-        expect.stringContaining(`my-company/projects/${NORMALIZED}/${NORMALIZED}-composition.md`),
         expect.any(String),
       );
     });
@@ -156,12 +164,12 @@ describe('ProjectService', () => {
       await expect(svc.addStandup(NAME, {}, WS)).rejects.toThrow(/not found.*tmr project add/i);
     });
 
-    it('creates standup file at correct path', async () => {
+    it('creates standup file under standups/ directory', async () => {
       mockFS.exists.mockResolvedValue(true);
       await svc.addStandup(NAME, { date: '2026-03-09' }, WS);
 
       expect(mockFS.writeFile).toHaveBeenCalledWith(
-        expect.stringContaining(`standup/2026-03-09-${NORMALIZED}-standup.md`),
+        expect.stringContaining(`standups/2026-03-09-${NORMALIZED}-standup.md`),
         expect.stringContaining('type: standup'),
       );
     });
@@ -177,73 +185,12 @@ describe('ProjectService', () => {
     });
   });
 
-  // ── addDiscussion ─────────────────────────────────────────────────────────────
-
-  describe('addDiscussion', () => {
-    it('throws when project does not exist', async () => {
-      mockFS.exists.mockResolvedValue(false);
-      await expect(svc.addDiscussion(NAME, {}, WS)).rejects.toThrow(/not found/i);
-    });
-
-    it('creates discussion file at correct path', async () => {
-      mockFS.exists.mockResolvedValue(true);
-      await svc.addDiscussion(NAME, { date: '2026-03-09' }, WS);
-
-      expect(mockFS.writeFile).toHaveBeenCalledWith(
-        expect.stringContaining(`discussion/2026-03-09-${NORMALIZED}-discussion.md`),
-        expect.stringContaining('type: discussion'),
-      );
-    });
-
-    it('includes discussion template sections', async () => {
-      mockFS.exists.mockResolvedValue(true);
-      await svc.addDiscussion(NAME, { date: '2026-03-09' }, WS);
-
-      const content = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
-      expect(content).toContain('## Topic');
-      expect(content).toContain('## Attendees');
-      expect(content).toContain('## Decisions');
-      expect(content).toContain('## Action Items');
-    });
-  });
-
-  // ── addPresentation ───────────────────────────────────────────────────────────
-
-  describe('addPresentation', () => {
-    it('throws when project does not exist', async () => {
-      mockFS.exists.mockResolvedValue(false);
-      await expect(svc.addPresentation(NAME, 'Q1 Review', {}, WS)).rejects.toThrow(/not found/i);
-    });
-
-    it('slugifies topic in filename', async () => {
-      mockFS.exists.mockResolvedValue(true);
-      await svc.addPresentation(NAME, 'Q1 Review', { date: '2026-03-09' }, WS);
-
-      expect(mockFS.writeFile).toHaveBeenCalledWith(
-        expect.stringContaining(`presentation/2026-03-09-${NORMALIZED}-presentation-q1-review.md`),
-        expect.any(String),
-      );
-    });
-
-    it('includes topic in template content', async () => {
-      mockFS.exists.mockResolvedValue(true);
-      await svc.addPresentation(NAME, 'Q1 Review', { date: '2026-03-09' }, WS);
-
-      const content = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
-      expect(content).toContain('topic: Q1 Review');
-      expect(content).toContain(`# ${NORMALIZED} — Q1 Review`);
-      expect(content).toContain('## Slides Outline');
-      expect(content).toContain('## Talking Points');
-      expect(content).toContain('## Q&A');
-    });
-  });
-
   // ── linkMember ────────────────────────────────────────────────────────────────
 
   describe('linkMember', () => {
     beforeEach(() => {
-      mockFS.exists.mockImplementation(async (p: string) => p.includes('composition'));
-      mockFS.readFile.mockResolvedValue(compContent());
+      mockFS.exists.mockImplementation(async (p: string) => p.endsWith(`${NORMALIZED}.md`));
+      mockFS.readFile.mockResolvedValue(overviewContent());
     });
 
     it('throws when project does not exist', async () => {
@@ -251,12 +198,12 @@ describe('ProjectService', () => {
       await expect(svc.linkMember(NAME, 'alice@co.com', WS)).rejects.toThrow(/not found/i);
     });
 
-    it('appends wiki-link to composition file', async () => {
+    it('appends wiki-link to overview file', async () => {
       mockEmailResolution.generateWikiLink.mockReturnValue('[[fake/path|alice@co.com]]');
 
       await svc.linkMember(NAME, 'alice@co.com', WS);
 
-      expect(mockFS.writeFile).toHaveBeenCalledWith(COMP_PATH, expect.stringContaining('[['));
+      expect(mockFS.writeFile).toHaveBeenCalledWith(OVERVIEW_PATH, expect.stringContaining('[['));
     });
 
     it('normalizes email to lowercase before calling resolve', async () => {
@@ -286,8 +233,8 @@ describe('ProjectService', () => {
 
   describe('linkStakeholder', () => {
     beforeEach(() => {
-      mockFS.exists.mockImplementation(async (p: string) => p.includes('composition'));
-      mockFS.readFile.mockResolvedValue(compContent());
+      mockFS.exists.mockImplementation(async (p: string) => p.endsWith(`${NORMALIZED}.md`));
+      mockFS.readFile.mockResolvedValue(overviewContent());
     });
 
     it('throws when project does not exist', async () => {
@@ -295,7 +242,7 @@ describe('ProjectService', () => {
       await expect(svc.linkStakeholder(NAME, 'alice@co.com', WS)).rejects.toThrow(/not found/i);
     });
 
-    it('appends to Stakeholders section', async () => {
+    it('appends to Stakeholders section in overview file', async () => {
       mockEmailResolution.generateWikiLink.mockReturnValue('[[fake/path|stake@co.com]]');
 
       await svc.linkStakeholder(NAME, 'stake@co.com', WS);
@@ -318,8 +265,8 @@ describe('ProjectService', () => {
 
   describe('linkMembers', () => {
     beforeEach(() => {
-      mockFS.exists.mockImplementation(async (p: string) => p.includes('composition'));
-      mockFS.readFile.mockResolvedValue(compContent());
+      mockFS.exists.mockImplementation(async (p: string) => p.endsWith(`${NORMALIZED}.md`));
+      mockFS.readFile.mockResolvedValue(overviewContent());
     });
 
     it('returns correct linked count for batch', async () => {
@@ -359,7 +306,7 @@ describe('ProjectService', () => {
     it('only lists directories ending in -project', async () => {
       mockFS.exists.mockResolvedValue(true);
       mockFS.listDirectories.mockResolvedValue(['platform-project', 'random-dir']);
-      mockFS.readFile.mockResolvedValue(compContent());
+      mockFS.readFile.mockResolvedValue(overviewContent());
 
       const result = await svc.listProjects(WS);
       expect(result).toHaveLength(1);
@@ -369,7 +316,7 @@ describe('ProjectService', () => {
     it('counts members and stakeholders correctly', async () => {
       mockFS.exists.mockResolvedValue(true);
       mockFS.listDirectories.mockResolvedValue(['platform-project']);
-      mockFS.readFile.mockResolvedValue(compContent(['a@co.com', 'b@co.com'], ['s@co.com']));
+      mockFS.readFile.mockResolvedValue(overviewContent(['a@co.com', 'b@co.com'], ['s@co.com']));
 
       const result = await svc.listProjects(WS);
       expect(result[0]).toMatchObject({
@@ -379,10 +326,10 @@ describe('ProjectService', () => {
       });
     });
 
-    it('returns zero counts when composition file missing', async () => {
+    it('returns zero counts when overview file is missing', async () => {
       mockFS.exists
         .mockResolvedValueOnce(true) // my-company/projects/ exists
-        .mockResolvedValueOnce(false); // composition does not exist
+        .mockResolvedValueOnce(false); // overview does not exist
       mockFS.listDirectories.mockResolvedValue(['platform-project']);
 
       const result = await svc.listProjects(WS);

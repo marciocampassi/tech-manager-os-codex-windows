@@ -145,14 +145,6 @@ describe('TemplateService', () => {
     });
   });
 
-  describe('getProjectCompositionTemplate', () => {
-    it('returns both single-hash section headers', () => {
-      const result = svc.getProjectCompositionTemplate();
-      expect(result).toContain('# Team Members');
-      expect(result).toContain('# Stakeholders');
-    });
-  });
-
   describe('getStandupTemplate', () => {
     it('returns correct frontmatter and sections', () => {
       const result = svc.getStandupTemplate(DATE, 'platform');
@@ -162,29 +154,6 @@ describe('TemplateService', () => {
       expect(result).toContain('## Yesterday');
       expect(result).toContain('## Today');
       expect(result).toContain('## Blockers');
-    });
-  });
-
-  describe('getDiscussionTemplate', () => {
-    it('returns correct frontmatter and sections', () => {
-      const result = svc.getDiscussionTemplate(DATE, 'platform');
-      expect(result).toContain('type: discussion');
-      expect(result).toContain('## Topic');
-      expect(result).toContain('## Attendees');
-      expect(result).toContain('## Decisions');
-      expect(result).toContain('## Action Items');
-    });
-  });
-
-  describe('getPresentationTemplate', () => {
-    it('returns correct frontmatter including topic', () => {
-      const result = svc.getPresentationTemplate(DATE, 'platform', 'Q1 Review');
-      expect(result).toContain('type: presentation');
-      expect(result).toContain('topic: Q1 Review');
-      expect(result).toContain('# platform — Q1 Review');
-      expect(result).toContain('## Slides Outline');
-      expect(result).toContain('## Talking Points');
-      expect(result).toContain('## Q&A');
     });
   });
 
