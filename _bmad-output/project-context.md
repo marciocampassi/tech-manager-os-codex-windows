@@ -2,9 +2,9 @@
 project_name: 'tech-manager-os'
 user_name: 'Marlon'
 date: '2026-04-27'
-sections_completed: ['technology_stack', 'language_rules', 'architecture_rules', 'testing_rules', 'code_quality_rules', 'critical_rules']
+sections_completed: ['technology_stack', 'language_rules', 'architecture_rules', 'testing_rules', 'code_quality_rules', 'critical_rules', 'shared_utilities_rules']
 status: 'complete'
-rule_count: 45
+rule_count: 53
 optimized_for_llm: true
 ---
 
@@ -251,6 +251,39 @@ they drop below.
 
 ---
 
+## Shared Utilities — Brownfield State & Rules
+
+### Email Validation
+
+- `EmailResolutionService.validateEmail(email)` **already exists** (`src/services/email-resolution.service.ts` line 25) and returns `boolean`. **DO NOT use it directly in new code.**
+- New code MUST use a standalone `validateEmail(email: string): void` utility (to be created in `src/utils/validation.ts`) that **throws `InvalidEmailError` (TMR_E103)** before any file system operation — not just returns false.
+- The `EmailResolutionService.resolve()` method also calls `validateEmail` internally; once the utility is extracted, `EmailResolutionService` should delegate to it.
+- Never call `EmailResolutionService` solely for validation — it is a resolution service, not a validator.
+
+### Wiki-Link Generation
+
+- **Two legacy implementations exist — neither is the standard going forward:**
+  1. `EmailResolutionService.generateWikiLink(email, resolvedPath, fromPath)` — generates relative-path alias format `[[path/to/file|email]]`. Use only when a relative path is semantically required (e.g. project stakeholder links).
+  2. `buildWikiLink(email)` — private inline function in `team.service.ts`; generates `- [[../../members/email/email.md|email]]`. Not exported; do not replicate this pattern.
+- **Standard for FR33 (entity references in generated Markdown files):** use `formatWikiLink(resolvedPath, fromPath, displayName)` from `src/utils/wiki-link.ts` (to be created in Story 1.3). Returns `[[relative/path/to/file.md|displayName]]` with `/`-normalized separators.
+- All new services that write Markdown referencing people, teams, or leaders MUST use `formatWikiLink()` from `src/utils/wiki-link.ts`. Never inline a wiki-link format string.
+- `EmailResolutionService.generateWikiLink()` is superseded by this utility — mark it `@deprecated` and do not use in new code.
+
+### Entity Slug Normalization
+
+- **No shared utility exists yet.** Inline `email.toLowerCase()` is scattered across services but no slug normalization utility exists.
+- New code MUST use `normalizeSlug(name: string): string` from `src/utils/normalization.ts` (to be created in Story 1.2). It converts to lowercase and replaces spaces/underscores with hyphens: `"Backend Team"` → `"backend-team"`. Idempotent: `"my-team"` → `"my-team"`.
+- Every command and service that accepts a team name **or project name** MUST call `normalizeSlug()` before any file system path construction or comparison.
+
+### Relationship Service (Deprecated)
+
+- `src/services/relationship.service.ts` and `src/commands/relationship.command.ts` are **scheduled for deletion** as part of Epic 1.
+- **DO NOT add any new code that depends on `RelationshipService`.**
+- `EmailResolutionService` currently imports `RelationshipService` for auto-create fallback (step 4 in `_doResolve`). After Epic 1, this fallback must be re-routed to `MemberService` (company-scoped auto-create) — any implementation touching `EmailResolutionService._doResolve` must update this dependency.
+- Test files to delete: `tests/commands/relationship.command.test.ts`, `tests/services/relationship.service.test.ts`, `tests/integration/relationship.integration.test.ts`.
+
+---
+
 ## Usage Guidelines
 
 **For AI Agents:**
@@ -267,4 +300,4 @@ they drop below.
 - Update when the technology stack, architecture, or conventions change.
 - Review quarterly for outdated rules.
 
-_Last Updated: 2026-04-27_
+_Last Updated: 2026-04-27 (added Shared Utilities — Brownfield State & Rules section)_

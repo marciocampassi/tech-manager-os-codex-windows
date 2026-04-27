@@ -137,6 +137,7 @@ Files with `confidence < threshold` (default 0.75) are flagged `needsReview = tr
 ├── my-tasks/                    ← tasks.md + today/week/month/quarter views
 ├── my-teams/members/            ← Per-member context files
 ├── my-teams/teams/              ← Team configuration
+├── my-company/members/          ← Company-scoped member profiles
 ├── my-company/projects/         ← Project metadata
 ├── my-leadership/               ← Leadership contacts
 ├── my-career/                   ← Assessments, feedback
@@ -207,7 +208,7 @@ The `plain` flag propagates from global opts into every service via function par
 
 | Commands (static import) | Commands (lazy import) |
 |--------------------------|----------------------|
-| config, team, member, leadership, project, relationship, task-view | init, process, watch, install, update |
+| config, team, member, leadership, project, task-view | init, process, watch, install, update |
 
 This ensures `tmr --version`, `tmr --help`, `tmr team list`, etc. do not pay the startup cost of loading AI SDKs, googleapis, chokidar, or inquirer.
 
