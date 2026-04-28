@@ -2,6 +2,8 @@ import path from 'node:path';
 import { FileSystemService, fileSystemService } from './file-system.service.js';
 import { RelationshipService, relationshipService } from './relationship.service.js';
 import { getWorkspaceRoot as resolveWorkspaceRoot } from '../utils/workspace.js';
+import { InvalidEmailError } from '../errors/tmr-error.js';
+import { validateEmail as validateEmailUtil } from '../utils/validation.js';
 import type { IEntityLocation } from '../types/email-resolution.types.js';
 
 // ── EmailResolutionService ────────────────────────────────────────────────────
@@ -20,11 +22,17 @@ export class EmailResolutionService {
 
   /**
    * Returns true when `email` is a syntactically valid email address.
-   * Handles empty strings, missing @, malformed domains, and whitespace-only inputs.
+   * Delegates to the shared `validateEmail` utility in `src/utils/validation.ts`
+   * rather than containing its own inline regex.
    */
   validateEmail(email: string): boolean {
-    if (!email || typeof email !== 'string') return false;
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+    try {
+      validateEmailUtil(email);
+      return true;
+    } catch (err) {
+      if (err instanceof InvalidEmailError) return false;
+      throw err;
+    }
   }
 
   /**
@@ -34,13 +42,11 @@ export class EmailResolutionService {
    * Email is normalized to lowercase before resolution. Results are cached
    * in-memory (keyed by `email:ws`) so repeated calls avoid redundant FS checks.
    *
-   * @throws Error if `email` fails format validation
+   * @throws {InvalidEmailError} if `email` fails format validation (TMR_E103)
    */
   async resolve(email: string, ws: string): Promise<IEntityLocation> {
     const e = email.toLowerCase().trim();
-    if (!this.validateEmail(e)) {
-      throw new Error(`Invalid email address: '${email}'`);
-    }
+    validateEmailUtil(e); // throws InvalidEmailError (TMR_E103) if invalid
     const key = `${e}:${ws}`;
     const cached = this._cache.get(key);
     if (cached !== undefined) return cached;

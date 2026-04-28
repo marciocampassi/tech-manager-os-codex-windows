@@ -1,4 +1,6 @@
 import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
+import fs from 'node:fs';
+import path from 'node:path';
 
 // Must mock before dynamic import so the module loads with the mock in place
 jest.unstable_mockModule('conf', () => ({
@@ -32,90 +34,58 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  delete process.env['TM_PROVIDER'];
-  delete process.env['TM_API_KEY'];
+  delete process.env['TMR_PROVIDER'];
 });
 
-describe('ConfigService — storage (AC: 1, 3)', () => {
-  it('set + get round-trip returns the stored value for provider', () => {
-    service.set('provider', 'openai');
-    expect(service.get('provider')).toBe('openai');
-  });
-
-  it('set + get round-trip returns the stored value for apiKey', () => {
-    service.set('apiKey', 'sk-test-abcd-1234');
-    expect(service.get('apiKey')).toBe('sk-test-abcd-1234');
+describe('ConfigService — storage', () => {
+  it('set + get round-trip for active_provider', () => {
+    service.set('active_provider', 'openai');
+    expect(service.get('active_provider')).toBe('openai');
   });
 
   it('get returns undefined for a key that was never set', () => {
-    expect(service.get('provider')).toBeUndefined();
+    expect(service.get('active_provider')).toBeUndefined();
   });
 
   it('has returns false before set', () => {
-    expect(service.has('provider')).toBe(false);
+    expect(service.has('active_provider')).toBe(false);
   });
 
   it('has returns true after set', () => {
-    service.set('provider', 'anthropic');
-    expect(service.has('provider')).toBe(true);
+    service.set('active_provider', 'gemini');
+    expect(service.has('active_provider')).toBe(true);
   });
 
   it('delete removes the stored value', () => {
-    service.set('apiKey', 'sk-test-1234');
-    service.delete('apiKey');
-    expect(service.get('apiKey')).toBeUndefined();
-    expect(service.has('apiKey')).toBe(false);
+    service.set('active_provider', 'claude');
+    service.delete('active_provider');
+    expect(service.get('active_provider')).toBeUndefined();
+    expect(service.has('active_provider')).toBe(false);
   });
 });
 
-describe('ConfigService — environment variable precedence (AC: 5)', () => {
-  it('get("provider") returns TM_PROVIDER env var over stored value', () => {
-    service.set('provider', 'openai');
-    process.env['TM_PROVIDER'] = 'anthropic';
-    expect(service.get('provider')).toBe('anthropic');
-  });
-
-  it('get("apiKey") returns TM_API_KEY env var over stored value', () => {
-    service.set('apiKey', 'stored-key');
-    process.env['TM_API_KEY'] = 'env-key';
-    expect(service.get('apiKey')).toBe('env-key');
+describe('ConfigService — environment variable precedence', () => {
+  it('get("active_provider") returns TMR_PROVIDER env var over stored value', () => {
+    service.set('active_provider', 'openai');
+    process.env['TMR_PROVIDER'] = 'claude';
+    expect(service.get('active_provider')).toBe('claude');
   });
 
   it('get falls back to conf store when env var is not set', () => {
-    service.set('provider', 'gemini');
-    expect(service.get('provider')).toBe('gemini');
+    service.set('active_provider', 'gemini');
+    expect(service.get('active_provider')).toBe('gemini');
   });
 
-  it('has returns true when env var is set even if conf store is empty', () => {
-    process.env['TM_PROVIDER'] = 'openai';
-    expect(service.has('provider')).toBe(true);
+  it('has returns true when TMR_PROVIDER env var is set even if conf store is empty', () => {
+    process.env['TMR_PROVIDER'] = 'openai';
+    expect(service.has('active_provider')).toBe(true);
   });
 });
 
-describe('ConfigService — initialize (AC: 1)', () => {
+describe('ConfigService — initialize', () => {
   it('initialize() calls dotenv.config()', () => {
     service.initialize();
     expect(dotenv.config).toHaveBeenCalled();
-  });
-});
-
-describe('ConfigService — getRedacted (AC: 4)', () => {
-  it('returns masked value for a stored apiKey', () => {
-    service.set('apiKey', 'sk-test-ABCD');
-    const result = service.getRedacted('apiKey');
-    expect(result).toBe('********ABCD');
-    expect(result).not.toContain('sk-test');
-  });
-
-  it('returns (not set) when key has no value', () => {
-    expect(service.getRedacted('apiKey')).toBe('(not set)');
-  });
-
-  it('returns masked env var value when env var is set', () => {
-    process.env['TM_API_KEY'] = 'env-secret-ZZZZ';
-    const result = service.getRedacted('apiKey');
-    expect(result.endsWith('ZZZZ')).toBe(true);
-    expect(result).not.toContain('env-secret');
   });
 });
 
@@ -131,15 +101,9 @@ describe('ConfigService — getActiveProvider / setActiveProvider', () => {
     expect(service.getActiveProvider()).toBe('claude');
   });
 
-  it('getActiveProvider falls back to legacy provider key', () => {
-    service.set('provider', 'openai');
-    expect(service.getActiveProvider()).toBe('openai');
-  });
-
-  it('active_provider takes precedence over legacy provider', () => {
-    service.set('provider', 'openai');
-    service.setActiveProvider('claude');
-    expect(service.getActiveProvider()).toBe('claude');
+  it('getActiveProvider reads TMR_PROVIDER env var', () => {
+    process.env['TMR_PROVIDER'] = 'gemini';
+    expect(service.getActiveProvider()).toBe('gemini');
   });
 });
 
@@ -203,5 +167,52 @@ describe('ConfigService — getConfidenceThreshold', () => {
   it('returns stored threshold when set', () => {
     service.set('confidence_threshold', 0.9);
     expect(service.getConfidenceThreshold()).toBe(0.9);
+  });
+});
+
+describe('ConfigService — getRedacted', () => {
+  it('returns "(not set)" when the key has no value', () => {
+    expect(service.getRedacted('workspace_path')).toBe('(not set)');
+  });
+
+  it('returns a masked value for a stored string — raw value is not exposed', () => {
+    service.set('workspace_path', '/Users/me/vault-ABCD');
+    const result = service.getRedacted('workspace_path');
+    expect(result.endsWith('ABCD')).toBe(true);
+    expect(result).not.toContain('/Users');
+  });
+
+  it('masks the env var value when env var overrides the stored key', () => {
+    process.env['TMR_PROVIDER'] = 'my-provider-ZZZZ';
+    const result = service.getRedacted('active_provider');
+    expect(result.endsWith('ZZZZ')).toBe(true);
+    expect(result).not.toContain('my-provider');
+  });
+});
+
+// ─── ARCH-DEBT-001 structural guard ──────────────────────────────────────────
+
+describe('ARCH-DEBT-001 guard — deprecated AppConfig fields removed', () => {
+  it('no source file under src/ references AppConfig.provider or AppConfig.apiKey', () => {
+    const srcRoot = path.resolve(process.cwd(), 'src');
+    const violations: string[] = [];
+
+    function walk(dir: string): void {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          walk(full);
+          continue;
+        }
+        if (!entry.name.endsWith('.ts')) continue;
+        const content = fs.readFileSync(full, 'utf8');
+        if (content.includes('AppConfig.provider') || content.includes('AppConfig.apiKey')) {
+          violations.push(path.relative(srcRoot, full));
+        }
+      }
+    }
+
+    walk(srcRoot);
+    expect(violations).toEqual([]);
   });
 });
