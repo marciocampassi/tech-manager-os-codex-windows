@@ -3,6 +3,7 @@ import matter from 'gray-matter';
 import { FileSystemService, fileSystemService } from './file-system.service.js';
 import { getWorkspaceRoot as resolveWorkspaceRoot } from '../utils/workspace.js';
 import { generateActionItemsTemplate } from '../templates/onboarding.templates.js';
+import { normalizeSlug } from '../utils/normalization.js';
 import type {
   IAddMemberOptions,
   IArchiveOptions,
@@ -52,14 +53,14 @@ function todayIso(): string {
 
 // ── Templates ─────────────────────────────────────────────────────────────────
 
-function buildContextMd(teamName: string): string {
-  const displayName = teamName.charAt(0).toUpperCase() + teamName.slice(1);
+function buildContextMd(teamSlug: string, displayName: string = teamSlug): string {
+  const heading = displayName.charAt(0).toUpperCase() + displayName.slice(1);
   return `---
-team: ${teamName}
+team: ${teamSlug}
 created: ${todayIso()}
 ---
 
-# Team: ${displayName}
+# Team: ${heading}
 
 ## Team Mission
 
@@ -149,13 +150,14 @@ export class TeamService {
   }
 
   async createTeam(teamName: string, workspaceRoot: string): Promise<void> {
-    const contextPath = teamContextPath(workspaceRoot, teamName);
-    const membersPath = teamMembersPath(workspaceRoot, teamName);
+    const slug = normalizeSlug(teamName);
+    const contextPath = teamContextPath(workspaceRoot, slug);
+    const membersPath = teamMembersPath(workspaceRoot, slug);
 
     // Idempotent: skip if already exists
     if (await this._fs.exists(contextPath)) return;
 
-    await this._fs.writeFile(contextPath, buildContextMd(teamName));
+    await this._fs.writeFile(contextPath, buildContextMd(slug, teamName));
     await this._fs.writeFile(membersPath, buildMembersMd());
   }
 
@@ -165,10 +167,11 @@ export class TeamService {
     options: IAddMemberOptions,
     workspaceRoot: string,
   ): Promise<void> {
+    const slug = normalizeSlug(teamName);
     const normalizedEmail = email.toLowerCase();
 
     // Auto-create team if needed
-    await this.createTeam(teamName, workspaceRoot);
+    await this.createTeam(slug, workspaceRoot);
 
     const profilePath = memberProfilePath(workspaceRoot, normalizedEmail);
     const memberExists = await this._fs.exists(profilePath);
@@ -179,8 +182,8 @@ export class TeamService {
       const parsed = matter(content);
       const existing = parsed.data as Partial<ITeamMemberFrontmatter>;
       const teams: string[] = Array.isArray(existing.teams) ? existing.teams : [];
-      if (!teams.includes(teamName)) {
-        teams.push(teamName);
+      if (!teams.includes(slug)) {
+        teams.push(slug);
         existing.teams = teams;
         const updated = matter.stringify(parsed.content, existing);
         await this._fs.writeFile(profilePath, updated);
@@ -188,7 +191,7 @@ export class TeamService {
     } else {
       // New member — create full directory + profile
       const managerEmail = await this.getManagerEmail(workspaceRoot);
-      const profileMd = buildMemberProfileMd(normalizedEmail, options, [teamName], managerEmail);
+      const profileMd = buildMemberProfileMd(normalizedEmail, options, [slug], managerEmail);
 
       await this._fs.createDirectory(path.join(memberDir(workspaceRoot, normalizedEmail), '1on1s'));
       await this._fs.createDirectory(
@@ -213,7 +216,7 @@ export class TeamService {
     }
 
     // Append wiki-link to team members file
-    const membersPath = teamMembersPath(workspaceRoot, teamName);
+    const membersPath = teamMembersPath(workspaceRoot, slug);
     const wikiLink = buildWikiLink(normalizedEmail);
     const currentMembers = await this._fs.readFile(membersPath);
 
@@ -243,7 +246,7 @@ export class TeamService {
   }
 
   async listTeamMembers(teamName: string, workspaceRoot: string): Promise<IMemberSummary[]> {
-    const membersPath = teamMembersPath(workspaceRoot, teamName);
+    const membersPath = teamMembersPath(workspaceRoot, normalizeSlug(teamName));
     if (!(await this._fs.exists(membersPath))) return [];
 
     const content = await this._fs.readFile(membersPath);
@@ -274,6 +277,7 @@ export class TeamService {
     options: IArchiveOptions,
     workspaceRoot: string,
   ): Promise<void> {
+    const slug = normalizeSlug(teamName);
     const normalizedEmail = email.toLowerCase();
     const srcDir = memberDir(workspaceRoot, normalizedEmail);
 
@@ -325,7 +329,7 @@ export class TeamService {
     }
 
     // Remove wiki-link from team members file
-    await this._removeWikiLink(teamName, normalizedEmail, workspaceRoot);
+    await this._removeWikiLink(slug, normalizedEmail, workspaceRoot);
   }
 
   async fireMember(
@@ -426,7 +430,7 @@ export class TeamService {
     email: string,
     workspaceRoot: string,
   ): Promise<void> {
-    const membersPath = teamMembersPath(workspaceRoot, teamName);
+    const membersPath = teamMembersPath(workspaceRoot, normalizeSlug(teamName));
     if (!(await this._fs.exists(membersPath))) return;
 
     const content = await this._fs.readFile(membersPath);

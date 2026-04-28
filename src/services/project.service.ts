@@ -3,6 +3,7 @@ import { FileSystemService, fileSystemService } from './file-system.service.js';
 import { TemplateService, templateService } from './template.service.js';
 import { emailResolutionService, EmailResolutionService } from './email-resolution.service.js';
 import { getWorkspaceRoot as resolveWorkspaceRoot } from '../utils/workspace.js';
+import { normalizeSlug } from '../utils/normalization.js';
 import type {
   IBatchLinkResult,
   ILinkResult,
@@ -13,11 +14,15 @@ import type {
 // ── Path helpers ──────────────────────────────────────────────────────────────
 
 /**
- * Normalizes a project name by appending '-project' suffix if not already present.
- * e.g. 'internship-program' → 'internship-program-project'
+ * Normalizes a project name to a slug and appends '-project' suffix if not already present.
+ * Slug conversion (via normalizeSlug) happens first so user-provided names like
+ * "My Project" produce "my-project-project" predictably.
+ * e.g. 'My Internship' → 'my-internship-project'
+ *      'internship-program' → 'internship-program-project'
  */
 export function normalizeProjectName(name: string): string {
-  return name.endsWith('-project') ? name : `${name}-project`;
+  const slug = normalizeSlug(name);
+  return slug.endsWith('-project') ? slug : `${slug}-project`;
 }
 
 function projectsDir(ws: string): string {
