@@ -49,6 +49,9 @@ FR24: System auto-creates a company-scoped member profile when feedback is reque
 FR25: User can install all available skills from the official skill registry in a single command
 FR26: User can install a specific skill from the official skill registry by name
 FR27: System accesses the skill registry through an abstracted service layer that supports future registry evolution
+FR35: System automatically installs the `tmr-project-impact` skill as part of every `tmr init` run, enabling dependency tracking across project files
+FR36: The `CLAUDE.md` written to the vault root during `tmr init` includes a rule instructing AI agents to run `/tmr-project-impact` whenever a file changes inside `my-company/projects/`, so that dependent documents are automatically checked for staleness
+FR37: System creates a stub `deps.yaml` file inside the new project directory when `tmr project add` is run, so that `/tmr-project-impact` can be invoked at any time without a manual file creation step
 FR28: System validates all email inputs before any file system operation and rejects invalid formats with a descriptive error
 FR29: System re-prompts the user on invalid input during interactive flows without losing progress or crashing
 FR30: System validates team count input during init as a positive integer greater than zero
@@ -156,8 +159,11 @@ N/A — `tech-manager-os` is a CLI tool with no graphical interface. No UX desig
 | FR26 | Epic 4 | `tmr install <skill-name>` — installs single skill |
 | FR27 | Epic 4 | `SkillRegistryService` abstraction layer (no hardcoded URLs) |
 | FR34 | Epic 5 | `CONTRIBUTING.md` in repo root |
+| FR35 | Epic 2 | Auto-install `tmr-project-impact` skill during `tmr init` |
+| FR36 | Epic 2 | `CLAUDE.md` hook: AI agents run `/tmr-project-impact` on changes in `my-company/projects/` |
+| FR37 | Epic 2 | `tmr project add` scaffolds stub `deps.yaml` in new project directory |
 
-**Total: 34/34 FRs covered** ✓
+**Total: 37/37 FRs covered** ✓ *(FR35, FR36, FR37 added 2026-04-29 via sprint change)*
 
 ---
 
@@ -177,11 +183,11 @@ Engineers and downstream epics can rely on consistent, shared building blocks fo
 ---
 
 ### Epic 2: Zero-to-Operational Onboarding (`tmr init` Rework)
-A new engineering manager runs `tmr init`, answers a single guided session of prompts, and arrives at a fully populated vault — their profile, their leader, their teams and team members, sample inbox notes, and an installed skill — without reading docs or running any additional commands.
+A new engineering manager runs `tmr init`, answers a single guided session of prompts, and arrives at a fully populated vault — their profile, their leader, their teams and team members, sample inbox notes, two installed skills (`tmr-inbox` and `tmr-project-impact`), and a `CLAUDE.md` with a dependency-tracking hook — without reading docs or running any additional commands. Adding a project via `tmr project add` automatically scaffolds a `deps.yaml` ready for dependency tracking.
 
-**FRs covered:** FR1–FR14, FR30
+**FRs covered:** FR1–FR14, FR30, FR35, FR36, FR37
 
-**TEA quality gates:** INIT-INT-001 (happy path), INIT-INT-002 (CWD default), INIT-INT-004/005/006/007 (validation rejections), INIT-INT-009 (team name normalization), INIT-INT-010 (skill install resilience), INIT-INT-011 (partial write failure → stderr), INIT-INT-012 (README exists), INIT-INT-013 (wiki-link format)
+**TEA quality gates:** INIT-INT-001 (happy path), INIT-INT-002 (CWD default), INIT-INT-004/005/006/007 (validation rejections), INIT-INT-009 (team name normalization), INIT-INT-010 (skill install resilience), INIT-INT-010b (`tmr-project-impact` install resilience), INIT-INT-011 (partial write failure → stderr), INIT-INT-012 (README exists), INIT-INT-013 (wiki-link format), INIT-UNIT-008 (CLAUDE.md contains project impact hook), PROJ-UNIT-001 (deps.yaml scaffolded by `tmr project add`)
 
 **Test infrastructure prerequisite:** `tests/fixtures/init-prompts.ts` (`initPromptFixture` helper) must be created in this epic before integration tests are written.
 
@@ -399,6 +405,10 @@ So that all required directories exist and the vault is ready to be populated by
 **When** the scaffold completes
 **Then** a `CLAUDE.md` file is written to the vault root (INIT-UNIT-007)
 
+**Given** the `CLAUDE.md` is written to the vault root
+**When** its content is inspected
+**Then** it includes an instruction to AI agents: "Whenever any file changes inside `my-company/projects/`, run `/tmr-project-impact` to check for dependent document updates. Use `/tmr-project-impact <project-path> deps` to set up a project's dependency manifest for the first time." (FR36, INIT-UNIT-008)
+
 **Given** a file system write error occurs during scaffolding
 **When** the error is caught
 **Then** `printError` is called with a descriptive message to `process.stderr` and the process does not exit silently (NFR1, INIT-INT-011)
@@ -513,13 +523,25 @@ So that my vault is immediately useful and I know exactly what to do next — ev
 **When** the network call fails (timeout, 404, or any error)
 **Then** the error is logged but onboarding continues — a skill install failure does NOT abort `tmr init` (FR10, NFR1, INIT-INT-010)
 
+**Given** `InitService` installs `tmr-project-impact` via `SkillRegistryService` immediately after `tmr-inbox`
+**When** the network call succeeds
+**Then** the skill files are written to `<workspace>/.claude/skills/tmr-project-impact/` (FR35)
+
+**Given** `InitService` installs `tmr-project-impact` via `SkillRegistryService`
+**When** the network call fails (timeout, 404, or any error)
+**Then** the error is logged but onboarding continues — failure does NOT abort `tmr init` (FR35, INIT-INT-010b)
+
+**Given** `tests/integration/init.integration.test.ts` mocks both skill installs (one succeeds, one fails)
+**When** the integration test runs
+**Then** INIT-INT-010b passes: onboarding completes regardless of `tmr-project-impact` install outcome
+
 **Given** `InitService` reaches the README generation step
 **When** `InitService` writes the README
 **Then** `README.md` exists in the vault root with content covering the most-used commands and a full command reference (FR12, INIT-UNIT-002, INIT-INT-012)
 
 **Given** `InitService` completes all steps
 **When** the post-init summary is printed
-**Then** `printInfo` outputs a next-steps message directing the user to `tmr project add` and `/tmr-inbox` (FR13, INIT-UNIT-006)
+**Then** `printInfo` outputs a next-steps message directing the user to `tmr project add` and `/tmr-inbox`; and informing them that once projects are added, `/tmr-project-impact <project-path> deps` can be run at any time to set up dependency tracking (FR13, INIT-UNIT-006)
 
 **Given** `InitService` completes all steps
 **When** the post-init summary is printed
@@ -532,6 +554,32 @@ So that my vault is immediately useful and I know exactly what to do next — ev
 **Given** `tests/integration/init.integration.test.ts` exercises the full happy-path flow
 **When** the integration test runs using `initPromptFixture('happy-path')`
 **Then** INIT-INT-001 (full happy path: 1 team + 2 members → all correct files) passes
+
+---
+
+### Story 2.5: `tmr project add` — Scaffold `deps.yaml` for Dependency Tracking
+
+As a `tmr` user who just created a project via `tmr project add`,
+I want a stub `deps.yaml` automatically created in the project folder,
+So that I can run `/tmr-project-impact <project-path> deps` at any time to set up dependency tracking without any manual file creation.
+
+**Acceptance Criteria:**
+
+**Given** `tmr project add <name>` is run
+**When** the project directory is created at `my-company/projects/<name>/`
+**Then** a stub `deps.yaml` is written to `my-company/projects/<name>/deps.yaml` with the standard header comment and an empty `sources: {}` block (FR37, PROJ-UNIT-001)
+
+**Given** the stub `deps.yaml` is written
+**When** its content is inspected
+**Then** it contains the header comment block explaining its purpose and how to populate it (`/tmr-project-impact <project-path> deps`), and a valid empty `sources: {}` block ready for the interactive tool to populate
+
+**Given** `tests/commands/project.command.test.ts` (or equivalent) exercises `tmr project add`
+**When** the unit test runs
+**Then** PROJ-UNIT-001 passes: `deps.yaml` exists in the scaffolded project folder with the correct header and empty sources block
+
+**Given** any unexpected runtime error occurs during `deps.yaml` creation
+**When** the error propagates
+**Then** it is caught, surfaced via `printError` to `process.stderr`, and no stack trace is visible to the user (NFR2)
 
 ---
 

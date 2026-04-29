@@ -76,7 +76,7 @@ The conceptual simplification of `tmr member` is equally important: a member is 
 
 **Must-Have Capabilities:**
 
-- `tmr init` full rework: current-dir default, user profile creation, leader creation, team + member setup loop, automatic `tmr-inbox` skill install, sample inbox files copied to vault, vault `README.md` generation, folder cleanup (remove `/utils` and `/my-teams/feedback-templates`), post-init next-steps summary
+- `tmr init` full rework: current-dir default, user profile creation, leader creation, team + member setup loop, automatic `tmr-inbox` and `tmr-project-impact` skill install, sample inbox files copied to vault, vault `README.md` generation, `CLAUDE.md` with AI dependency-tracking hook, folder cleanup (remove `/utils` and `/my-teams/feedback-templates`), post-init next-steps summary
 - `tmr relationship` command removed from codebase and CLI help
 - `tmr team create` / `tmr team add`: lowercase/kebab-case normalization, email validation
 - `tmr member add <email>`: company-scoped routing to `my-company/members/`, location field
@@ -194,7 +194,7 @@ All commands follow the established display contract:
 - `tmr install` fetches and installs all available skills from the official GitHub-hosted registry
 - `tmr install <skill-name>` fetches and installs a single named skill
 - Registry URL and protocol are abstracted behind `SkillRegistryService` to support future evolution (paid skills, community submissions, API-backed registry)
-- `tmr init` installs `tmr-inbox` as a default skill silently during onboarding
+- `tmr init` installs `tmr-inbox` and `tmr-project-impact` as default skills silently during onboarding; skill install failures are logged but do not abort onboarding
 
 ### Implementation Notes
 
@@ -217,9 +217,11 @@ All commands follow the established display contract:
 - **FR8**: User can add members to each team during init by providing email, name, role, gender, and location per member
 - **FR9**: User can finish adding members to a team by submitting an empty email input
 - **FR10**: System automatically installs the `tmr-inbox` skill as part of every `tmr init` run
+- **FR35**: System automatically installs the `tmr-project-impact` skill as part of every `tmr init` run, enabling dependency tracking across project files
+- **FR36**: The `CLAUDE.md` written to the vault root during `tmr init` includes a rule instructing AI agents to run `/tmr-project-impact` whenever a file changes inside `my-company/projects/`, so that dependent documents are automatically checked for staleness
 - **FR11**: System copies bundled sample inbox notes into the vault's inbox folder during init
 - **FR12**: System generates a `README.md` in the vault root during init containing the most-used commands and a full command reference
-- **FR13**: System displays a post-init next-steps summary directing the user to `tmr project add` and `/tmr-inbox`
+- **FR13**: System displays a post-init next-steps summary directing the user to `tmr project add` and `/tmr-inbox`; and informing them that once projects are added, `/tmr-project-impact <project-path> deps` can be run at any time to set up dependency tracking for that project
 - **FR14**: System displays post-init guidance to open Obsidian and enable required plugins *(nice-to-have: automated plugin enablement)*
 
 ### Team Management
@@ -258,6 +260,10 @@ All commands follow the established display contract:
 ### Obsidian Integration
 
 - **FR33**: System generates Obsidian wiki-link references (`[[email]]`) in all Markdown files that reference other entities (people, teams, leaders) — this is a default output behavior across all commands
+
+### Project Management
+
+- **FR37**: System creates a stub `deps.yaml` file inside the new project directory when `tmr project add` is run, so that `/tmr-project-impact` can be invoked at any time without a manual file creation step
 
 ### Project Documentation & Open Source
 

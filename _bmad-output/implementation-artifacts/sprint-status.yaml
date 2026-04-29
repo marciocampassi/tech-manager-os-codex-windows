@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-27
-last_updated: 2026-04-27 (story 1.1 done)
+last_updated: 2026-04-29 (story 1.1 done; added FR35/FR36/FR37 and story 2.5 via sprint change)
 project: tech-manager-os
 project_key: NOKEY
 tracking_system: file-system
@@ -56,6 +56,7 @@ development_status:
   2-2-user-profile-leader-and-team-structure-prompts: backlog
   2-3-team-member-collection-loop: backlog
   2-4-sample-files-skill-install-readme-and-post-init-summary: backlog
+  2-5-tmr-project-add-deps-yaml-scaffold: backlog
   epic-2-retrospective: optional
 
   # ── Epic 3: Flexible Team & Member Management ──
