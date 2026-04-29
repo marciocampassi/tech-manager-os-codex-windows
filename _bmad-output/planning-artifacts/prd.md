@@ -86,6 +86,8 @@ The conceptual simplification of `tmr member` is equally important: a member is 
 - `tmr install <skill-name>`: installs a specific skill from official registry
 - Obsidian wiki-link references (`[[email]]`) as default output behavior in all Markdown files that reference entities
 - `CONTRIBUTING.md` in repo root for open-source contributors
+- Bootstrap install scripts (`install.sh` / `install.ps1`) for guided zero-to-operational setup: auto-installs Homebrew (macOS) or detects winget/package manager, then installs Node.js, tmr, Obsidian, Granola, and Google Drive with per-step opt-in prompts
+- `tmr doctor`: environment health check validating Node.js, tmr, Obsidian, Granola, Google Drive, and vault configuration — each check includes actionable fix instructions
 
 **Nice-to-Have (does not block release):**
 
@@ -180,6 +182,7 @@ The conceptual simplification of `tmr member` is equally important: a member is 
 | `tmr install` | Non-interactive | Installs all skills from official registry |
 | `tmr install <skill-name>` | Non-interactive | Installs a specific skill from official registry |
 | `tmr member add <email> --contractor` | Interactive | Creates contractor profile under `my-company/contractors/members/`, bypassing domain check |
+| `tmr doctor` | Non-interactive | Validates full environment (Node, tmr, Obsidian, Granola, Google Drive, vault); exits non-zero on any failure |
 
 ### Output Contract
 
@@ -265,6 +268,16 @@ All commands follow the established display contract:
 ### Project Management
 
 - **FR37**: System creates a stub `deps.yaml` file inside the new project directory when `tmr project add` is run, so that `/tmr-project-impact` can be invoked at any time without a manual file creation step
+
+### Zero-Friction Setup
+
+- **FR48**: System scaffolds `.obsidian/plugins/granola-sync/data.json` during `tmr init` with `customBaseFolder` set to `"inbox"` and `saveAsIndividualFiles` set to `true`, pre-configuring the Granola Sync Obsidian plugin to route meeting notes to the vault's inbox folder without any manual plugin configuration
+- **FR49**: A bootstrap install script for macOS (`install.sh`) detects whether Homebrew is installed; if absent, installs it automatically via the official Homebrew install script; then uses Homebrew to install Node.js ≥ 18 and `tmr` via npm; prompts the user to optionally install Obsidian, Granola, and Google Drive via `brew install --cask`; ends with `tmr init`
+- **FR50**: A bootstrap install script for Windows (`install.ps1`) detects whether `winget` is available; if absent, prints instructions to install App Installer from the Microsoft Store and exits; if present, uses winget to install Node.js ≥ 18 and `tmr` via npm; prompts for optional Obsidian, Granola, and Google Drive installation via `winget install`; ends with `tmr init`
+- **FR51**: The Linux install script auto-detects the available package manager (`apt-get`, `dnf`, `yum`, `pacman`); if none found, exits with a descriptive message; installs Node.js ≥ 18 and `tmr` via npm; offers Obsidian installation only (via detected package manager or `snap` as fallback); skips Granola and Google Drive with a clear platform message
+- **FR52**: Both install scripts are hosted at a public HTTPS URL and invocable via `curl -fsSL <url>/install.sh | bash` (macOS/Linux) and `iwr -useb <url>/install.ps1 | iex` (Windows)
+- **FR53**: User can run `tmr doctor` to validate their full environment — Node.js version, tmr installation, Obsidian, Granola, Google Drive, and vault configuration — each check displays `✔` (pass) or `⚠` (action needed) with the exact remediation command
+- **FR54**: `tmr doctor` exits with a non-zero exit code when any check produces `⚠` status, enabling scripted environment validation
 
 ### Contractor Management
 

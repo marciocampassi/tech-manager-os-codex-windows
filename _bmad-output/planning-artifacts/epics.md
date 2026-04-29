@@ -62,6 +62,13 @@ FR44: Default `CLAUDE.md` template written during `tmr init` includes a `## Mana
 FR45: `tmr init` post-init next-steps summary recommends `/tmr-myself-config` as Step 1 for AI personalization
 FR46: `/tmr-myself-config` (setup mode) — adaptive questionnaire, profile enrichment, CLAUDE.md merge, project scaffolding, member/contractor routing
 FR47: `/tmr-myself-config update` (update mode) — delta review of priorities, team changes, project status, contractor changes; merges only changed sections
+FR48: System scaffolds `.obsidian/plugins/granola-sync/data.json` during `tmr init` with `customBaseFolder: "inbox"` and `saveAsIndividualFiles: true`, pre-configuring the Granola Sync plugin without any manual user configuration
+FR49: Bootstrap install script for macOS — auto-installs Homebrew if absent, then Node.js ≥ 18, tmr, and optionally Obsidian/Granola/Google Drive via `brew install --cask`; ends with `tmr init`
+FR50: Bootstrap install script for Windows — detects winget availability; if absent, directs user to App Installer; otherwise installs Node.js ≥ 18, tmr, and optionally Obsidian/Granola/Google Drive via winget; ends with `tmr init`
+FR51: Linux install script — auto-detects package manager (apt-get/dnf/yum/pacman); exits gracefully if none found; installs Node.js ≥ 18, tmr, and Obsidian only; skips Granola/Google Drive with explanatory message
+FR52: Install scripts hosted at public HTTPS URL; invocable via `curl | bash` (macOS/Linux) and `iwr | iex` (Windows)
+FR53: `tmr doctor` command validates full environment (Node.js, tmr, Obsidian, Granola, Google Drive, vault config) with ✔/⚠ per check and exact remediation commands
+FR54: `tmr doctor` exits non-zero when any check produces ⚠ status
 FR28: System validates all email inputs before any file system operation and rejects invalid formats with a descriptive error
 FR29: System re-prompts the user on invalid input during interactive flows without losing progress or crashing
 FR30: System validates team count input during init as a positive integer greater than zero
@@ -184,7 +191,15 @@ N/A — `tech-manager-os` is a CLI tool with no graphical interface. No UX desig
 | FR46 | Epic 6 | `/tmr-myself-config` setup flow — full adaptive questionnaire |
 | FR47 | Epic 6 | `/tmr-myself-config update` — delta review mode |
 
-**Total: 47/47 FRs covered** ✓ *(FR35–FR37 added 2026-04-29 via sprint change #1; FR38–FR47 added 2026-04-29 via sprint change #2)*
+| FR48 | Epic 2 | `.obsidian/plugins/granola-sync/data.json` scaffolded during `tmr init` with `inbox/` pre-configured |
+| FR49 | Epic 7 | macOS bootstrap install script — Homebrew auto-install + Node + tmr + optional tools |
+| FR50 | Epic 7 | Windows bootstrap install script — winget detection + Node + tmr + optional tools |
+| FR51 | Epic 7 | Linux install script — package manager detection + Node + tmr + Obsidian only |
+| FR52 | Epic 7 | Scripts hosted at public HTTPS URL |
+| FR53 | Epic 7 | `tmr doctor` environment health check with ✔/⚠ per tool and fix instructions |
+| FR54 | Epic 7 | `tmr doctor` non-zero exit code on any failing check |
+
+**Total: 54/54 FRs covered** ✓ *(FR35–FR37 added 2026-04-29 via sprint change #1; FR38–FR47 added 2026-04-29 via sprint change #2; FR48–FR54 added 2026-04-29 via sprint change #4)*
 
 ---
 
@@ -206,9 +221,9 @@ Engineers and downstream epics can rely on consistent, shared building blocks fo
 ### Epic 2: Zero-to-Operational Onboarding (`tmr init` Rework)
 A new engineering manager runs `tmr init`, answers a single guided session of prompts, and arrives at a fully populated vault — their profile, their leader, their teams and team members, sample inbox notes, two installed skills (`tmr-inbox` and `tmr-project-impact`), and a `CLAUDE.md` with a dependency-tracking hook — without reading docs or running any additional commands. Adding a project via `tmr project add` automatically scaffolds a `deps.yaml` ready for dependency tracking.
 
-**FRs covered:** FR1–FR14, FR30, FR35, FR36, FR37
+**FRs covered:** FR1–FR14, FR30, FR35, FR36, FR37, FR38–FR45, FR48
 
-**TEA quality gates:** INIT-INT-001 (happy path), INIT-INT-002 (CWD default), INIT-INT-004/005/006/007 (validation rejections), INIT-INT-009 (team name normalization), INIT-INT-010 (skill install resilience), INIT-INT-010b (`tmr-project-impact` install resilience), INIT-INT-011 (partial write failure → stderr), INIT-INT-012 (README exists), INIT-INT-013 (wiki-link format), INIT-UNIT-008 (CLAUDE.md contains project impact hook), PROJ-UNIT-001 (deps.yaml scaffolded by `tmr project add`)
+**TEA quality gates:** INIT-INT-001 (happy path), INIT-INT-002 (CWD default), INIT-INT-004/005/006/007 (validation rejections), INIT-INT-009 (team name normalization), INIT-INT-010 (skill install resilience), INIT-INT-010b (`tmr-project-impact` install resilience), INIT-INT-011 (partial write failure → stderr), INIT-INT-012 (README exists), INIT-INT-013 (Granola Sync plugin config present with correct folder), INIT-UNIT-008 (CLAUDE.md contains project impact hook), PROJ-UNIT-001 (deps.yaml scaffolded by `tmr project add`)
 
 **Test infrastructure prerequisite:** `tests/fixtures/init-prompts.ts` (`initPromptFixture` helper) must be created in this epic before integration tests are written.
 
@@ -437,6 +452,10 @@ So that all required directories exist and the vault is ready to be populated by
 **Given** `InitService` creates the folder structure
 **When** the scaffold completes
 **Then** `my-company/contractors/members/` exists in the vault (FR38, INIT-UNIT-010)
+
+**Given** `InitService` creates the vault scaffold
+**When** the scaffold completes
+**Then** `.obsidian/plugins/granola-sync/data.json` is written with `customBaseFolder: "inbox"`, `saveAsIndividualFiles: true`, `isSyncEnabled: true`, `syncInterval: 1800`, and all other fields set to plugin defaults — so that when the user installs the Granola Sync community plugin in Obsidian, it is already pointed at the vault's inbox with no manual configuration required (FR48, INIT-UNIT-013)
 
 **Given** a file system write error occurs during scaffolding
 **When** the error is caught
@@ -949,3 +968,108 @@ So that my profile and `CLAUDE.md` stay accurate without re-running the full set
 **Given** no changes are collected across all sections
 **When** the update completes
 **Then** the skill prints "Nothing to update — your context is current." and exits without writing any file (FR47)
+
+---
+
+## Epic 7: Zero-Friction Setup
+
+Engineering managers on macOS, Windows, and Linux can go from zero to a fully operational `tmr` vault in a single command. Bootstrap install scripts handle all prerequisite and tool installation with per-step opt-in prompts. `tmr doctor` validates the environment at any time and surfaces actionable fix instructions for anything missing or misconfigured.
+
+**FRs covered:** FR49–FR54
+*(FR48 is covered in Epic 2 Story 2.1 — Granola Sync plugin config scaffolded during `tmr init`)*
+
+---
+
+### Story 7.1: Bootstrap Install Scripts
+
+As a new engineering manager who has never used `tmr`,
+I want to run a single command that installs all necessary tools and drops me into the `tmr init` guided flow,
+So that I go from zero to a fully operational vault without needing to know what Node.js, Homebrew, or winget are.
+
+**Acceptance Criteria:**
+
+**Given** a macOS user runs `curl -fsSL <url>/install.sh | bash` and Homebrew is not installed
+**When** the script detects `brew` is absent
+**Then** it installs Homebrew via the official script (`/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`) before proceeding (FR49, INSTALL-UNIT-001)
+
+**Given** Homebrew is present (or just installed)
+**When** the macOS script continues
+**Then** it checks for Node.js ≥ 18; installs via `brew install node` if absent; installs `tmr` globally via npm (FR49)
+
+**Given** the macOS script has installed `tmr`
+**When** the optional-tools section runs
+**Then** the user is prompted: *"Install Obsidian? [Y/n]"*, *"Install Granola? [Y/n]"*, *"Install Google Drive? [Y/n]"*; each accepted prompt runs the corresponding `brew install --cask` command (FR49)
+
+**Given** a Linux user runs `curl -fsSL <url>/install.sh | bash`
+**When** the script executes
+**Then** it detects the package manager in priority order: `apt-get` → `dnf` → `yum` → `pacman`; if none found, it exits with: *"No supported package manager detected (apt, dnf, yum, pacman). Please install Node.js ≥ 18 manually and re-run."* (FR51, INSTALL-UNIT-002)
+
+**Given** a Linux package manager is detected
+**When** the optional-tools section runs
+**Then** only Obsidian is offered (via detected package manager or `snap` as fallback); Granola and Google Drive prompts are skipped with: *"Granola and Google Drive are not available on Linux — install them manually if needed."* (FR51)
+
+**Given** a Windows user runs `iwr -useb <url>/install.ps1 | iex` and `winget` is not available
+**When** the script detects `winget` is absent
+**Then** it prints: *"winget (App Installer) is required. Install it from the Microsoft Store: https://aka.ms/getwinget — then re-run this script."* and exits (FR50, INSTALL-UNIT-003)
+
+**Given** `winget` is present
+**When** the Windows script continues
+**Then** it installs Node.js ≥ 18 via `winget install OpenJS.NodeJS.LTS` if absent; installs `tmr` globally via npm; prompts for Obsidian, Granola, and Google Drive installation via winget (FR50)
+
+**Given** all installations complete (any platform)
+**When** the final script step runs
+**Then** `tmr init` is launched automatically (FR49, FR50)
+
+**Given** Google Drive is installed or detected
+**When** the script outputs its summary
+**Then** it prints: *"Tip: For automatic cloud backup, place your vault inside your Google Drive folder."* (FR49)
+
+**Given** any install step fails (brew error, winget error, package manager error, npm error)
+**When** the error is caught
+**Then** the script prints a descriptive message and continues with remaining steps — a single tool failure does not abort the entire script
+
+**Given** `scripts/install.sh` and `scripts/install.ps1` exist in the repository root
+**When** they are hosted via Cloudflare Pages or equivalent at the configured domain
+**Then** they are accessible over HTTPS with correct content type (FR52)
+
+---
+
+### Story 7.2: `tmr doctor` Environment Health Check
+
+As an engineering manager troubleshooting a `tmr` setup issue,
+I want to run `tmr doctor` and see the status of every required and recommended tool in my environment,
+So that I know exactly what is missing or misconfigured and the exact command to run to fix it — without digging through documentation.
+
+**Acceptance Criteria:**
+
+**Given** `tmr doctor` is run on a fully configured system
+**When** all checks pass
+**Then** each line shows `✔  <tool>  <version or status>` and exit code is `0` (FR53, DOCTOR-UNIT-001)
+
+**Given** `tmr doctor` is run and Obsidian is not installed
+**When** the Obsidian check fails
+**Then** output includes `⚠  Obsidian  not found — run: brew install --cask obsidian` (macOS) or platform-appropriate instruction (FR53, DOCTOR-UNIT-002)
+
+**Given** `tmr doctor` is run and the vault is not configured
+**When** the vault check fails
+**Then** output includes `⚠  Vault  not configured — run: tmr init` (FR53, DOCTOR-UNIT-003)
+
+**Given** `tmr doctor` is run and the Granola Sync plugin config is missing or `customBaseFolder` is not `"inbox"`
+**When** the plugin config check runs
+**Then** output includes `⚠  Granola Sync  plugin config missing or misconfigured — re-run tmr init to repair` (FR53, DOCTOR-UNIT-004)
+
+**Given** `tmr doctor` is run and any check has `⚠` status
+**When** all checks complete
+**Then** exit code is non-zero (FR54, DOCTOR-UNIT-005)
+
+**Given** `tmr doctor` is run with `--json` flag
+**When** output is generated
+**Then** a structured JSON object is emitted with each check as a key (e.g. `{ "nodejs": { "ok": true, "version": "20.x.x" }, ... }`) following the `--json` output contract
+
+**Given** `tmr doctor` detects Granola is not installed on Linux
+**When** the Granola check runs
+**Then** it prints `ℹ  Granola  not available on Linux` (info only, not `⚠`) and does not contribute to non-zero exit code
+
+**Given** any unexpected runtime error occurs during `tmr doctor`
+**When** the error propagates
+**Then** it is caught, surfaced via `printError` to `process.stderr`, and no stack trace is visible to the user (NFR2)
