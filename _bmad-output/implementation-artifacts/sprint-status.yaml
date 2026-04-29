@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-27
-last_updated: 2026-04-29 (story 1.1 done; added FR35–FR37 and story 2.5 via sprint change #1; added FR38–FR47, contractor support, tmr-myself-config skill, and epic 6 via sprint change #2)
+last_updated: 2026-04-29 (story 1.1 done; added FR35–FR37 and story 2.5 via sprint change #1; added FR38–FR47, contractor support, tmr-myself-config skill, and epic 6 via sprint change #2; frontmatter standardization via sprint change #3 — tmr_type/date/participants on meeting notes, relationship field on all person profiles, start_date/owner on all project files)
 project: tech-manager-os
 project_key: NOKEY
 tracking_system: file-system

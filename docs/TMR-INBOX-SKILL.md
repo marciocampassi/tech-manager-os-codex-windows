@@ -298,12 +298,17 @@ Then create `my-company/projects/[project-name]/[project-name]-project.md`:
 ```markdown
 ---
 name: [project-name]
+status: active
+start_date: <YYYY-MM-DD>
+owner: unknown
 ---
 
 # [project-name]
 
 First meeting: [[new-filename-without-extension]]
 ```
+
+Where `start_date` = the meeting date extracted from the `created` field (same date used in step 2c). `owner: unknown` is an explicit signal that the skill did not have manager profile context at creation time — `tmr-myself-config` will overwrite this when run.
 Where `new-filename-without-extension` is the filename that will be computed in step 2c (without `.md`). Track any newly created projects in a `scaffolded_projects` list for the final summary.
 
 **For `project` and `company` types:**
@@ -352,10 +357,17 @@ For attendees whose email was **not inferred** (confirmed email):
 ---
 name: [Full Name or email if no display name available]
 email: [email]
+relationship: <derived from routing context>
 ---
 
 First seen: [[new-filename-without-extension]]
 ```
+
+Derive `relationship` from the routing context:
+- `1on1-team` → `direct-report`
+- `1on1-leadership` → `leadership`
+- `1on1-member`, `project`, or `company` attendee with domain in `INTERNAL_DOMAINS` → `company`
+- `1on1-member`, `project`, or `company` attendee with domain **not** in `INTERNAL_DOMAINS` → `unknown`
 
 For attendees whose email was **inferred** from their name:
 ```markdown
@@ -363,10 +375,13 @@ For attendees whose email was **inferred** from their name:
 name: [Full Name as it appears in attendees]
 email: [inferred-email]
 email_inferred: true
+relationship: unknown
 ---
 
 First seen: [[new-filename-without-extension]]
 ```
+
+Inferred-email profiles are always `relationship: unknown` — their identity and relationship to the manager are unverified.
 
 Where `new-filename-without-extension` is the filename just computed above, without `.md`.
 
@@ -374,9 +389,57 @@ Where `new-filename-without-extension` is the filename just computed above, with
 
 Read the complete inbox file. You now have the full transcript and action signals.
 
-#### Step 2e: Inject backlinks
+#### Step 2e: Enrich frontmatter and inject backlinks
 
-Build the backlink header to insert immediately after the closing `---` of the frontmatter:
+**Part 1 — Enrich the YAML frontmatter block.**
+
+Before writing the file to its destination, add the following fields into the existing YAML frontmatter (between the opening `---` and closing `---`). Append them at the end of the existing frontmatter fields — do not remove or alter any existing fields (`title`, `attendees`, `created`, etc.):
+
+```yaml
+tmr_type: <type>          # one of: 1on1 | project | company
+date: <YYYY-MM-DD>        # extracted from the `created` field (date portion only)
+participants:             # resolved emails only, Marlon excluded
+  - <email1>
+  - <email2>
+project: <slug>           # only present for tmr_type: project; omit for all others
+```
+
+Use `tmr_type` (not `type`) to avoid collision with any Obsidian or Granola reserved field.
+
+Example result for a project meeting:
+```yaml
+---
+title: AI Enablement — Communication Plan
+attendees:
+  - team.member@example.com
+  - John Gran Doe
+created: 2026-04-10T14:00:00
+tmr_type: project
+date: 2026-04-10
+participants:
+  - team.member@example.com
+  - john.doe@example.com
+project: ai-enablement
+---
+```
+
+Example result for a 1:1:
+```yaml
+---
+title: 1:1 with Alice
+attendees:
+  - alice.smith@example.com
+created: 2026-04-10T09:00:00
+tmr_type: 1on1
+date: 2026-04-10
+participants:
+  - alice.smith@example.com
+---
+```
+
+**Part 2 — Inject wiki-link backlinks.**
+
+After the closing `---`, immediately insert the backlink block (no blank line between `---` and `People:`):
 
 For all types:
 ```markdown
@@ -389,14 +452,18 @@ For `project` type, add a second line:
 Project: [[project-name]]
 ```
 
-Insert this block directly after the closing `---` of the frontmatter. Add one blank line after the block (before the first heading). Do not add a blank line between the closing `---` and `People:`. Do not alter any existing content below it.
+Add one blank line after the backlink block (before the first heading). Do not alter any existing content below it.
 
 Resulting structure:
 ```markdown
 ---
-[existing frontmatter]
+[existing Granola frontmatter]
+tmr_type: 1on1
+date: 2026-04-10
+participants:
+  - alice.smith@example.com
 ---
-People: [[team.member@example.com]]
+People: [[alice.smith@example.com]]
 
 ### [existing heading]
 ...
@@ -405,11 +472,15 @@ People: [[team.member@example.com]]
 Or with project:
 ```markdown
 ---
-[existing frontmatter]
+[existing Granola frontmatter]
+tmr_type: project
+date: 2026-04-10
+participants:
+  - team.member@example.com
+  - john.doe@example.com
+project: ai-enablement
 ---
-People:
-- [[team.member@example.com]]
-- [[team.member2@example.com]]
+People: [[team.member@example.com]] [[john.doe@example.com]]
 Project: [[ai-enablement]]
 
 ### [existing heading]

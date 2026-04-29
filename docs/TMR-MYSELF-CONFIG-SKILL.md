@@ -44,16 +44,20 @@ Read the profile frontmatter. Extract any already-known fields:
 
 Store as `KNOWN` map. Fields present in `KNOWN` will not be re-asked unless the user requests it.
 
+When loading direct reports in Step B3, read the `relationship` field from each profile. If `relationship` is absent (profile predates this schema), treat it as `direct-report` — the folder location is the authoritative fallback.
+
 ### Step B3: Read existing vault context
 
 Read and store (silently — no output to user yet):
 
 1. **Leadership**: list files in `my-leadership/`. For each `<email>.md`, extract `name`, `role`.
-2. **Direct reports**: list all `<email>.md` files in `my-teams/members/`. For each, extract `name`, `role` from frontmatter.
-3. **Projects**: list all subdirectory names in `my-company/projects/`. These are already-scaffolded projects.
-4. **Org config**: if `config/organization.yaml` exists, read `internal_domains` list. If it does not exist, `INTERNAL_DOMAINS` = [domain portion of `MANAGER_EMAIL`].
+2. **Direct reports**: list all `<email>.md` files in `my-teams/members/`. For each, extract `name`, `role`, `relationship`. If `relationship` is absent, default to `direct-report`.
+3. **Contractors**: list all `<email>.md` files in `my-company/contractors/members/`. For each, extract `name`, `role`, `company`, `relationship`. If `relationship` is absent, default to `contractor`.
+4. **Collaborators**: list all `<email>.md` files in `my-company/members/`. For each, extract `name`, `role`, `relationship`. Exclude entries where `relationship: unknown` — those are auto-created attendee profiles, not known collaborators.
+5. **Projects**: list all subdirectory names in `my-company/projects/`. For each, read `<slug>/<slug>-project.md` frontmatter and extract `name`, `status`, `owner`. If no project file exists for a subdirectory, record `status: unknown`.
+6. **Org config**: if `config/organization.yaml` exists, read `internal_domains` list. If it does not exist, `INTERNAL_DOMAINS` = [domain portion of `MANAGER_EMAIL`].
 
-Store as `EXISTING_REPORTS`, `EXISTING_PROJECTS`, `INTERNAL_DOMAINS`.
+Store as `EXISTING_REPORTS`, `EXISTING_CONTRACTORS`, `EXISTING_COLLABORATORS`, `EXISTING_PROJECTS` (with status per project), `INTERNAL_DOMAINS`.
 
 ### Step B4: Greet with context summary
 
@@ -63,10 +67,12 @@ Print a brief summary of what was found:
 I found:
   Profile: <name> — <role>
   Leader: <name> (<email>) [or: none found]
-  Direct reports already in vault: <n> (<comma-separated names or "none">)
-  Projects already scaffolded: <n> (<comma-separated names or "none">)
+  Direct reports: <n> (<comma-separated names or "none">)
+  Contractors: <n> (<comma-separated names or "none">)
+  Collaborators: <n> (known collaborators only; auto-created attendee profiles excluded)
+  Projects: <n> (<name: status> per project, e.g. "ai-enablement: active, onboarding: planning")
 
-I'll focus on what's missing. This takes about 5–10 minutes.
+I'll focus on what's missing or outdated. This takes about 5–10 minutes.
 ```
 
 ---
@@ -345,6 +351,7 @@ sources: {}
 ---
 name: <slug>
 status: <status>
+start_date: <YYYY-MM-DD>
 tech: [<comma-separated tech list, or empty>]
 owner: [[relative/path/to/my-career/<email>.md|<manager name>]]
 ---
@@ -359,11 +366,15 @@ owner: [[relative/path/to/my-career/<email>.md|<manager name>]]
 <one line per team member: - [[path|Name]] — Role>
 ```
 
+Where `start_date` = today's date (the date this config run executes).
+
 For projects discovered via PEOPLE-BRANCH (no tech/description collected), write a minimal file:
 ```markdown
 ---
 name: <slug>
 status: active
+start_date: <YYYY-MM-DD>
+owner: [[relative/path/to/my-career/<email>.md|<manager name>]]
 ---
 
 # <Project Name>
@@ -381,6 +392,7 @@ Write `my-teams/members/<email>.md`:
 name: <name>
 email: <email>
 role: <role>
+relationship: direct-report
 manager: [[relative/path/to/my-career/<manager-email>.md|<manager name>]]
 ---
 
@@ -395,6 +407,7 @@ Write `my-company/members/<email>.md`:
 name: <name>
 email: <email>
 role: <role>
+relationship: collaborator
 context: <context>
 ---
 
@@ -409,6 +422,7 @@ Write `my-company/contractors/members/<email>.md`:
 name: <name>
 email: <email>
 role: <role>
+relationship: contractor
 company: <contractor_company>
 contractor: true
 ---
@@ -513,7 +527,7 @@ Read `CLAUDE.md`. Look for `## Manager Context` section. Check `_Last updated by
 
 ### Step U3: Present current context
 
-Print a structured summary:
+Print a structured summary. Read all values directly from frontmatter fields — do not re-derive from folder paths:
 
 ```
 Your current context (last updated: <date or "never">):
@@ -522,16 +536,16 @@ PRIORITIES
   <current priorities list, or "not set">
 
 TEAM (<n> direct reports)
-  <name list with roles>
+  <name — role>
 
 PROJECTS (<n>)
-  <project list with status>
+  <slug — status>   ← status from project file frontmatter
 
 CONTRACTORS (<n>)
-  <contractor list, or "none">
+  <name (company) — role>   ← all fields from profile frontmatter
 
 COLLABORATORS (<n>)
-  <collaborator list, or "none">
+  <name — role>
 ```
 
 ### Step U4: Run delta questions

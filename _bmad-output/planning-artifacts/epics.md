@@ -542,6 +542,10 @@ So that all team member files are created with the correct scope, frontmatter, a
 **When** the write begins
 **Then** an `ora` spinner is visible to the user during the operation (NFR4)
 
+**Given** `InitService` writes a team member file during the member collection loop
+**When** the file is created at `my-teams/members/<email>.md`
+**Then** the frontmatter includes `relationship: direct-report`
+
 ---
 
 ### Story 2.4: Sample Files, Skill Install, README & Post-Init Summary
@@ -625,6 +629,10 @@ So that I can run `/tmr-project-impact <project-path> deps` at any time to set u
 **Given** any unexpected runtime error occurs during `deps.yaml` creation
 **When** the error propagates
 **Then** it is caught, surfaced via `printError` to `process.stderr`, and no stack trace is visible to the user (NFR2)
+
+**Given** `tmr project add <name>` is run
+**When** the project file `my-company/projects/<name>/<name>-project.md` is written
+**Then** its frontmatter contains: `name`, `status` (default: `active`), `start_date` (today's date as `YYYY-MM-DD`), and `owner` (wiki-link resolved from `my-career/` if available, else the string `"unknown"`)
 
 ---
 
@@ -721,6 +729,18 @@ So that the correct file path and frontmatter are produced based solely on conte
 **Given** a member profile file write is performed during integration tests
 **When** the write completes
 **Then** the elapsed time is less than 500ms under normal local I/O conditions (NFR5)
+
+**Given** `tmr member add <email>` is run (no `--team` flag)
+**When** `MemberService` writes the profile
+**Then** the frontmatter includes `relationship: company`
+
+**Given** `tmr member add <email> --team <name>` is run
+**When** `MemberService` writes the profile
+**Then** the frontmatter includes `relationship: direct-report`
+
+**Given** `tmr member add <email> --contractor` is run, or the domain-check prompt routes to contractor
+**When** `MemberService` writes the profile
+**Then** the frontmatter includes `relationship: contractor`
 
 **Given** `tests/fixtures/member-profiles.ts` does not yet exist
 **When** this story is implemented
