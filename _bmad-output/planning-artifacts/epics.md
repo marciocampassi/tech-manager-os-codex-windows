@@ -50,8 +50,18 @@ FR25: User can install all available skills from the official skill registry in 
 FR26: User can install a specific skill from the official skill registry by name
 FR27: System accesses the skill registry through an abstracted service layer that supports future registry evolution
 FR35: System automatically installs the `tmr-project-impact` skill as part of every `tmr init` run, enabling dependency tracking across project files
-FR36: The `CLAUDE.md` written to the vault root during `tmr init` includes a rule instructing AI agents to run `/tmr-project-impact` whenever a file changes inside `my-company/projects/`, so that dependent documents are automatically checked for staleness
+FR36: The `CLAUDE.md` written to the vault root during `tmr init` includes: (a) a rule instructing AI agents to run `/tmr-project-impact` whenever a file changes inside `my-company/projects/`; and (b) a `## Manager Context` placeholder section with a CTA to run `/tmr-myself-config`
 FR37: System creates a stub `deps.yaml` file inside the new project directory when `tmr project add` is run, so that `/tmr-project-impact` can be invoked at any time without a manual file creation step
+FR38: Vault scaffold includes `my-company/contractors/members/` directory
+FR39: `tmr init` writes `<vault>/config/organization.yaml` with the user's email domain as the initial internal domain entry after collecting the user profile
+FR40: `tmr init` optionally prompts for additional trusted internal email domains; entered domains are appended to `config/organization.yaml`; pressing Enter skips
+FR41: `tmr member add <email>` checks the email domain against `config/organization.yaml`; external domains prompt for contractor vs. company routing (default: contractors); `--contractor` flag bypasses domain detection
+FR42: Contractor profiles stored in `my-company/contractors/members/<email>.md` with `contractor: true` and `company:` frontmatter fields
+FR43: `tmr init` auto-installs the `tmr-myself-config` skill during onboarding; install failure is logged but does not abort onboarding
+FR44: Default `CLAUDE.md` template written during `tmr init` includes a `## Manager Context` placeholder section with CTA to run `/tmr-myself-config`
+FR45: `tmr init` post-init next-steps summary recommends `/tmr-myself-config` as Step 1 for AI personalization
+FR46: `/tmr-myself-config` (setup mode) — adaptive questionnaire, profile enrichment, CLAUDE.md merge, project scaffolding, member/contractor routing
+FR47: `/tmr-myself-config update` (update mode) — delta review of priorities, team changes, project status, contractor changes; merges only changed sections
 FR28: System validates all email inputs before any file system operation and rejects invalid formats with a descriptive error
 FR29: System re-prompts the user on invalid input during interactive flows without losing progress or crashing
 FR30: System validates team count input during init as a positive integer greater than zero
@@ -163,7 +173,18 @@ N/A — `tech-manager-os` is a CLI tool with no graphical interface. No UX desig
 | FR36 | Epic 2 | `CLAUDE.md` hook: AI agents run `/tmr-project-impact` on changes in `my-company/projects/` |
 | FR37 | Epic 2 | `tmr project add` scaffolds stub `deps.yaml` in new project directory |
 
-**Total: 37/37 FRs covered** ✓ *(FR35, FR36, FR37 added 2026-04-29 via sprint change)*
+| FR38 | Epic 2 | `my-company/contractors/members/` in vault scaffold |
+| FR39 | Epic 2 | `config/organization.yaml` written with internal domain during init |
+| FR40 | Epic 2 | Optional prompt for additional internal domains during init |
+| FR41 | Epic 3 | Domain-based contractor routing in `MemberService`; `--contractor` flag |
+| FR42 | Epic 3 | Contractor profile format: `contractor: true` + `company:` fields |
+| FR43 | Epic 2 | Auto-install `tmr-myself-config` skill during `tmr init` |
+| FR44 | Epic 2 | `## Manager Context` placeholder in default `CLAUDE.md` template |
+| FR45 | Epic 2 | Post-init next-steps recommends `/tmr-myself-config` as Step 1 |
+| FR46 | Epic 6 | `/tmr-myself-config` setup flow — full adaptive questionnaire |
+| FR47 | Epic 6 | `/tmr-myself-config update` — delta review mode |
+
+**Total: 47/47 FRs covered** ✓ *(FR35–FR37 added 2026-04-29 via sprint change #1; FR38–FR47 added 2026-04-29 via sprint change #2)*
 
 ---
 
@@ -409,6 +430,14 @@ So that all required directories exist and the vault is ready to be populated by
 **When** its content is inspected
 **Then** it includes an instruction to AI agents: "Whenever any file changes inside `my-company/projects/`, run `/tmr-project-impact` to check for dependent document updates. Use `/tmr-project-impact <project-path> deps` to set up a project's dependency manifest for the first time." (FR36, INIT-UNIT-008)
 
+**Given** the `CLAUDE.md` is written to the vault root
+**When** its content is inspected
+**Then** it includes a `## Manager Context` placeholder section with a CTA to run `/tmr-myself-config` in Claude Code (FR44, INIT-UNIT-009)
+
+**Given** `InitService` creates the folder structure
+**When** the scaffold completes
+**Then** `my-company/contractors/members/` exists in the vault (FR38, INIT-UNIT-010)
+
 **Given** a file system write error occurs during scaffolding
 **When** the error is caught
 **Then** `printError` is called with a descriptive message to `process.stderr` and the process does not exit silently (NFR1, INIT-INT-011)
@@ -454,6 +483,14 @@ So that my profile, my leader's profile, and team folder entries are created aut
 **Given** an invalid email is entered for the user profile or leader
 **When** `validateEmail()` is called
 **Then** the input is rejected with `InvalidEmailError` and the prompt re-displays without losing any previously entered data (INIT-INT-005, INIT-INT-006)
+
+**Given** `InitService` collects the user's email during the profile prompt
+**When** the profile file is written to `my-career/`
+**Then** `config/organization.yaml` is written to the vault root with the user's email domain under `internal_domains:` (FR39, INIT-UNIT-011)
+
+**Given** `InitService` has written `config/organization.yaml`
+**When** the optional additional-domains prompt is displayed
+**Then** the user can enter zero or more additional internal domains; each is appended to `internal_domains:` in `config/organization.yaml`; pressing Enter skips the step with no error (FR40, INIT-UNIT-012)
 
 **Given** `tests/fixtures/init-prompts.ts` does not yet exist
 **When** this story is implemented
@@ -531,6 +568,14 @@ So that my vault is immediately useful and I know exactly what to do next — ev
 **When** the network call fails (timeout, 404, or any error)
 **Then** the error is logged but onboarding continues — failure does NOT abort `tmr init` (FR35, INIT-INT-010b)
 
+**Given** `InitService` installs `tmr-myself-config` via `SkillRegistryService` immediately after `tmr-project-impact`
+**When** the network call succeeds
+**Then** the skill files are written to `<workspace>/.claude/skills/tmr-myself-config/` (FR43)
+
+**Given** `InitService` installs `tmr-myself-config` via `SkillRegistryService`
+**When** the network call fails (timeout, 404, or any error)
+**Then** the error is logged but onboarding continues — failure does NOT abort `tmr init` (FR43, INIT-INT-010c)
+
 **Given** `tests/integration/init.integration.test.ts` mocks both skill installs (one succeeds, one fails)
 **When** the integration test runs
 **Then** INIT-INT-010b passes: onboarding completes regardless of `tmr-project-impact` install outcome
@@ -541,7 +586,7 @@ So that my vault is immediately useful and I know exactly what to do next — ev
 
 **Given** `InitService` completes all steps
 **When** the post-init summary is printed
-**Then** `printInfo` outputs a next-steps message directing the user to `tmr project add` and `/tmr-inbox`; and informing them that once projects are added, `/tmr-project-impact <project-path> deps` can be run at any time to set up dependency tracking (FR13, INIT-UNIT-006)
+**Then** `printInfo` outputs a numbered next-steps message: Step 1 directs the user to run `/tmr-myself-config` in Claude Code; Step 2 directs to `tmr project add`; Step 3 directs to `/tmr-inbox`; and informs the user that `/tmr-project-impact <project-path> deps` can be run after adding projects (FR13, FR45, INIT-UNIT-006)
 
 **Given** `InitService` completes all steps
 **When** the post-init summary is printed
@@ -657,6 +702,22 @@ So that the correct file path and frontmatter are produced based solely on conte
 **When** `MemberService.addMember()` validates the email
 **Then** `validateEmail()` throws `InvalidEmailError` (TMR_E103) before any file write (MEM-UNIT-009)
 
+**Given** `tmr member add external@agency.com` is run and `agency.com` is not in `config/organization.yaml internal_domains`
+**When** `MemberService.addMember()` checks the domain
+**Then** the user is prompted: *"external@agency.com looks external (agency.com). Route to: [c]ontractors or [m]embers?"* with contractors as the default (FR41, MEM-INT-006)
+
+**Given** the user selects contractors at the routing prompt
+**When** `MemberService` writes the profile
+**Then** the profile is written to `my-company/contractors/members/external@agency.com.md` with `contractor: true` and `company: <collected company name>` frontmatter fields (FR42, MEM-INT-007)
+
+**Given** `tmr member add external@agency.com --contractor` is run
+**When** `MemberService.addMember()` processes the `--contractor` flag
+**Then** it routes directly to `my-company/contractors/members/` without any domain-check prompt (FR41, MEM-UNIT-012)
+
+**Given** `tmr member add internal@techcorp.com` is run and `techcorp.com` is in `config/organization.yaml internal_domains`
+**When** `MemberService.addMember()` checks the domain
+**Then** it routes to `my-company/members/` with no additional prompts — existing FR18 behavior unaffected (FR41)
+
 **Given** a member profile file write is performed during integration tests
 **When** the write completes
 **Then** the elapsed time is less than 500ms under normal local I/O conditions (NFR5)
@@ -758,6 +819,13 @@ So that I can access the full skills ecosystem in one command and never wonder w
 
 ---
 
+### Epic 6: Self Profile & AI Context Personalization (`tmr-myself-config`)
+Engineering managers can run `/tmr-myself-config` after `tmr init` to enrich their profile, map their team and projects, classify contractors, and populate `CLAUDE.md` with deep personal context — making every AI skill assertive and role-aware from day one. The `update` mode keeps the context current as priorities, teams, and projects evolve.
+
+**FRs covered:** FR46, FR47
+
+---
+
 ## Epic 5: Open Source Community Readiness
 
 External contributors can set up the project locally, understand all coding conventions, run the test suite, submit PRs, and contribute skills to the official registry — all guided by a single `CONTRIBUTING.md`.
@@ -793,3 +861,71 @@ So that I can contribute code, documentation, or skills without asking the maint
 **Given** `CONTRIBUTING.md` covers skill submission
 **When** a contributor reads the skills section
 **Then** it documents the official skill registry structure, `SKILL.md` format requirements, and the submission process for community skills
+
+---
+
+## Epic 6: Self Profile & AI Context Personalization (`tmr-myself-config`)
+
+Engineering managers can run `/tmr-myself-config` after `tmr init` to enrich their profile, map their team and projects, classify contractors, and populate `CLAUDE.md` with deep personal context — making every AI skill assertive and role-aware from day one. The `update` mode keeps the context current as priorities, teams, and projects evolve.
+
+### Story 6.1: `tmr-myself-config` Skill — Setup Flow
+
+As an engineering manager setting up their vault for the first time,
+I want to run `/tmr-myself-config` in Claude Code and have a guided adaptive conversation that learns about my role, working style, products, and team,
+So that my profile is enriched, my vault graph is built, and every AI skill gives me assertive, personalized responses from day one.
+
+**Acceptance Criteria:**
+
+**Given** `docs/TMR-MYSELF-CONFIG-SKILL.md` is authored and registered in the skill registry
+**When** the skill is invoked as `/tmr-myself-config`
+**Then** it follows the BOOTSTRAP → ARCHETYPE → BASE-CONTEXT → PRODUCT/PEOPLE branches → CONTRACTOR-CHECK → CONFIRM → WRITE flow as specified in the skill document (FR46)
+
+**Given** BOOTSTRAP runs before any question is asked
+**When** it reads the vault
+**Then** it loads: `my-career/<email>.md`, `my-leadership/`, `my-teams/members/`, `my-company/projects/`, `config/organization.yaml`; greets the user with a summary of what was found; and skips questions for already-known fields (FR46, SKILL-MYSELF-001)
+
+**Given** the ARCHETYPE step runs
+**When** the user selects product / people / hybrid
+**Then** PRODUCT-BRANCH is executed for product/hybrid and PEOPLE-BRANCH is executed for people/hybrid (FR46)
+
+**Given** CONFIRM is reached
+**When** the summary of planned writes is shown
+**Then** no file has been written yet; the user can approve, edit, or cancel (FR46)
+
+**Given** WRITE runs after confirmation
+**When** all outputs are written
+**Then**: enriched `my-career/<email>.md` (merged — no existing fields overwritten); `CLAUDE.md ## Manager Context` section replaced; new project folders contain full `<name>-project.md` + `deps.yaml`; new member profiles in `my-teams/members/`, `my-company/members/`, or `my-company/contractors/members/` as appropriate; all entity references use `formatWikiLink()` (FR46, SKILL-MYSELF-002)
+
+**Given** CONTRACTOR-CHECK runs for a collected email with an external domain
+**When** the user classifies it as a contractor
+**Then** the profile is written to `my-company/contractors/members/<email>.md` with `contractor: true` and `company:` fields (FR46)
+
+---
+
+### Story 6.2: `tmr-myself-config update` — Delta Review Mode
+
+As an engineering manager whose context has changed over time,
+I want to run `/tmr-myself-config update` and have a lightweight review conversation that asks only about what changed in my priorities, team, and projects,
+So that my profile and `CLAUDE.md` stay accurate without re-running the full setup.
+
+**Acceptance Criteria:**
+
+**Given** `/tmr-myself-config update` is invoked
+**When** BOOTSTRAP completes
+**Then** the skill presents a structured summary of current known context: priorities, team, projects, contractors, collaborators; and shows the last-updated timestamp from `CLAUDE.md ## Manager Context` (FR47, SKILL-MYSELF-003)
+
+**Given** the delta review runs
+**When** the user answers each section question
+**Then** sections answered "no change" or skipped with Enter are not written; only changed sections trigger file updates (FR47)
+
+**Given** delta questions cover all four change categories
+**When** the review completes
+**Then** priorities, direct report changes (joins/leaves), project status changes (new/wrapped/archived), and contractor changes are all addressable in a single update run (FR47, SKILL-MYSELF-004)
+
+**Given** new direct reports or projects are discovered during update
+**When** WRITE runs
+**Then** new members and project files are created using the same templates as the setup flow (FR47)
+
+**Given** no changes are collected across all sections
+**When** the update completes
+**Then** the skill prints "Nothing to update — your context is current." and exits without writing any file (FR47)

@@ -76,10 +76,10 @@ The conceptual simplification of `tmr member` is equally important: a member is 
 
 **Must-Have Capabilities:**
 
-- `tmr init` full rework: current-dir default, user profile creation, leader creation, team + member setup loop, automatic `tmr-inbox` and `tmr-project-impact` skill install, sample inbox files copied to vault, vault `README.md` generation, `CLAUDE.md` with AI dependency-tracking hook, folder cleanup (remove `/utils` and `/my-teams/feedback-templates`), post-init next-steps summary
+- `tmr init` full rework: current-dir default, user profile creation, leader creation, team + member setup loop, automatic `tmr-inbox`, `tmr-project-impact`, and `tmr-myself-config` skill install, sample inbox files copied to vault, vault `README.md` generation, `CLAUDE.md` with AI dependency-tracking hook and `## Manager Context` placeholder, `config/organization.yaml` with internal email domains, `my-company/contractors/members/` folder, folder cleanup (remove `/utils` and `/my-teams/feedback-templates`), post-init next-steps summary
 - `tmr relationship` command removed from codebase and CLI help
 - `tmr team create` / `tmr team add`: lowercase/kebab-case normalization, email validation
-- `tmr member add <email>`: company-scoped routing to `my-company/members/`, location field
+- `tmr member add <email>`: company-scoped routing to `my-company/members/`, contractor routing to `my-company/contractors/members/` for external email domains (with confirmation prompt), `--contractor` flag as explicit override, location field
 - `tmr member add <email> --team <name>`: team-scoped routing to `my-teams/members/`, manager link from `my-career/<email>.md`, location field
 - `tmr member add feedback <email>`: auto-create in `my-company/members/` if email not found via global email resolver
 - `tmr install`: installs all skills from official registry
@@ -179,6 +179,7 @@ The conceptual simplification of `tmr member` is equally important: a member is 
 | `tmr member add feedback <email>` | Interactive | Adds feedback; auto-creates member in `my-company/members/` if not found |
 | `tmr install` | Non-interactive | Installs all skills from official registry |
 | `tmr install <skill-name>` | Non-interactive | Installs a specific skill from official registry |
+| `tmr member add <email> --contractor` | Interactive | Creates contractor profile under `my-company/contractors/members/`, bypassing domain check |
 
 ### Output Contract
 
@@ -194,7 +195,7 @@ All commands follow the established display contract:
 - `tmr install` fetches and installs all available skills from the official GitHub-hosted registry
 - `tmr install <skill-name>` fetches and installs a single named skill
 - Registry URL and protocol are abstracted behind `SkillRegistryService` to support future evolution (paid skills, community submissions, API-backed registry)
-- `tmr init` installs `tmr-inbox` and `tmr-project-impact` as default skills silently during onboarding; skill install failures are logged but do not abort onboarding
+- `tmr init` installs `tmr-inbox`, `tmr-project-impact`, and `tmr-myself-config` as default skills silently during onboarding; skill install failures are logged but do not abort onboarding
 
 ### Implementation Notes
 
@@ -218,10 +219,10 @@ All commands follow the established display contract:
 - **FR9**: User can finish adding members to a team by submitting an empty email input
 - **FR10**: System automatically installs the `tmr-inbox` skill as part of every `tmr init` run
 - **FR35**: System automatically installs the `tmr-project-impact` skill as part of every `tmr init` run, enabling dependency tracking across project files
-- **FR36**: The `CLAUDE.md` written to the vault root during `tmr init` includes a rule instructing AI agents to run `/tmr-project-impact` whenever a file changes inside `my-company/projects/`, so that dependent documents are automatically checked for staleness
+- **FR36**: The `CLAUDE.md` written to the vault root during `tmr init` includes: (a) a rule instructing AI agents to run `/tmr-project-impact` whenever a file changes inside `my-company/projects/`; and (b) a `## Manager Context` placeholder section with a CTA to run `/tmr-myself-config` in Claude Code
 - **FR11**: System copies bundled sample inbox notes into the vault's inbox folder during init
 - **FR12**: System generates a `README.md` in the vault root during init containing the most-used commands and a full command reference
-- **FR13**: System displays a post-init next-steps summary directing the user to `tmr project add` and `/tmr-inbox`; and informing them that once projects are added, `/tmr-project-impact <project-path> deps` can be run at any time to set up dependency tracking for that project
+- **FR13**: System displays a post-init next-steps summary with: Step 1 — run `/tmr-myself-config` in Claude Code to personalize AI responses; Step 2 — run `tmr project add` to register projects; Step 3 — run `/tmr-inbox` to process meeting notes; and informing the user that once projects are added, `/tmr-project-impact <project-path> deps` can be run at any time to set up dependency tracking
 - **FR14**: System displays post-init guidance to open Obsidian and enable required plugins *(nice-to-have: automated plugin enablement)*
 
 ### Team Management
@@ -264,6 +265,22 @@ All commands follow the established display contract:
 ### Project Management
 
 - **FR37**: System creates a stub `deps.yaml` file inside the new project directory when `tmr project add` is run, so that `/tmr-project-impact` can be invoked at any time without a manual file creation step
+
+### Contractor Management
+
+- **FR38**: Vault scaffold includes `my-company/contractors/members/` directory, created during `tmr init` alongside all standard folders
+- **FR39**: `tmr init` writes `<vault>/config/organization.yaml` with the user's email domain as the initial internal domain entry after collecting the user profile
+- **FR40**: `tmr init` optionally prompts for additional trusted internal email domains; each entered domain is appended to `config/organization.yaml`; pressing Enter skips the step
+- **FR41**: `tmr member add <email>` checks the email domain against `config/organization.yaml`; external domains prompt the user to route to contractors or company members (default: contractors); `--contractor` flag bypasses domain detection and routes directly to `my-company/contractors/members/`
+- **FR42**: Contractor profiles are stored in `my-company/contractors/members/<email>.md` using the standard member template with two additional frontmatter fields: `contractor: true` and `company: <their organization>`
+
+### Self Profile & AI Context Personalization
+
+- **FR43**: `tmr init` auto-installs the `tmr-myself-config` skill during onboarding via `SkillRegistryService`, alongside `tmr-inbox` and `tmr-project-impact`; install failure is logged but does not abort onboarding
+- **FR44**: The default `CLAUDE.md` template written during `tmr init` includes a `## Manager Context` placeholder section with a CTA to run `/tmr-myself-config` in Claude Code
+- **FR45**: `tmr init` post-init next-steps summary recommends `/tmr-myself-config` in Claude Code as Step 1 for AI personalization
+- **FR46**: `/tmr-myself-config` (setup mode) conducts a full adaptive questionnaire: reads existing vault context, detects manager archetype (product/people/hybrid), collects base context, product or people branch questions, contractor classification, and writes enriched `my-career/<email>.md`, `CLAUDE.md ## Manager Context`, scaffolded project files, and member/contractor profiles with wiki-links
+- **FR47**: `/tmr-myself-config update` (update mode) reads current enriched state, presents a summary of known context, asks delta questions covering changed priorities, team (joins/leaves), project status changes, and contractor changes, and merges only changed sections
 
 ### Project Documentation & Open Source
 
