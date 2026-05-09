@@ -42,6 +42,12 @@
 - ARCH-DEBT-001 structural guard catches only literal `AppConfig.property` string references, not computed-key (`config['provider']`) or aliased access patterns — acceptable scope for story 1.1 but guard has known blind spots.
 - `validateEmailUtil` embeds the un-trimmed email in the error message despite the regex testing the trimmed form — cosmetically inconsistent (e.g., `" @bad "` error vs. `"@bad"` tested form) but has no practical impact on validation correctness.
 
+## Deferred from: code review of 2-2-user-profile-leader-and-team-structure-prompts (2026-05-09)
+
+- Validate closures not exercised by resolved-value mocking — `inquirer.prompt` mocked at the module level bypasses its validate callbacks; `email-error-recovery` and `zero-team-count` fixture scenarios cannot actually trigger validate logic. Validate functions should be extracted and unit-tested as pure functions in a future test-hygiene pass.
+- No leader/self-email uniqueness guard — user can supply their own email as the leader email without any warning. Not specified in Story 2.2 AC; candidate for a prompt-level cross-field validation in a future story.
+- No deduplication in `InitService.createTeams()` — duplicate team names produce redundant but idempotent `TeamService.createTeam` calls. No functional breakage; consider adding a `[...new Set(teamNames)]` guard as a UX improvement.
+
 ## Deferred from: code review of 2-1-vault-scaffold-and-folder-structure (2026-05-09)
 
 - `Promise.all` in `InitService.scaffold()` rejects on first failure but leaves in-flight `createDirectory` calls running — partial vault state, no rollback. Pre-existing pattern from workspace-builder. Consider `Promise.allSettled` + error aggregation if vault atomicity becomes a requirement.

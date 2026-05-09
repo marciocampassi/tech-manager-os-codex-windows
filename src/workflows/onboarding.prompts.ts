@@ -2,6 +2,8 @@ import inquirer from 'inquirer';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { LeadershipContext, ManagerProfile, TeamMember } from '../types/onboarding.types.js';
+import { validateEmail } from '../utils/validation.js';
+import { InvalidEmailError } from '../errors/tmr-error.js';
 
 export interface MinimalOnboardingAnswers {
   name: string;
@@ -236,8 +238,14 @@ export async function promptMinimalOnboarding(): Promise<MinimalOnboardingAnswer
       type: 'input',
       name: 'email',
       message: 'Your work email:',
-      validate: (v: string): ValidateResult =>
-        v.includes('@') ? true : 'Must be a valid email address',
+      validate: (v: string): ValidateResult => {
+        try {
+          validateEmail(v.trim());
+          return true;
+        } catch (e) {
+          return e instanceof InvalidEmailError ? e.message : 'Invalid email address';
+        }
+      },
     },
     {
       type: 'input',
@@ -255,6 +263,87 @@ export async function promptMinimalOnboarding(): Promise<MinimalOnboardingAnswer
     },
   ]);
 }
+
+// ── Story 2.2: Leader details ──────────────────────────────────────────────────
+
+export interface LeaderDetails {
+  name: string;
+  email: string;
+  role: string;
+}
+
+export async function promptLeaderDetails(): Promise<LeaderDetails> {
+  const result = await inquirer.prompt<LeaderDetails>([
+    {
+      type: 'input',
+      name: 'name',
+      message: "Your leader's full name:",
+      validate: (v: string): ValidateResult =>
+        v.trim().length > 0 ? true : 'Name cannot be empty',
+    },
+    {
+      type: 'input',
+      name: 'email',
+      message: "Your leader's work email:",
+      validate: (v: string): ValidateResult => {
+        try {
+          validateEmail(v.trim());
+          return true;
+        } catch (e) {
+          return e instanceof InvalidEmailError ? e.message : 'Invalid email address';
+        }
+      },
+    },
+    {
+      type: 'input',
+      name: 'role',
+      message: "Your leader's role / title:",
+      validate: (v: string): ValidateResult =>
+        v.trim().length > 0 ? true : 'Role cannot be empty',
+    },
+  ]);
+  return {
+    name: result.name.trim(),
+    email: result.email.trim(),
+    role: result.role.trim(),
+  };
+}
+
+// ── Story 2.2: Team setup ──────────────────────────────────────────────────────
+
+export async function promptTeamCount(): Promise<number> {
+  const { teamCount } = await inquirer.prompt<{ teamCount: string }>([
+    {
+      type: 'input',
+      name: 'teamCount',
+      message: 'How many teams do you manage?',
+      validate: (v: string): ValidateResult => {
+        const trimmed = v.trim();
+        if (!/^\d+$/.test(trimmed)) return 'Team count must be a positive integer (minimum 1)';
+        const n = parseInt(trimmed, 10);
+        if (n < 1) return 'Team count must be a positive integer (minimum 1)';
+        if (n > 50) return 'Team count must be between 1 and 50';
+        return true;
+      },
+    },
+  ]);
+  return parseInt(teamCount, 10);
+}
+
+export async function promptTeamName(index: number): Promise<string> {
+  const { teamName } = await inquirer.prompt<{ teamName: string }>([
+    {
+      type: 'input',
+      name: 'teamName',
+      message: `Team ${index} name:`,
+      validate: (v: string): ValidateResult =>
+        v.trim().length > 0 ? true : 'Team name cannot be empty',
+    },
+  ]);
+  return teamName.trim();
+}
+
+// ── Google Drive setup ────────────────────────────────────────────────────────
 
 export async function promptGoogleDriveSetup(): Promise<GoogleDriveSetupResult> {
   process.stdout.write('\n─────────────────────────────────────────────\n');

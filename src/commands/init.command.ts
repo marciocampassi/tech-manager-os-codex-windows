@@ -4,7 +4,13 @@ import { join } from 'node:path';
 import { configService } from '../services/config.service.js';
 import { fileSystemService } from '../services/file-system.service.js';
 import { initService } from '../services/init.service.js';
-import { promptWorkspacePath, promptMinimalOnboarding } from '../workflows/onboarding.prompts.js';
+import {
+  promptWorkspacePath,
+  promptMinimalOnboarding,
+  promptLeaderDetails,
+  promptTeamCount,
+  promptTeamName,
+} from '../workflows/onboarding.prompts.js';
 import { obsidianPluginService } from '../services/obsidian-plugin.service.js';
 import { generateClaudeMd } from '../services/claude-md.generator.js';
 import { generateTaskFileTemplate } from '../templates/onboarding.templates.js';
@@ -74,10 +80,18 @@ export class InitCommand {
   async run(): Promise<void> {
     this.displayWelcomeBanner();
 
+    // ── Prompt phase — collect all user input before any file writes ──────────
     const rawPath = await promptWorkspacePath();
     const workspacePath = initService.resolveVaultPath(rawPath);
     const answers = await promptMinimalOnboarding();
+    const leader = await promptLeaderDetails();
+    const teamCount = await promptTeamCount();
+    const teamNames: string[] = [];
+    for (let i = 1; i <= teamCount; i++) {
+      teamNames.push(await promptTeamName(i));
+    }
 
+    // ── Write phase ───────────────────────────────────────────────────────────
     configService.initialize();
     configService.setWorkspacePath(workspacePath);
 
@@ -111,6 +125,46 @@ export class InitCommand {
     );
 
     scaffoldSpinner.succeed('Workspace ready');
+
+    const profileSpinner = startSpinner('Creating your profile', this.plain);
+    try {
+      await initService.writeUserProfile(workspacePath, {
+        name: answers.name,
+        email: answers.email,
+        role: answers.role,
+      });
+    } catch (err) {
+      printError(
+        `Failed to write user profile: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      profileSpinner.fail('Profile creation failed');
+      return;
+    }
+    profileSpinner.succeed('Profile created');
+
+    const leaderSpinner = startSpinner('Creating leader profile', this.plain);
+    try {
+      await initService.writeLeaderProfile(workspacePath, leader);
+    } catch (err) {
+      printError(
+        `Failed to write leader profile: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      leaderSpinner.fail('Leader profile creation failed');
+      return;
+    }
+    leaderSpinner.succeed('Leader profile created');
+
+    const teamsSpinner = startSpinner('Creating team structure', this.plain);
+    try {
+      await initService.createTeams(workspacePath, teamNames);
+    } catch (err) {
+      printError(
+        `Failed to create team structure: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      teamsSpinner.fail('Team structure creation failed');
+      return;
+    }
+    teamsSpinner.succeed('Teams created');
 
     const claudeSpinner = startSpinner('Generating CLAUDE.md', this.plain);
     await fileSystemService.writeFile(join(workspacePath, 'CLAUDE.md'), generateClaudeMd(answers));

@@ -78,18 +78,30 @@ const { InitCommand } = await import('../../src/commands/init.command.js');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/** Standard happy-path prompt sequence for the new minimal 4-question flow. */
+/** Standard happy-path prompt sequence (Story 2.2): 6 calls total. */
 function setupMinimalHappyPath(): void {
   mockPrompt
-    // promptWorkspacePath
+    // 1. promptWorkspacePath
     .mockResolvedValueOnce({ workspacePath: '/tmp/test-workspace' })
-    // promptMinimalOnboarding — all 4 fields in one call
+    // 2. promptMinimalOnboarding
     .mockResolvedValueOnce({
       name: 'Alice Example',
       email: 'alice@example.com',
       role: 'Engineering Manager',
       company: 'example.com',
-    });
+    })
+    // 3. promptLeaderDetails
+    .mockResolvedValueOnce({
+      name: 'Bob Director',
+      email: 'bob@example.com',
+      role: 'Engineering Director',
+    })
+    // 4. promptTeamCount
+    .mockResolvedValueOnce({ teamCount: '2' })
+    // 5. promptTeamName(1)
+    .mockResolvedValueOnce({ teamName: 'Backend Team' })
+    // 6. promptTeamName(2)
+    .mockResolvedValueOnce({ teamName: 'Frontend Team' });
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -216,9 +228,9 @@ describe('InitCommand', () => {
     it('does not collect API keys — no AIProviderFactory calls', async () => {
       setupMinimalHappyPath();
       await new InitCommand().run();
-      // If AIProviderFactory were imported and called, prompt calls would exceed 2.
-      // Two prompt calls: promptWorkspacePath + promptMinimalOnboarding.
-      expect(mockPrompt).toHaveBeenCalledTimes(2);
+      // 6 prompt calls: workspace + onboarding + leader + teamCount + 2 team names.
+      // No extra API key prompts are made.
+      expect(mockPrompt).toHaveBeenCalledTimes(6);
     });
   });
 
@@ -271,9 +283,27 @@ describe('InitCommand', () => {
     });
   });
 
+  describe('user profile written (AC: 1)', () => {
+    it('writes my-career/<email>/<email>.md', async () => {
+      setupMinimalHappyPath();
+      await new InitCommand().run();
+      const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) => c[0]);
+      expect(writtenPaths.some((p) => p.includes('my-career/alice@example.com'))).toBe(true);
+    });
+  });
+
+  describe('leader profile written (AC: 2)', () => {
+    it('writes my-leadership/<email>/<email>.md', async () => {
+      setupMinimalHappyPath();
+      await new InitCommand().run();
+      const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) => c[0]);
+      expect(writtenPaths.some((p) => p.includes('my-leadership/bob@example.com'))).toBe(true);
+    });
+  });
+
   describe('scaffold error handling', () => {
-    it('calls printError and exits gracefully when scaffold fails (AC9)', async () => {
-      const stderrSpy = jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    /** Sets up the full 6-call prompt sequence then injects a scaffold failure. */
+    function setupScaffoldFailure(): void {
       mockCreateDirectory.mockRejectedValueOnce(new Error('disk full'));
       mockPrompt
         .mockResolvedValueOnce({ workspacePath: '/tmp/test-workspace' })
@@ -282,7 +312,20 @@ describe('InitCommand', () => {
           email: 'alice@example.com',
           role: 'Engineering Manager',
           company: 'example.com',
-        });
+        })
+        .mockResolvedValueOnce({
+          name: 'Bob Director',
+          email: 'bob@example.com',
+          role: 'Engineering Director',
+        })
+        .mockResolvedValueOnce({ teamCount: '2' })
+        .mockResolvedValueOnce({ teamName: 'Backend Team' })
+        .mockResolvedValueOnce({ teamName: 'Frontend Team' });
+    }
+
+    it('calls printError and exits gracefully when scaffold fails (AC9)', async () => {
+      const stderrSpy = jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
+      setupScaffoldFailure();
 
       await new InitCommand().run();
 
@@ -293,15 +336,7 @@ describe('InitCommand', () => {
 
     it('does not propagate the error to the caller when scaffold fails', async () => {
       jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
-      mockCreateDirectory.mockRejectedValueOnce(new Error('disk full'));
-      mockPrompt
-        .mockResolvedValueOnce({ workspacePath: '/tmp/test-workspace' })
-        .mockResolvedValueOnce({
-          name: 'Alice Example',
-          email: 'alice@example.com',
-          role: 'Engineering Manager',
-          company: 'example.com',
-        });
+      setupScaffoldFailure();
 
       await expect(new InitCommand().run()).resolves.not.toThrow();
       jest.restoreAllMocks();
