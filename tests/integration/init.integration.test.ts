@@ -120,6 +120,9 @@ describe('InitCommand integration (Story 4.1 — minimal onboarding)', () => {
     writtenFiles.clear();
   });
 
+  // Story 2.1: InitService.scaffold() creates exactly 12 VAULT_DIRS.
+  // Removed from old workspace-builder (config/, assessments/, feedbacks/, branding-guidelines/,
+  // security/) are now out of scope for init. .obsidian/** is handled by obsidianPluginService.
   describe('directory structure — template directories (AC: 2)', () => {
     it('creates inbox/ directory', () => {
       const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
@@ -131,19 +134,19 @@ describe('InitCommand integration (Story 4.1 — minimal onboarding)', () => {
       expect(dirs.some((d) => d.endsWith('archive'))).toBe(true);
     });
 
-    it('creates config/ directory', () => {
+    it('creates my-tasks/ directory', () => {
       const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
-      expect(dirs.some((d) => d.endsWith('config'))).toBe(true);
+      expect(dirs.some((d) => d.endsWith('my-tasks'))).toBe(true);
     });
 
-    it('creates my-career/assessments/ directory', () => {
+    it('creates my-career/ directory', () => {
       const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
-      expect(dirs.some((d) => d.includes('my-career/assessments'))).toBe(true);
+      expect(dirs.some((d) => d.endsWith('my-career'))).toBe(true);
     });
 
-    it('creates my-career/feedbacks/ directory', () => {
+    it('creates my-company/members/ directory', () => {
       const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
-      expect(dirs.some((d) => d.includes('my-career/feedbacks'))).toBe(true);
+      expect(dirs.some((d) => d.includes('my-company/members'))).toBe(true);
     });
 
     it('creates my-teams/members/ directory', () => {
@@ -151,9 +154,9 @@ describe('InitCommand integration (Story 4.1 — minimal onboarding)', () => {
       expect(dirs.some((d) => d.includes('my-teams/members'))).toBe(true);
     });
 
-    it('creates my-teams/feedback-templates/ directory', () => {
+    it('does NOT create my-teams/feedback-templates/ directory (Story 2.1 AC3)', () => {
       const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
-      expect(dirs.some((d) => d.includes('my-teams/feedback-templates'))).toBe(true);
+      expect(dirs.some((d) => d.includes('my-teams/feedback-templates'))).toBe(false);
     });
 
     it('creates .claude/skills/ directory', () => {
@@ -161,19 +164,19 @@ describe('InitCommand integration (Story 4.1 — minimal onboarding)', () => {
       expect(dirs.some((d) => d.includes('.claude/skills'))).toBe(true);
     });
 
-    it('creates knowledge-base/branding-guidelines/ directory', () => {
+    it('creates .cursor/rules/tmr/ directory', () => {
       const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
-      expect(dirs.some((d) => d.includes('knowledge-base/branding-guidelines'))).toBe(true);
+      expect(dirs.some((d) => d.includes('.cursor/rules/tmr'))).toBe(true);
     });
 
-    it('creates knowledge-base/security/ directory', () => {
+    it('creates my-teams/teams/ directory', () => {
       const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
-      expect(dirs.some((d) => d.includes('knowledge-base/security'))).toBe(true);
+      expect(dirs.some((d) => d.includes('my-teams/teams'))).toBe(true);
     });
 
-    it('creates .obsidian/plugins/dataview/ directory', () => {
+    it('creates knowledge-base/ directory', () => {
       const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
-      expect(dirs.some((d) => d.includes('.obsidian/plugins/dataview'))).toBe(true);
+      expect(dirs.some((d) => d.endsWith('knowledge-base'))).toBe(true);
     });
 
     it('creates my-leadership/ directory', () => {

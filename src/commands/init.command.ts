@@ -3,12 +3,12 @@ import chalk from 'chalk';
 import { join } from 'node:path';
 import { configService } from '../services/config.service.js';
 import { fileSystemService } from '../services/file-system.service.js';
+import { initService } from '../services/init.service.js';
 import { promptWorkspacePath, promptMinimalOnboarding } from '../workflows/onboarding.prompts.js';
-import { buildWorkspaceStructure } from '../workflows/workspace-builder.js';
 import { obsidianPluginService } from '../services/obsidian-plugin.service.js';
 import { generateClaudeMd } from '../services/claude-md.generator.js';
 import { generateTaskFileTemplate } from '../templates/onboarding.templates.js';
-import { startSpinner } from '../utils/display.js';
+import { startSpinner, printError } from '../utils/display.js';
 import type { TaskPeriod } from '../types/task.types.js';
 
 const TASKS_MD_TEMPLATE =
@@ -74,14 +74,23 @@ export class InitCommand {
   async run(): Promise<void> {
     this.displayWelcomeBanner();
 
-    const workspacePath = await promptWorkspacePath();
+    const rawPath = await promptWorkspacePath();
+    const workspacePath = initService.resolveVaultPath(rawPath);
     const answers = await promptMinimalOnboarding();
 
     configService.initialize();
     configService.setWorkspacePath(workspacePath);
 
     const scaffoldSpinner = startSpinner('Creating workspace', this.plain);
-    await buildWorkspaceStructure(workspacePath);
+    try {
+      await initService.scaffold(workspacePath);
+    } catch (err) {
+      printError(
+        `Failed to scaffold vault at ${workspacePath}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      scaffoldSpinner.fail('Workspace scaffolding failed');
+      return;
+    }
 
     const taskPeriods: TaskPeriod[] = ['today', 'this-week', 'this-month', 'this-quarter'];
     const allTaskFiles: Array<[string, string]> = [

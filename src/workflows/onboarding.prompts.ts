@@ -29,7 +29,7 @@ export async function promptWorkspacePath(): Promise<string> {
       type: 'input',
       name: 'workspacePath',
       message: 'Where should your workspace be created?',
-      default: '~/tech-leadership-workspace',
+      default: process.cwd(),
     },
   ]);
   return expandPath(answers.workspacePath);

@@ -41,3 +41,16 @@
 - `resolve()` error message now uses normalized email (`e`) instead of the original caller input — minor UX regression; caller's raw value is lost in the `InvalidEmailError`. Acceptable per spec intent but worth revisiting if error surfacing becomes a priority.
 - ARCH-DEBT-001 structural guard catches only literal `AppConfig.property` string references, not computed-key (`config['provider']`) or aliased access patterns — acceptable scope for story 1.1 but guard has known blind spots.
 - `validateEmailUtil` embeds the un-trimmed email in the error message despite the regex testing the trimmed form — cosmetically inconsistent (e.g., `" @bad "` error vs. `"@bad"` tested form) but has no practical impact on validation correctness.
+
+## Deferred from: code review of 2-1-vault-scaffold-and-folder-structure (2026-05-09)
+
+- `Promise.all` in `InitService.scaffold()` rejects on first failure but leaves in-flight `createDirectory` calls running — partial vault state, no rollback. Pre-existing pattern from workspace-builder. Consider `Promise.allSettled` + error aggregation if vault atomicity becomes a requirement.
+- `configService.setWorkspacePath()` is persisted before `scaffold()` is attempted in `InitCommand.run()`. On scaffold failure, config holds a path to a non-existent or partial vault. Pre-existing ordering issue not introduced by Story 2.1.
+- Task-file `Promise.all` writes (lines ~101-108 of `init.command.ts`) have no try-catch. A write failure leaves `scaffoldSpinner` in a running state and propagates an unhandled rejection. Pre-existing code, not in Story 2.1 scope.
+- `claudeSpinner` in `InitCommand.run()` has no `.fail()` path if `generateClaudeMd` or the CLAUDE.md `writeFile` throws. Pre-existing code.
+- `resolveVaultPath` returns relative paths as-is; if a user provides a relative path at the prompt, it is stored in config and breaks on CWD change. Design intent per spec + pre-existing pattern; address with a "must be absolute" guard or CWD-join in a future story.
+- No writability pre-flight check on the resolved vault path — `tmr init` can fail with `EACCES` after already persisting config. Candidate for a Story 2.x UX improvement.
+- `resolveVaultPath('~/')` maps to `homedir()` directly (empty segment after `~/`), causing scaffold to run at `$HOME` root and pollute it with `inbox/`, `archive/`, etc. Add a guard for the `homedir()` root case.
+- `describe('InitCommand integration (Story 4.1 — minimal onboarding)')` label in `tests/integration/init.integration.test.ts` is stale — tests were updated for Story 2.1 but the describe title still says Story 4.1. Pre-existing.
+- If `InitService.scaffold()` successfully creates all 12 directories but the `writeFile` for `CLAUDE.md` fails, the vault is left structurally intact but permanently missing `CLAUDE.md`. Acceptable because `tmr init` is re-runnable and `fileSystemService.createDirectory` is idempotent.
+- `InitCommand.run()` returns with exit code 0 on scaffold failure (spec says "return", not `process.exit(1)`). A non-zero exit code on init failure would be cleaner for scripted use; out of scope for Story 2.1.
