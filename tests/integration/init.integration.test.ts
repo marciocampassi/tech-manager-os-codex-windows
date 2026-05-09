@@ -82,32 +82,29 @@ jest.unstable_mockModule('../../src/services/config.service.js', () => ({
 // ── Dynamic import (after all mocks) ─────────────────────────────────────────
 
 const { InitCommand } = await import('../../src/commands/init.command.js');
+const { applyInitPromptFixture, FIXTURE_DATA } = await import('../fixtures/init-prompts.js');
 
-// ── Test data ─────────────────────────────────────────────────────────────────
+// ── Convenience aliases ───────────────────────────────────────────────────────
 
-const WORKSPACE = '/tmp/integration-test-workspace';
-const USER_NAME = 'Integration User';
-const USER_EMAIL = 'integration@example.com';
-const USER_ROLE = 'Senior Engineering Manager';
-const USER_COMPANY = 'example.com';
+const WORKSPACE = FIXTURE_DATA.WORKSPACE;
+const USER_EMAIL = FIXTURE_DATA.USER_EMAIL;
+const USER_NAME = FIXTURE_DATA.USER_NAME;
+const USER_ROLE = FIXTURE_DATA.USER_ROLE;
+const USER_COMPANY = FIXTURE_DATA.USER_COMPANY;
+const LEADER_EMAIL = FIXTURE_DATA.LEADER_EMAIL;
+const TEAM_1_SLUG = 'backend-team';
+const TEAM_2_SLUG = 'frontend-team';
 
 // ── Suite ─────────────────────────────────────────────────────────────────────
 
-describe('InitCommand integration (Story 4.1 — minimal onboarding)', () => {
+describe('InitCommand integration (Story 2.2 — profile + leader + teams)', () => {
   beforeAll(async () => {
     jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
     try {
-      mockPrompt
-        // promptWorkspacePath
-        .mockResolvedValueOnce({ workspacePath: WORKSPACE })
-        // promptMinimalOnboarding — single call returning all 4 fields
-        .mockResolvedValueOnce({
-          name: USER_NAME,
-          email: USER_EMAIL,
-          role: USER_ROLE,
-          company: USER_COMPANY,
-        });
-
+      applyInitPromptFixture(
+        'happy-path',
+        mockPrompt as jest.MockedFunction<() => Promise<Record<string, unknown>>>,
+      );
       await new InitCommand().run();
     } catch (err) {
       jest.restoreAllMocks();
@@ -262,23 +259,63 @@ describe('InitCommand integration (Story 4.1 — minimal onboarding)', () => {
     });
   });
 
-  describe('no old onboarding data written (AC: 1, 6)', () => {
-    it('does NOT write any my-career/{email}.md profile (removed in pivot)', () => {
+  describe('user profile (AC: 1 — INIT-UNIT-004)', () => {
+    it('writes my-career/<email>/<email>.md', () => {
       const paths = Array.from(writtenFiles.keys());
-      expect(
-        paths.some((p) => p.includes('my-career/') && p.endsWith('.md') && p.includes('@')),
-      ).toBe(false);
+      expect(paths.some((p) => p.includes(`my-career/${USER_EMAIL}/${USER_EMAIL}.md`))).toBe(true);
     });
 
-    it('does NOT write any my-leadership/{email}.md profile (removed in pivot)', () => {
-      const paths = Array.from(writtenFiles.keys());
-      expect(
-        paths.some((p) => p.includes('my-leadership/') && p.endsWith('.md') && p.includes('@')),
-      ).toBe(false);
+    it('user profile contains the user email in frontmatter', () => {
+      const profilePath = `${WORKSPACE}/my-career/${USER_EMAIL}/${USER_EMAIL}.md`;
+      const content = writtenFiles.get(profilePath);
+      expect(content).toBeDefined();
+      expect(content).toContain(USER_EMAIL);
     });
 
-    it('uses exactly 2 prompt calls — workspace path + minimal onboarding (no API key prompts)', () => {
-      expect(mockPrompt).toHaveBeenCalledTimes(2);
+    it('user profile contains the user name', () => {
+      const profilePath = `${WORKSPACE}/my-career/${USER_EMAIL}/${USER_EMAIL}.md`;
+      const content = writtenFiles.get(profilePath);
+      expect(content).toContain(USER_NAME);
+    });
+
+    it('user profile contains the user role', () => {
+      const profilePath = `${WORKSPACE}/my-career/${USER_EMAIL}/${USER_EMAIL}.md`;
+      const content = writtenFiles.get(profilePath);
+      expect(content).toContain(USER_ROLE);
+    });
+  });
+
+  describe('leader profile (AC: 2 — INIT-UNIT-005)', () => {
+    it('writes my-leadership/<email>/<email>.md', () => {
+      const paths = Array.from(writtenFiles.keys());
+      expect(
+        paths.some((p) => p.includes(`my-leadership/${LEADER_EMAIL}/${LEADER_EMAIL}.md`)),
+      ).toBe(true);
+    });
+
+    it('leader profile contains the leader email', () => {
+      const leaderPath = `${WORKSPACE}/my-leadership/${LEADER_EMAIL}/${LEADER_EMAIL}.md`;
+      const content = writtenFiles.get(leaderPath);
+      expect(content).toBeDefined();
+      expect(content).toContain(LEADER_EMAIL);
+    });
+  });
+
+  describe('team files (AC: 4, 5 — INIT-INT-009)', () => {
+    it('writes team context file for team 1 (slug: backend-team)', () => {
+      const paths = Array.from(writtenFiles.keys());
+      expect(paths.some((p) => p.includes(`my-teams/teams/${TEAM_1_SLUG}`))).toBe(true);
+    });
+
+    it('writes team context file for team 2 (slug: frontend-team)', () => {
+      const paths = Array.from(writtenFiles.keys());
+      expect(paths.some((p) => p.includes(`my-teams/teams/${TEAM_2_SLUG}`))).toBe(true);
+    });
+  });
+
+  describe('prompt call count', () => {
+    it('uses exactly 6 prompt calls — workspace + onboarding + leader + count + 2 team names', () => {
+      expect(mockPrompt).toHaveBeenCalledTimes(6);
     });
   });
 });

@@ -1,20 +1,44 @@
-import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
+import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import path from 'node:path';
 import { homedir } from 'node:os';
 import { InitService } from '../../src/services/init.service.js';
 import type { FileSystemService } from '../../src/services/file-system.service.js';
+import type { LeadershipService } from '../../src/services/leadership.service.js';
+import type { TeamService } from '../../src/services/team.service.js';
 
-// ── Mock FileSystemService ────────────────────────────────────────────────────
+// ── Mock factories ────────────────────────────────────────────────────────────
 
 type MockFS = {
   createDirectory: jest.MockedFunction<FileSystemService['createDirectory']>;
   writeFile: jest.MockedFunction<FileSystemService['writeFile']>;
 };
 
+type MockLeadership = {
+  addLeadership: jest.MockedFunction<LeadershipService['addLeadership']>;
+};
+
+type MockTeam = {
+  createTeam: jest.MockedFunction<TeamService['createTeam']>;
+};
+
 function createMockFS(): MockFS {
   return {
     createDirectory: jest.fn<FileSystemService['createDirectory']>().mockResolvedValue(undefined),
     writeFile: jest.fn<FileSystemService['writeFile']>().mockResolvedValue(undefined),
+  };
+}
+
+function createMockLeadership(): MockLeadership {
+  return {
+    addLeadership: jest
+      .fn<LeadershipService['addLeadership']>()
+      .mockResolvedValue({ created: true }),
+  };
+}
+
+function createMockTeam(): MockTeam {
+  return {
+    createTeam: jest.fn<TeamService['createTeam']>().mockResolvedValue(undefined),
   };
 }
 
@@ -27,10 +51,18 @@ const WS = '/fake/vault';
 describe('InitService', () => {
   let svc: InitService;
   let mockFS: MockFS;
+  let mockLeadership: MockLeadership;
+  let mockTeam: MockTeam;
 
   beforeEach(() => {
     mockFS = createMockFS();
-    svc = new InitService(mockFS as unknown as FileSystemService);
+    mockLeadership = createMockLeadership();
+    mockTeam = createMockTeam();
+    svc = new InitService(
+      mockFS as unknown as FileSystemService,
+      mockLeadership as unknown as LeadershipService,
+      mockTeam as unknown as TeamService,
+    );
   });
 
   // ── resolveVaultPath ────────────────────────────────────────────────────────
@@ -150,6 +182,124 @@ describe('InitService', () => {
     it('calls writeFile exactly once (for CLAUDE.md) on happy path', async () => {
       await svc.scaffold(WS);
       expect(mockFS.writeFile).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // ── writeUserProfile ──────────────────────────────────────────────────────
+
+  describe('writeUserProfile', () => {
+    const opts = { email: 'user@example.com', name: 'Test User', role: 'Manager' };
+
+    it('INIT-UNIT-004: creates the my-career/<email>/ directory', async () => {
+      await svc.writeUserProfile(WS, opts);
+      const dirs = (mockFS.createDirectory.mock.calls as [string][]).map((c) => c[0]);
+      expect(dirs).toContain(path.join(WS, 'my-career', 'user@example.com'));
+    });
+
+    it('INIT-UNIT-004: writes my-career/<email>/<email>.md', async () => {
+      await svc.writeUserProfile(WS, opts);
+      const paths = (mockFS.writeFile.mock.calls as [string, string][]).map((c) => c[0]);
+      expect(paths).toContain(
+        path.join(WS, 'my-career', 'user@example.com', 'user@example.com.md'),
+      );
+    });
+
+    it('INIT-UNIT-004: profile frontmatter contains email', async () => {
+      await svc.writeUserProfile(WS, opts);
+      const call = (mockFS.writeFile.mock.calls as [string, string][]).find(([p]) =>
+        p.endsWith('user@example.com.md'),
+      );
+      expect(call).toBeDefined();
+      expect(call![1]).toContain('user@example.com');
+    });
+
+    it('INIT-UNIT-004: profile frontmatter contains name', async () => {
+      await svc.writeUserProfile(WS, opts);
+      const call = (mockFS.writeFile.mock.calls as [string, string][]).find(([p]) =>
+        p.endsWith('user@example.com.md'),
+      );
+      expect(call![1]).toContain('Test User');
+    });
+
+    it('INIT-UNIT-004: profile frontmatter contains role', async () => {
+      await svc.writeUserProfile(WS, opts);
+      const call = (mockFS.writeFile.mock.calls as [string, string][]).find(([p]) =>
+        p.endsWith('user@example.com.md'),
+      );
+      expect(call![1]).toContain('Manager');
+    });
+
+    it('lowercases the email before writing', async () => {
+      await svc.writeUserProfile(WS, { email: 'User@Example.COM', name: 'U', role: 'R' });
+      const paths = (mockFS.writeFile.mock.calls as [string, string][]).map((c) => c[0]);
+      expect(paths.some((p) => p.includes('user@example.com'))).toBe(true);
+    });
+
+    it('re-throws when writeFile rejects', async () => {
+      mockFS.writeFile.mockRejectedValueOnce(new Error('disk full'));
+      await expect(svc.writeUserProfile(WS, opts)).rejects.toThrow('disk full');
+    });
+  });
+
+  // ── writeLeaderProfile ────────────────────────────────────────────────────
+
+  describe('writeLeaderProfile', () => {
+    const opts = { email: 'leader@example.com', name: 'The Leader', role: 'Director' };
+
+    it('INIT-UNIT-005: delegates to LeadershipService.addLeadership', async () => {
+      await svc.writeLeaderProfile(WS, opts);
+      expect(mockLeadership.addLeadership).toHaveBeenCalledTimes(1);
+    });
+
+    it('INIT-UNIT-005: passes the correct email to addLeadership', async () => {
+      await svc.writeLeaderProfile(WS, opts);
+      const [email] = mockLeadership.addLeadership.mock.calls[0] as [string, ...unknown[]];
+      expect(email).toBe('leader@example.com');
+    });
+
+    it('INIT-UNIT-005: passes name and role in opts to addLeadership', async () => {
+      await svc.writeLeaderProfile(WS, opts);
+      const [, leaderOpts] = mockLeadership.addLeadership.mock.calls[0] as [
+        string,
+        { name: string; role: string },
+        string,
+      ];
+      expect(leaderOpts).toMatchObject({ name: 'The Leader', role: 'Director' });
+    });
+
+    it('INIT-UNIT-005: passes vaultPath as workspaceRoot to addLeadership', async () => {
+      await svc.writeLeaderProfile(WS, opts);
+      const [, , ws] = mockLeadership.addLeadership.mock.calls[0] as [string, unknown, string];
+      expect(ws).toBe(WS);
+    });
+
+    it('re-throws when addLeadership rejects', async () => {
+      mockLeadership.addLeadership.mockRejectedValueOnce(new Error('no space'));
+      await expect(svc.writeLeaderProfile(WS, opts)).rejects.toThrow('no space');
+    });
+  });
+
+  // ── createTeams ───────────────────────────────────────────────────────────
+
+  describe('createTeams', () => {
+    it('calls createTeam once per team name', async () => {
+      await svc.createTeams(WS, ['Backend Team', 'Frontend Team']);
+      expect(mockTeam.createTeam).toHaveBeenCalledTimes(2);
+    });
+
+    it('passes the raw team name and vault path to createTeam', async () => {
+      await svc.createTeams(WS, ['Backend Team']);
+      expect(mockTeam.createTeam).toHaveBeenCalledWith('Backend Team', WS);
+    });
+
+    it('does nothing when teamNames is empty', async () => {
+      await svc.createTeams(WS, []);
+      expect(mockTeam.createTeam).not.toHaveBeenCalled();
+    });
+
+    it('re-throws when createTeam rejects', async () => {
+      mockTeam.createTeam.mockRejectedValueOnce(new Error('write failed'));
+      await expect(svc.createTeams(WS, ['alpha'])).rejects.toThrow('write failed');
     });
   });
 });

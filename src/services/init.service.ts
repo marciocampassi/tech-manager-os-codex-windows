@@ -1,6 +1,9 @@
 import path from 'node:path';
 import { homedir } from 'node:os';
+import matter from 'gray-matter';
 import { FileSystemService, fileSystemService } from './file-system.service.js';
+import { LeadershipService, leadershipService } from './leadership.service.js';
+import { TeamService, teamService } from './team.service.js';
 
 // ── Vault directory list ──────────────────────────────────────────────────────
 
@@ -59,10 +62,20 @@ function buildClaudeMdStub(): string {
   ].join('\n');
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function todayIso(): string {
+  return new Date().toISOString().split('T')[0] as string;
+}
+
 // ── InitService ───────────────────────────────────────────────────────────────
 
 export class InitService {
-  constructor(private readonly _fs: FileSystemService) {}
+  constructor(
+    private readonly _fs: FileSystemService,
+    private readonly _leadership: LeadershipService,
+    private readonly _team: TeamService,
+  ) {}
 
   /**
    * Resolves a raw vault path input to an absolute path.
@@ -90,6 +103,54 @@ export class InitService {
     await Promise.all(VAULT_DIRS.map((dir) => this._fs.createDirectory(path.join(vaultPath, dir))));
     await this._fs.writeFile(path.join(vaultPath, 'CLAUDE.md'), buildClaudeMdStub());
   }
+
+  /**
+   * Writes the user's own career profile to `my-career/<email>/<email>.md`.
+   * Creates the parent directory if it does not yet exist.
+   * Throws on any file system failure.
+   */
+  async writeUserProfile(
+    vaultPath: string,
+    opts: { email: string; name: string; role: string },
+  ): Promise<void> {
+    const email = opts.email.trim().toLowerCase();
+    const dir = path.join(vaultPath, 'my-career', email);
+    const filePath = path.join(dir, `${email}.md`);
+    const fm = { email, name: opts.name, role: opts.role, date_added: todayIso() };
+    const content = matter.stringify('\n# Career Profile\n\n## Notes\n\n## Goals\n', fm);
+    await this._fs.createDirectory(dir);
+    await this._fs.writeFile(filePath, content);
+  }
+
+  /**
+   * Creates a leadership profile for the user's direct leader.
+   * Delegates to `LeadershipService.addLeadership()` which writes
+   * `my-leadership/<email>/<email>.md` and creates a `1on1s/` subdirectory.
+   * Throws on any file system failure.
+   */
+  async writeLeaderProfile(
+    vaultPath: string,
+    opts: { email: string; name: string; role: string },
+  ): Promise<void> {
+    await this._leadership.addLeadership(
+      opts.email,
+      { name: opts.name, role: opts.role },
+      vaultPath,
+    );
+  }
+
+  /**
+   * Creates team folder entries for each supplied team name.
+   * Delegates to `TeamService.createTeam()` which normalises the name via
+   * `normalizeSlug()` internally — do NOT pre-normalise here.
+   * Teams are created sequentially to avoid interleaved directory creation.
+   * Throws on any file system failure.
+   */
+  async createTeams(vaultPath: string, teamNames: string[]): Promise<void> {
+    for (const name of teamNames) {
+      await this._team.createTeam(name, vaultPath);
+    }
+  }
 }
 
-export const initService = new InitService(fileSystemService);
+export const initService = new InitService(fileSystemService, leadershipService, teamService);
