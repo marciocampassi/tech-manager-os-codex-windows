@@ -22,6 +22,7 @@ jest.unstable_mockModule('chalk', () => ({
     cyan: (s: string) => s,
     green: (s: string) => s,
     yellow: (s: string) => s,
+    red: (s: string) => s,
   },
 }));
 
@@ -174,21 +175,25 @@ describe('InitCommand', () => {
     it('CLAUDE.md content contains the user email and role', async () => {
       setupMinimalHappyPath();
       await new InitCommand().run();
-      const claudeCall = (mockWriteFile.mock.calls as [string, string][]).find(([p]) =>
+      // scaffold() writes a stub first; InitCommand overwrites with user data — check last write
+      const claudeWrites = (mockWriteFile.mock.calls as [string, string][]).filter(([p]) =>
         p.endsWith('CLAUDE.md'),
       );
+      const claudeCall = claudeWrites[claudeWrites.length - 1];
       expect(claudeCall).toBeDefined();
-      expect(claudeCall![1]).toContain('alice@example.com');
-      expect(claudeCall![1]).toContain('Engineering Manager');
+      expect(claudeCall[1]).toContain('alice@example.com');
+      expect(claudeCall[1]).toContain('Engineering Manager');
     });
 
     it('CLAUDE.md content contains the company field', async () => {
       setupMinimalHappyPath();
       await new InitCommand().run();
-      const claudeCall = (mockWriteFile.mock.calls as [string, string][]).find(([p]) =>
+      const claudeWrites = (mockWriteFile.mock.calls as [string, string][]).filter(([p]) =>
         p.endsWith('CLAUDE.md'),
       );
-      expect(claudeCall![1]).toContain('example.com');
+      const claudeCall = claudeWrites[claudeWrites.length - 1];
+      expect(claudeCall).toBeDefined();
+      expect(claudeCall[1]).toContain('example.com');
     });
 
     it('writes my-tasks/tasks.md', async () => {
@@ -263,6 +268,43 @@ describe('InitCommand', () => {
           p.endsWith('tasks.md'),
       );
       expect(taskPeriodWrites).toHaveLength(0);
+    });
+  });
+
+  describe('scaffold error handling', () => {
+    it('calls printError and exits gracefully when scaffold fails (AC9)', async () => {
+      const stderrSpy = jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
+      mockCreateDirectory.mockRejectedValueOnce(new Error('disk full'));
+      mockPrompt
+        .mockResolvedValueOnce({ workspacePath: '/tmp/test-workspace' })
+        .mockResolvedValueOnce({
+          name: 'Alice Example',
+          email: 'alice@example.com',
+          role: 'Engineering Manager',
+          company: 'example.com',
+        });
+
+      await new InitCommand().run();
+
+      const stderrOutput = (stderrSpy.mock.calls as [string][]).map((c) => c[0]).join('');
+      expect(stderrOutput).toContain('disk full');
+      stderrSpy.mockRestore();
+    });
+
+    it('does not propagate the error to the caller when scaffold fails', async () => {
+      jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
+      mockCreateDirectory.mockRejectedValueOnce(new Error('disk full'));
+      mockPrompt
+        .mockResolvedValueOnce({ workspacePath: '/tmp/test-workspace' })
+        .mockResolvedValueOnce({
+          name: 'Alice Example',
+          email: 'alice@example.com',
+          role: 'Engineering Manager',
+          company: 'example.com',
+        });
+
+      await expect(new InitCommand().run()).resolves.not.toThrow();
+      jest.restoreAllMocks();
     });
   });
 });
