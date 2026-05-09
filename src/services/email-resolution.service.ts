@@ -56,6 +56,10 @@ export class EmailResolutionService {
   }
 
   /**
+   * @deprecated Use `formatWikiLink` from `src/utils/wiki-link.ts` instead.
+   * This method remains for backward compatibility with existing callers in
+   * `ProjectService`. New code in Epics 2 and 3 must use the standalone utility.
+   *
    * Generates an Obsidian-compatible wiki-link string (without the leading `- `).
    * The relative path is computed from `fromPath`'s directory to `resolvedPath`,
    * with path separators normalized to `/` for cross-platform compatibility.
