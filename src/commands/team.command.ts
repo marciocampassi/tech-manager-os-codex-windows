@@ -217,7 +217,7 @@ export async function runShow(email: string): Promise<void> {
   const result = await svc.showProfile(email, ws);
   if (!result) {
     process.stdout.write(
-      `Profile not found for ${email}. Use 'tmr team add' or 'tmr relationship add' to create one.\n`,
+      `Profile not found for ${email}. Use 'tmr team add' to create a profile.\n`,
     );
     return;
   }

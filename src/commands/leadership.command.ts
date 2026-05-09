@@ -122,7 +122,7 @@ export async function runLeadershipList(svc: LeadershipService): Promise<void> {
 export function createLeadershipCommand(): Command {
   const svc = leadershipService;
 
-  const cmd = new Command('leadership').description('manage leadership relationships');
+  const cmd = new Command('leadership').description('manage leadership profiles');
 
   cmd
     .command('add [email]')

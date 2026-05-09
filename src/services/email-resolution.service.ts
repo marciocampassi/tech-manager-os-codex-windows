@@ -1,6 +1,5 @@
 import path from 'node:path';
 import { FileSystemService, fileSystemService } from './file-system.service.js';
-import { RelationshipService, relationshipService } from './relationship.service.js';
 import { getWorkspaceRoot as resolveWorkspaceRoot } from '../utils/workspace.js';
 import { InvalidEmailError } from '../errors/tmr-error.js';
 import { validateEmail as validateEmailUtil } from '../utils/validation.js';
@@ -11,10 +10,7 @@ import type { IEntityLocation } from '../types/email-resolution.types.js';
 export class EmailResolutionService {
   private readonly _cache: Map<string, IEntityLocation> = new Map();
 
-  constructor(
-    private readonly _fs: FileSystemService,
-    private readonly _relationship: RelationshipService,
-  ) {}
+  constructor(private readonly _fs: FileSystemService) {}
 
   getWorkspaceRoot(): string {
     return resolveWorkspaceRoot();
@@ -108,13 +104,17 @@ export class EmailResolutionService {
       return { type: 'relationship', absolutePath: relProfile, created: false };
     }
 
-    // 4. Not found — auto-create as relationship
-    await this._relationship.addRelationship(email, {}, ws);
+    // 4. Not found — auto-create as company-scoped member profile (ISSUE-m1 shim).
+    // TODO(Story 3.2): replace with MemberService.addMember(email) — do NOT make this inline logic permanent.
+    const today = new Date().toISOString().split('T')[0] as string;
+    const safeEmail = email.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    await this._fs.createDirectory(path.join(ws, 'my-company', 'members', email, '1on1s'));
+    await this._fs.writeFile(
+      relProfile,
+      `---\nemail: "${safeEmail}"\nname: ""\nrole: ""\ndepartment: ""\nrelationship_type: ""\ndate_added: "${today}"\n---\n\n# Relationship — ${safeEmail}\n\n## Notes\n\n## 1on1s\n`,
+    );
     return { type: 'relationship', absolutePath: relProfile, created: true };
   }
 }
 
-export const emailResolutionService = new EmailResolutionService(
-  fileSystemService,
-  relationshipService,
-);
+export const emailResolutionService = new EmailResolutionService(fileSystemService);

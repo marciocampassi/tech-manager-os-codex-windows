@@ -5,7 +5,6 @@ import { printError } from './utils/display.js';
 import { createConfigCommand } from './commands/config.command.js';
 import { createTeamCommand, runShow } from './commands/team.command.js';
 import { createMemberCommand } from './commands/member.command.js';
-import { createRelationshipCommand } from './commands/relationship.command.js';
 import { createLeadershipCommand } from './commands/leadership.command.js';
 import { createProjectCommand } from './commands/project.command.js';
 import { createTaskViewCommands } from './commands/task-view.command.js';
@@ -48,7 +47,6 @@ export function createProgram(): Command {
   p.addCommand(createConfigCommand());
   p.addCommand(createTeamCommand());
   p.addCommand(createMemberCommand());
-  p.addCommand(createRelationshipCommand());
   p.addCommand(createLeadershipCommand());
   p.addCommand(createProjectCommand());
 
@@ -57,7 +55,7 @@ export function createProgram(): Command {
   }
 
   p.command('show <email>')
-    .description('display profile for an email address (searches teams, leadership, relationships)')
+    .description('display profile for an email address (searches teams, leadership)')
     .action(async (email: string) => {
       await runShow(email);
     });

@@ -109,3 +109,35 @@ describe('CLI — stub commands', () => {
     expect(watchCmd?.description()).toMatch(/watch|inbox|auto/i);
   });
 });
+
+describe('CLI — relationship command removed (REL-NEG)', () => {
+  it('REL-NEG-001: --help output does not contain "relationship"', () => {
+    const chunks: string[] = [];
+    const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation((chunk) => {
+      chunks.push(String(chunk));
+      return true;
+    });
+    program.outputHelp();
+    stdoutSpy.mockRestore();
+    expect(chunks.join('')).not.toMatch(/relationship/i);
+  });
+
+  it('REL-NEG-002: "tmr relationship" produces unrecognized command error', () => {
+    const stderrSpy = jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const exitSpy = jest
+      .spyOn(process, 'exit')
+      .mockImplementation((_code?: string | number | null | undefined) => {
+        throw new Error('process.exit called');
+      });
+
+    expect(() => {
+      program.parse(['node', 'tmr', 'relationship']);
+    }).toThrow('process.exit called');
+
+    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining('Unknown command'));
+    expect(exitSpy).toHaveBeenCalledWith(1);
+
+    stderrSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
+});
