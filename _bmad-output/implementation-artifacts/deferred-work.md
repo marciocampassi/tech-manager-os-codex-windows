@@ -60,3 +60,11 @@
 - `describe('InitCommand integration (Story 4.1 — minimal onboarding)')` label in `tests/integration/init.integration.test.ts` is stale — tests were updated for Story 2.1 but the describe title still says Story 4.1. Pre-existing.
 - If `InitService.scaffold()` successfully creates all 12 directories but the `writeFile` for `CLAUDE.md` fails, the vault is left structurally intact but permanently missing `CLAUDE.md`. Acceptable because `tmr init` is re-runnable and `fileSystemService.createDirectory` is idempotent.
 - `InitCommand.run()` returns with exit code 0 on scaffold failure (spec says "return", not `process.exit(1)`). A non-zero exit code on init failure would be cleaner for scripted use; out of scope for Story 2.1.
+
+## Deferred from: code review of 2-3-team-member-collection-loop (2026-05-09)
+
+- Hard `return` on first team member-addition failure abandons remaining teams and all subsequent write-phase steps — consistent with existing pattern throughout `run()`; consider revisiting when designing overall error-recovery strategy.
+- `while(true)` prompt loop in the member collection phase has no error boundary — consistent with the rest of the unguarded prompt phase in `run()`; low risk because inquirer propagates errors only on OS-level I/O failures.
+- Two team names that collapse to the same `normalizeSlug` output silently merge member lists — pre-existing normalizeSlug behavior not introduced by this story; add duplicate-slug detection in the prompts or `createTeam`.
+- Team name containing `{`, `}`, `[`, or `]` survives `normalizeSlug` and produces an unquoted YAML flow indicator in member frontmatter, corrupting `gray-matter` round-trips — pre-existing normalizeSlug gap; add a strip of YAML flow characters.
+- Cross-team same email: the second `addMember` call finds an existing profile, appends the new team slug, but writes back the original `name/role/gender/location` — the `promptMemberDetails()` values collected for the second team are permanently discarded with no warning; address when implementing member profile editing.

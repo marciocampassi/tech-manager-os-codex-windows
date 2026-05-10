@@ -19,6 +19,7 @@ type MockLeadership = {
 
 type MockTeam = {
   createTeam: jest.MockedFunction<TeamService['createTeam']>;
+  addMember: jest.MockedFunction<TeamService['addMember']>;
 };
 
 function createMockFS(): MockFS {
@@ -39,6 +40,7 @@ function createMockLeadership(): MockLeadership {
 function createMockTeam(): MockTeam {
   return {
     createTeam: jest.fn<TeamService['createTeam']>().mockResolvedValue(undefined),
+    addMember: jest.fn<TeamService['addMember']>().mockResolvedValue(undefined),
   };
 }
 
@@ -300,6 +302,63 @@ describe('InitService', () => {
     it('re-throws when createTeam rejects', async () => {
       mockTeam.createTeam.mockRejectedValueOnce(new Error('write failed'));
       await expect(svc.createTeams(WS, ['alpha'])).rejects.toThrow('write failed');
+    });
+  });
+
+  // ── addMembersToTeam ──────────────────────────────────────────────────────
+
+  describe('addMembersToTeam', () => {
+    const members = [
+      { email: 'alice@co.com', name: 'Alice', role: 'Engineer', gender: 'Female', location: 'SP' },
+      { email: 'bob@co.com', name: 'Bob', role: 'Designer', gender: '', location: '' },
+    ];
+
+    it('calls addMember once per member', async () => {
+      await svc.addMembersToTeam(WS, 'Backend', members);
+      expect(mockTeam.addMember).toHaveBeenCalledTimes(2);
+    });
+
+    it('passes the raw team name (not normalized) and vault path', async () => {
+      await svc.addMembersToTeam(WS, 'Backend Team', [members[0]!]);
+      const [teamArg, , , wsArg] = mockTeam.addMember.mock.calls[0] as [
+        string,
+        string,
+        unknown,
+        string,
+      ];
+      expect(teamArg).toBe('Backend Team');
+      expect(wsArg).toBe(WS);
+    });
+
+    it('passes correct email for each member', async () => {
+      await svc.addMembersToTeam(WS, 'alpha', members);
+      const emails = (mockTeam.addMember.mock.calls as [string, string, unknown, string][]).map(
+        (c) => c[1],
+      );
+      expect(emails).toEqual(['alice@co.com', 'bob@co.com']);
+    });
+
+    it('passes name, role, gender and location in options', async () => {
+      await svc.addMembersToTeam(WS, 'alpha', [members[0]!]);
+      const opts = (
+        mockTeam.addMember.mock.calls as [string, string, Record<string, string>, string][]
+      )[0]![2];
+      expect(opts).toMatchObject({
+        name: 'Alice',
+        role: 'Engineer',
+        gender: 'Female',
+        location: 'SP',
+      });
+    });
+
+    it('does nothing when members array is empty', async () => {
+      await svc.addMembersToTeam(WS, 'alpha', []);
+      expect(mockTeam.addMember).not.toHaveBeenCalled();
+    });
+
+    it('re-throws when addMember rejects', async () => {
+      mockTeam.addMember.mockRejectedValueOnce(new Error('disk full'));
+      await expect(svc.addMembersToTeam(WS, 'alpha', [members[0]!])).rejects.toThrow('disk full');
     });
   });
 });

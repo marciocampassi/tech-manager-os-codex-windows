@@ -10,6 +10,8 @@ import {
   promptLeaderDetails,
   promptTeamCount,
   promptTeamName,
+  promptMemberEmail,
+  promptMemberDetails,
 } from '../workflows/onboarding.prompts.js';
 import { obsidianPluginService } from '../services/obsidian-plugin.service.js';
 import { generateClaudeMd } from '../services/claude-md.generator.js';
@@ -91,6 +93,35 @@ export class InitCommand {
       teamNames.push(await promptTeamName(i));
     }
 
+    // Collect members per team
+    type MemberEntry = {
+      email: string;
+      name: string;
+      role: string;
+      gender: string;
+      location: string;
+    };
+    const teamMembers: Map<string, MemberEntry[]> = new Map();
+    for (const teamName of teamNames) {
+      const members: MemberEntry[] = [];
+      const seenEmails = new Set<string>();
+      while (true) {
+        const email = await promptMemberEmail(teamName);
+        if (!email) break;
+        const normalized = email.toLowerCase();
+        if (seenEmails.has(normalized)) {
+          process.stdout.write(
+            `\n⚠  ${email} was already added to ${teamName} — skipping duplicate.\n\n`,
+          );
+          continue;
+        }
+        seenEmails.add(normalized);
+        const details = await promptMemberDetails();
+        members.push({ email, ...details });
+      }
+      teamMembers.set(teamName, members);
+    }
+
     // ── Write phase ───────────────────────────────────────────────────────────
     configService.initialize();
     configService.setWorkspacePath(workspacePath);
@@ -165,6 +196,21 @@ export class InitCommand {
       return;
     }
     teamsSpinner.succeed('Teams created');
+
+    for (const [teamName, members] of teamMembers.entries()) {
+      if (members.length === 0) continue;
+      const membersSpinner = startSpinner(`Adding members to ${teamName}`, this.plain);
+      try {
+        await initService.addMembersToTeam(workspacePath, teamName, members);
+      } catch (err) {
+        printError(
+          `Failed to add members to ${teamName}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+        membersSpinner.fail(`Member addition failed for ${teamName}`);
+        return;
+      }
+      membersSpinner.succeed(`Members added to ${teamName}`);
+    }
 
     const claudeSpinner = startSpinner('Generating CLAUDE.md', this.plain);
     await fileSystemService.writeFile(join(workspacePath, 'CLAUDE.md'), generateClaudeMd(answers));
