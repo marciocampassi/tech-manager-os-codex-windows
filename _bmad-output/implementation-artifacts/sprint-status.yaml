@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-27
-last_updated: 2026-05-09 (story 2.3 done)
+last_updated: 2026-05-09 (epic 2 review done)
 project: tech-manager-os
 project_key: NOKEY
 tracking_system: file-system
@@ -51,11 +51,11 @@ development_status:
   epic-1-retrospective: optional
 
   # ── Epic 2: Zero-to-Operational Onboarding (tmr init Rework) ──
-  epic-2: in-progress
+  epic-2: done
   2-1-vault-scaffold-and-folder-structure: done
   2-2-user-profile-leader-and-team-structure-prompts: done
   2-3-team-member-collection-loop: done
-  2-4-sample-files-skill-install-readme-and-post-init-summary: backlog
+  2-4-sample-files-skill-install-readme-and-post-init-summary: done
   epic-2-retrospective: optional
 
   # ── Epic 3: Flexible Team & Member Management ──
