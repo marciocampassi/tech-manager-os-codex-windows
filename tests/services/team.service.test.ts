@@ -188,6 +188,53 @@ describe('TeamService', () => {
       );
     });
 
+    it('appends correct relative wiki-link format to members file (AC-5)', async () => {
+      mockFS.exists.mockImplementation(async (p: string) => {
+        if (p.includes('alpha-context.md')) return true;
+        return false;
+      });
+      mockFS.readFile.mockImplementation(async (p: string) => {
+        if (p.includes('alpha-members.md')) return '# Team Members\n';
+        return '';
+      });
+      mockFS.listDirectories.mockResolvedValue([]);
+
+      await svc.addMember('alpha', 'dev@co.com', { role: 'Engineer' }, WORKSPACE);
+
+      expect(mockFS.appendFile).toHaveBeenCalledWith(
+        expect.stringContaining('alpha-members.md'),
+        '- [[../../members/dev@co.com/dev@co.com.md|dev@co.com]]\n',
+      );
+    });
+
+    it('new member profile uses relative wiki-link for manager (AC-5)', async () => {
+      const managerProfileContent = matter.stringify('', { email: 'manager@co.com' });
+      mockFS.exists.mockImplementation(async (p: string) => {
+        if (p.includes('alpha-context.md')) return true;
+        if (p.includes('my-career')) return true;
+        return false;
+      });
+      mockFS.listDirectories.mockImplementation(async (p: string) => {
+        if (p.includes('my-career')) return ['manager@co.com'];
+        return [];
+      });
+      mockFS.readFile.mockImplementation(async (p: string) => {
+        if (p.includes('manager@co.com.md')) return managerProfileContent;
+        if (p.includes('alpha-members.md')) return '# Team Members\n';
+        return '';
+      });
+
+      await svc.addMember('alpha', 'dev@co.com', { role: 'Engineer' }, WORKSPACE);
+
+      const profileCall = (mockFS.writeFile.mock.calls as [string, string][]).find(([p]) =>
+        p.includes('dev@co.com/dev@co.com.md'),
+      );
+      expect(profileCall).toBeDefined();
+      expect(profileCall![1]).toContain(
+        '[[../../../my-career/manager@co.com/manager@co.com.md|manager@co.com]]',
+      );
+    });
+
     it('skips action-items creation when file already exists (idempotent)', async () => {
       mockFS.exists.mockImplementation(async (p: string) => {
         if (p.includes('alpha-context.md')) return true;

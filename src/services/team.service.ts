@@ -4,6 +4,7 @@ import { FileSystemService, fileSystemService } from './file-system.service.js';
 import { getWorkspaceRoot as resolveWorkspaceRoot } from '../utils/workspace.js';
 import { generateActionItemsTemplate } from '../templates/onboarding.templates.js';
 import { normalizeSlug } from '../utils/normalization.js';
+import { formatWikiLink } from '../utils/wiki-link.js';
 import type {
   IAddMemberOptions,
   IArchiveOptions,
@@ -81,10 +82,15 @@ function buildMemberProfileMd(
   options: { name?: string; role?: string; gender?: string; location?: string },
   teams: string[],
   managerEmail: string | null,
+  workspaceRoot: string,
 ): string {
   const teamsYaml = teams.map((t) => `  - ${t}`).join('\n');
   const managerLink = managerEmail
-    ? `[[my-career/${managerEmail}/${managerEmail}|${managerEmail}]]`
+    ? formatWikiLink(
+        path.join(workspaceRoot, 'my-career', managerEmail, `${managerEmail}.md`),
+        memberProfilePath(workspaceRoot, email),
+        managerEmail,
+      )
     : '';
 
   return `---
@@ -123,8 +129,8 @@ ${managerLink}
 `;
 }
 
-function buildWikiLink(email: string): string {
-  return `- [[../../members/${email}/${email}.md|${email}]]`;
+function buildWikiLink(email: string, workspaceRoot: string, teamSlug: string): string {
+  return `- ${formatWikiLink(memberProfilePath(workspaceRoot, email), teamMembersPath(workspaceRoot, teamSlug), email)}`;
 }
 
 // ── Service ───────────────────────────────────────────────────────────────────
@@ -191,7 +197,13 @@ export class TeamService {
     } else {
       // New member — create full directory + profile
       const managerEmail = await this.getManagerEmail(workspaceRoot);
-      const profileMd = buildMemberProfileMd(normalizedEmail, options, [slug], managerEmail);
+      const profileMd = buildMemberProfileMd(
+        normalizedEmail,
+        options,
+        [slug],
+        managerEmail,
+        workspaceRoot,
+      );
 
       await this._fs.createDirectory(path.join(memberDir(workspaceRoot, normalizedEmail), '1on1s'));
       await this._fs.createDirectory(
@@ -217,7 +229,7 @@ export class TeamService {
 
     // Append wiki-link to team members file
     const membersPath = teamMembersPath(workspaceRoot, slug);
-    const wikiLink = buildWikiLink(normalizedEmail);
+    const wikiLink = buildWikiLink(normalizedEmail, workspaceRoot, slug);
     const currentMembers = await this._fs.readFile(membersPath);
 
     // Avoid duplicate links
@@ -434,7 +446,7 @@ export class TeamService {
     if (!(await this._fs.exists(membersPath))) return;
 
     const content = await this._fs.readFile(membersPath);
-    const wikiLink = buildWikiLink(email);
+    const wikiLink = buildWikiLink(email, workspaceRoot, normalizeSlug(teamName));
     const updated = content
       .split('\n')
       .filter((line) => line.trim() !== wikiLink.trim())

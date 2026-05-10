@@ -46,8 +46,10 @@ jest.unstable_mockModule('chalk', () => ({
   },
 }));
 
-// Capture all writeFile calls to assert content without touching real disk
+// Capture all writeFile / appendFile calls to assert content without touching real disk
 const writtenFiles = new Map<string, string>();
+const appendedContent = new Map<string, string[]>();
+
 const mockCreateDirectory = jest.fn<(path: string) => Promise<void>>().mockResolvedValue(undefined);
 const mockWriteFile = jest
   .fn<(path: string, content: string) => Promise<void>>()
@@ -55,12 +57,26 @@ const mockWriteFile = jest
     writtenFiles.set(filePath, content);
   });
 const mockFsExists = jest.fn<(path: string) => Promise<boolean>>().mockResolvedValue(false);
+const mockReadFile = jest
+  .fn<(path: string) => Promise<string>>()
+  .mockResolvedValue('# Team Members\n');
+const mockAppendFile = jest
+  .fn<(path: string, content: string) => Promise<void>>()
+  .mockImplementation(async (filePath, content) => {
+    const existing = appendedContent.get(filePath) ?? [];
+    existing.push(content);
+    appendedContent.set(filePath, existing);
+  });
+const mockListDirectories = jest.fn<(path: string) => Promise<string[]>>().mockResolvedValue([]);
 
 jest.unstable_mockModule('../../src/services/file-system.service.js', () => ({
   fileSystemService: {
     createDirectory: mockCreateDirectory,
     writeFile: mockWriteFile,
     exists: mockFsExists,
+    readFile: mockReadFile,
+    appendFile: mockAppendFile,
+    listDirectories: mockListDirectories,
   },
 }));
 
@@ -94,10 +110,15 @@ const USER_COMPANY = FIXTURE_DATA.USER_COMPANY;
 const LEADER_EMAIL = FIXTURE_DATA.LEADER_EMAIL;
 const TEAM_1_SLUG = 'backend-team';
 const TEAM_2_SLUG = 'frontend-team';
+const MEMBER_1_EMAIL = FIXTURE_DATA.MEMBER_1_EMAIL;
+const MEMBER_1_NAME = FIXTURE_DATA.MEMBER_1_NAME;
+const MEMBER_1_ROLE = FIXTURE_DATA.MEMBER_1_ROLE;
+const MEMBER_1_GENDER = FIXTURE_DATA.MEMBER_1_GENDER;
+const MEMBER_1_LOCATION = FIXTURE_DATA.MEMBER_1_LOCATION;
 
 // ── Suite ─────────────────────────────────────────────────────────────────────
 
-describe('InitCommand integration (Story 2.2 — profile + leader + teams)', () => {
+describe('InitCommand integration (Story 2.3 — member collection loop)', () => {
   beforeAll(async () => {
     jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
     try {
@@ -115,6 +136,10 @@ describe('InitCommand integration (Story 2.2 — profile + leader + teams)', () 
   afterAll(() => {
     jest.restoreAllMocks();
     writtenFiles.clear();
+    appendedContent.clear();
+    mockReadFile.mockClear();
+    mockAppendFile.mockClear();
+    mockListDirectories.mockClear();
   });
 
   // Story 2.1: InitService.scaffold() creates exactly 12 VAULT_DIRS.
@@ -314,8 +339,73 @@ describe('InitCommand integration (Story 2.2 — profile + leader + teams)', () 
   });
 
   describe('prompt call count', () => {
-    it('uses exactly 6 prompt calls — workspace + onboarding + leader + count + 2 team names', () => {
-      expect(mockPrompt).toHaveBeenCalledTimes(6);
+    it('uses exactly 10 prompt calls — workspace + onboarding + leader + count + 2 names + member loop', () => {
+      expect(mockPrompt).toHaveBeenCalledTimes(10);
+    });
+  });
+
+  describe('member files (AC: 1, 2 — INIT-INT-003)', () => {
+    it('writes member profile at my-teams/members/<email>/<email>.md', () => {
+      const paths = Array.from(writtenFiles.keys());
+      expect(
+        paths.some((p) => p.includes(`my-teams/members/${MEMBER_1_EMAIL}/${MEMBER_1_EMAIL}.md`)),
+      ).toBe(true);
+    });
+
+    it('member profile contains correct email in frontmatter', () => {
+      const profilePath = `${WORKSPACE}/my-teams/members/${MEMBER_1_EMAIL}/${MEMBER_1_EMAIL}.md`;
+      const content = writtenFiles.get(profilePath);
+      expect(content).toBeDefined();
+      expect(content).toContain(MEMBER_1_EMAIL);
+    });
+
+    it('member profile contains correct name', () => {
+      const profilePath = `${WORKSPACE}/my-teams/members/${MEMBER_1_EMAIL}/${MEMBER_1_EMAIL}.md`;
+      const content = writtenFiles.get(profilePath);
+      expect(content).toContain(MEMBER_1_NAME);
+    });
+
+    it('member profile contains correct role', () => {
+      const profilePath = `${WORKSPACE}/my-teams/members/${MEMBER_1_EMAIL}/${MEMBER_1_EMAIL}.md`;
+      const content = writtenFiles.get(profilePath);
+      expect(content).toContain(MEMBER_1_ROLE);
+    });
+
+    it('member profile contains gender in frontmatter (AC2/INIT-INT-003)', () => {
+      const profilePath = `${WORKSPACE}/my-teams/members/${MEMBER_1_EMAIL}/${MEMBER_1_EMAIL}.md`;
+      const content = writtenFiles.get(profilePath);
+      expect(content).toContain(MEMBER_1_GENDER);
+    });
+
+    it('member profile contains location in frontmatter', () => {
+      const profilePath = `${WORKSPACE}/my-teams/members/${MEMBER_1_EMAIL}/${MEMBER_1_EMAIL}.md`;
+      const content = writtenFiles.get(profilePath);
+      expect(content).toContain(MEMBER_1_LOCATION);
+    });
+
+    it('appends wiki-link to team 1 members file (AC: 5 — INIT-INT-013)', () => {
+      const membersFilePath = `${WORKSPACE}/my-teams/teams/${TEAM_1_SLUG}/${TEAM_1_SLUG}-members.md`;
+      const appended = appendedContent.get(membersFilePath);
+      expect(appended).toBeDefined();
+      expect(appended?.join('')).toContain(
+        `[[../../members/${MEMBER_1_EMAIL}/${MEMBER_1_EMAIL}.md|${MEMBER_1_EMAIL}]]`,
+      );
+    });
+  });
+
+  describe('member loop sentinel — Team 2 gets no members (AC: 4 — INIT-INT-008)', () => {
+    it('no member profile file is written for Team 2 (empty sentinel ends loop immediately)', () => {
+      const paths = Array.from(writtenFiles.keys());
+      const team2MemberProfiles = paths.filter(
+        (p) => p.includes('my-teams/members/') && !p.includes(MEMBER_1_EMAIL),
+      );
+      expect(team2MemberProfiles).toHaveLength(0);
+    });
+
+    it('no wiki-link is appended to the Team 2 members file', () => {
+      const membersFilePath = `${WORKSPACE}/my-teams/teams/${TEAM_2_SLUG}/${TEAM_2_SLUG}-members.md`;
+      const appended = appendedContent.get(membersFilePath) ?? [];
+      expect(appended).toHaveLength(0);
     });
   });
 });

@@ -47,12 +47,18 @@ jest.unstable_mockModule('ora', () => ({
 const mockCreateDirectory = jest.fn<() => Promise<void>>();
 const mockWriteFile = jest.fn<(path: string, content: string) => Promise<void>>();
 const mockFsExists = jest.fn<(path: string) => Promise<boolean>>();
+const mockReadFile = jest.fn<(path: string) => Promise<string>>();
+const mockAppendFile = jest.fn<(path: string, content: string) => Promise<void>>();
+const mockListDirectories = jest.fn<(path: string) => Promise<string[]>>();
 
 jest.unstable_mockModule('../../src/services/file-system.service.js', () => ({
   fileSystemService: {
     createDirectory: mockCreateDirectory,
     writeFile: mockWriteFile,
     exists: mockFsExists,
+    readFile: mockReadFile,
+    appendFile: mockAppendFile,
+    listDirectories: mockListDirectories,
   },
 }));
 
@@ -78,7 +84,7 @@ const { InitCommand } = await import('../../src/commands/init.command.js');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/** Standard happy-path prompt sequence (Story 2.2): 6 calls total. */
+/** Standard happy-path prompt sequence (Story 2.3): 10 calls total. */
 function setupMinimalHappyPath(): void {
   mockPrompt
     // 1. promptWorkspacePath
@@ -101,7 +107,15 @@ function setupMinimalHappyPath(): void {
     // 5. promptTeamName(1)
     .mockResolvedValueOnce({ teamName: 'Backend Team' })
     // 6. promptTeamName(2)
-    .mockResolvedValueOnce({ teamName: 'Frontend Team' });
+    .mockResolvedValueOnce({ teamName: 'Frontend Team' })
+    // 7. promptMemberEmail(Backend Team) — one member
+    .mockResolvedValueOnce({ memberEmail: 'member@example.com' })
+    // 8. promptMemberDetails()
+    .mockResolvedValueOnce({ name: 'Test Member', role: 'Engineer', gender: '', location: '' })
+    // 9. promptMemberEmail(Backend Team) — end loop
+    .mockResolvedValueOnce({ memberEmail: '' })
+    // 10. promptMemberEmail(Frontend Team) — end loop
+    .mockResolvedValueOnce({ memberEmail: '' });
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -114,6 +128,9 @@ describe('InitCommand', () => {
     mockCreateDirectory.mockResolvedValue(undefined);
     mockWriteFile.mockResolvedValue(undefined);
     mockFsExists.mockResolvedValue(false);
+    mockReadFile.mockResolvedValue('# Team Members\n');
+    mockAppendFile.mockResolvedValue(undefined);
+    mockListDirectories.mockResolvedValue([]);
     mockInstallPlugins.mockResolvedValue(undefined);
     stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
   });
@@ -228,9 +245,9 @@ describe('InitCommand', () => {
     it('does not collect API keys — no AIProviderFactory calls', async () => {
       setupMinimalHappyPath();
       await new InitCommand().run();
-      // 6 prompt calls: workspace + onboarding + leader + teamCount + 2 team names.
+      // 10 prompt calls: workspace + onboarding + leader + teamCount + 2 names + 4 member prompts.
       // No extra API key prompts are made.
-      expect(mockPrompt).toHaveBeenCalledTimes(6);
+      expect(mockPrompt).toHaveBeenCalledTimes(10);
     });
   });
 
@@ -301,8 +318,19 @@ describe('InitCommand', () => {
     });
   });
 
+  describe('member files written (AC: 1)', () => {
+    it('writes member profile at my-teams/members/<email>/<email>.md', async () => {
+      setupMinimalHappyPath();
+      await new InitCommand().run();
+      const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) => c[0]);
+      expect(writtenPaths.some((p) => p.includes('my-teams/members/member@example.com'))).toBe(
+        true,
+      );
+    });
+  });
+
   describe('scaffold error handling', () => {
-    /** Sets up the full 6-call prompt sequence then injects a scaffold failure. */
+    /** Sets up the full 10-call prompt sequence then injects a scaffold failure. */
     function setupScaffoldFailure(): void {
       mockCreateDirectory.mockRejectedValueOnce(new Error('disk full'));
       mockPrompt
@@ -320,7 +348,10 @@ describe('InitCommand', () => {
         })
         .mockResolvedValueOnce({ teamCount: '2' })
         .mockResolvedValueOnce({ teamName: 'Backend Team' })
-        .mockResolvedValueOnce({ teamName: 'Frontend Team' });
+        .mockResolvedValueOnce({ teamName: 'Frontend Team' })
+        // member collection for both teams (empty → no members)
+        .mockResolvedValueOnce({ memberEmail: '' })
+        .mockResolvedValueOnce({ memberEmail: '' });
     }
 
     it('calls printError and exits gracefully when scaffold fails (AC9)', async () => {

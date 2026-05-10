@@ -151,6 +151,28 @@ export class InitService {
       await this._team.createTeam(name, vaultPath);
     }
   }
+
+  /**
+   * Adds a list of members to a given team.
+   * Delegates to `TeamService.addMember()` for each entry.
+   * Members are added sequentially to preserve creation order.
+   * The raw display name is passed directly — `TeamService` normalises via `normalizeSlug()`.
+   * Throws on any file system failure.
+   */
+  async addMembersToTeam(
+    vaultPath: string,
+    teamName: string,
+    members: Array<{ email: string; name: string; role: string; gender: string; location: string }>,
+  ): Promise<void> {
+    for (const member of members) {
+      await this._team.addMember(
+        teamName,
+        member.email,
+        { name: member.name, role: member.role, gender: member.gender, location: member.location },
+        vaultPath,
+      );
+    }
+  }
 }
 
 export const initService = new InitService(fileSystemService, leadershipService, teamService);

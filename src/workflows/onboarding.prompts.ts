@@ -343,6 +343,84 @@ export async function promptTeamName(index: number): Promise<string> {
   return teamName.trim();
 }
 
+// ── Story 2.3: Member collection ──────────────────────────────────────────────
+
+export interface MemberDetails {
+  name: string;
+  role: string;
+  gender: string;
+  location: string;
+}
+
+/**
+ * Prompts for a team member's email for a given team.
+ * Returns `''` (empty string) when the user presses Enter without input —
+ * the caller treats this as the loop sentinel to stop adding members.
+ * Non-empty input is validated with `validateEmail()`.
+ */
+export async function promptMemberEmail(teamName: string): Promise<string> {
+  const { memberEmail } = await inquirer.prompt<{ memberEmail: string }>([
+    {
+      type: 'input',
+      name: 'memberEmail',
+      message: `Email for next ${teamName} member (leave empty to finish):`,
+      validate: (v: string): ValidateResult => {
+        const trimmed = v.trim();
+        if (!trimmed) return true;
+        if (PATH_UNSAFE_RE.test(trimmed)) return 'Email contains unsafe characters';
+        try {
+          validateEmail(trimmed);
+          return true;
+        } catch (e) {
+          return e instanceof InvalidEmailError ? e.message : 'Invalid email address';
+        }
+      },
+    },
+  ]);
+  return memberEmail.trim();
+}
+
+/**
+ * Prompts for a team member's profile details.
+ * Called only after a valid non-empty email has been collected.
+ * Name and role are required; gender and location are optional.
+ * All fields are trimmed on return.
+ */
+export async function promptMemberDetails(): Promise<MemberDetails> {
+  const result = await inquirer.prompt<MemberDetails>([
+    {
+      type: 'input',
+      name: 'name',
+      message: "Member's full name:",
+      validate: (v: string): ValidateResult =>
+        v.trim().length > 0 ? true : 'Name cannot be empty',
+    },
+    {
+      type: 'input',
+      name: 'role',
+      message: "Member's role / title:",
+      validate: (v: string): ValidateResult =>
+        v.trim().length > 0 ? true : 'Role cannot be empty',
+    },
+    {
+      type: 'input',
+      name: 'gender',
+      message: "Member's gender (optional, press Enter to skip):",
+    },
+    {
+      type: 'input',
+      name: 'location',
+      message: "Member's location (optional, press Enter to skip):",
+    },
+  ]);
+  return {
+    name: result.name.trim(),
+    role: result.role.trim(),
+    gender: result.gender.trim(),
+    location: result.location.trim(),
+  };
+}
+
 // ── Google Drive setup ────────────────────────────────────────────────────────
 
 export async function promptGoogleDriveSetup(): Promise<GoogleDriveSetupResult> {

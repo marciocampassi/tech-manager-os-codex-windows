@@ -28,6 +28,8 @@ const {
   promptTeamMembers,
   promptMinimalOnboarding,
   promptGoogleDriveSetup,
+  promptMemberEmail,
+  promptMemberDetails,
 } = await import('../../src/workflows/onboarding.prompts.js');
 
 // ── Suite ─────────────────────────────────────────────────────────────────────
@@ -294,6 +296,127 @@ describe('onboarding.prompts', () => {
     it('does not call prompt a second time when disabled', async () => {
       mockPrompt.mockResolvedValueOnce({ enabled: false });
       await promptGoogleDriveSetup();
+      expect(mockPrompt).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // ── promptMemberEmail ─────────────────────────────────────────────────────
+
+  describe('promptMemberEmail', () => {
+    it('returns empty string when user presses Enter without input (loop sentinel)', async () => {
+      mockPrompt.mockResolvedValueOnce({ memberEmail: '' });
+      const result = await promptMemberEmail('Backend');
+      expect(result).toBe('');
+    });
+
+    it('returns trimmed email on valid input', async () => {
+      mockPrompt.mockResolvedValueOnce({ memberEmail: '  alice@co.com  ' });
+      const result = await promptMemberEmail('Backend');
+      expect(result).toBe('alice@co.com');
+    });
+
+    it('includes team name in the prompt message', async () => {
+      mockPrompt.mockResolvedValueOnce({ memberEmail: '' });
+      await promptMemberEmail('Platform');
+      const calls = mockPrompt.mock.calls as unknown[][];
+      const questions = calls[0][0] as { message: string }[];
+      expect(questions[0].message).toContain('Platform');
+    });
+
+    it('calls inquirer.prompt exactly once', async () => {
+      mockPrompt.mockResolvedValueOnce({ memberEmail: '' });
+      await promptMemberEmail('Infra');
+      expect(mockPrompt).toHaveBeenCalledTimes(1);
+    });
+
+    // ── validate closure tests (AC3 / P1 path-traversal guard) ───────────────
+    // Extract the validate function registered with inquirer and exercise it
+    // directly; this is necessary because the mock bypasses inquirer's validate
+    // hook and we need to verify the closure logic explicitly.
+
+    it('validate returns true for empty string (loop sentinel)', async () => {
+      mockPrompt.mockResolvedValueOnce({ memberEmail: '' });
+      await promptMemberEmail('Backend');
+      type Q = { validate: (v: string) => unknown };
+      const validate = (mockPrompt.mock.calls[0] as unknown as [Q[]])[0][0].validate;
+      expect(validate('')).toBe(true);
+      expect(validate('   ')).toBe(true);
+    });
+
+    it('validate rejects path-traversal email (../../x@y.com)', async () => {
+      mockPrompt.mockResolvedValueOnce({ memberEmail: '' });
+      await promptMemberEmail('Backend');
+      type Q = { validate: (v: string) => unknown };
+      const validate = (mockPrompt.mock.calls[0] as unknown as [Q[]])[0][0].validate;
+      const result = validate('../../x@y.com');
+      expect(result).not.toBe(true);
+      expect(typeof result).toBe('string');
+      expect(result as string).toContain('unsafe');
+    });
+
+    it('validate rejects the bad-email from the member-email-error fixture (AC3)', async () => {
+      // Exercises the same input the member-email-error fixture scenario uses,
+      // confirming the validate closure blocks it before inquirer would accept it.
+      mockPrompt.mockResolvedValueOnce({ memberEmail: '' });
+      await promptMemberEmail('Backend');
+      type Q = { validate: (v: string) => unknown };
+      const validate = (mockPrompt.mock.calls[0] as unknown as [Q[]])[0][0].validate;
+      expect(validate('bad-email')).not.toBe(true);
+    });
+
+    it('validate returns true for a well-formed email', async () => {
+      mockPrompt.mockResolvedValueOnce({ memberEmail: '' });
+      await promptMemberEmail('Backend');
+      type Q = { validate: (v: string) => unknown };
+      const validate = (mockPrompt.mock.calls[0] as unknown as [Q[]])[0][0].validate;
+      expect(validate('alice@example.com')).toBe(true);
+    });
+  });
+
+  // ── promptMemberDetails ───────────────────────────────────────────────────
+
+  describe('promptMemberDetails', () => {
+    it('returns all four fields trimmed', async () => {
+      mockPrompt.mockResolvedValueOnce({
+        name: '  Alice Dev  ',
+        role: '  Senior Engineer  ',
+        gender: '  Female  ',
+        location: '  São Paulo  ',
+      });
+      const result = await promptMemberDetails();
+      expect(result).toEqual({
+        name: 'Alice Dev',
+        role: 'Senior Engineer',
+        gender: 'Female',
+        location: 'São Paulo',
+      });
+    });
+
+    it('returns empty string for gender when user skips', async () => {
+      mockPrompt.mockResolvedValueOnce({
+        name: 'Bob',
+        role: 'Designer',
+        gender: '',
+        location: 'Berlin',
+      });
+      const result = await promptMemberDetails();
+      expect(result.gender).toBe('');
+    });
+
+    it('returns empty string for location when user skips', async () => {
+      mockPrompt.mockResolvedValueOnce({
+        name: 'Carol',
+        role: 'PM',
+        gender: 'Female',
+        location: '',
+      });
+      const result = await promptMemberDetails();
+      expect(result.location).toBe('');
+    });
+
+    it('calls inquirer.prompt exactly once', async () => {
+      mockPrompt.mockResolvedValueOnce({ name: 'Dan', role: 'Lead', gender: '', location: '' });
+      await promptMemberDetails();
       expect(mockPrompt).toHaveBeenCalledTimes(1);
     });
   });
