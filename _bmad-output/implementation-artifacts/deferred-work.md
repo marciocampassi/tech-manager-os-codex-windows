@@ -68,3 +68,21 @@
 - Two team names that collapse to the same `normalizeSlug` output silently merge member lists — pre-existing normalizeSlug behavior not introduced by this story; add duplicate-slug detection in the prompts or `createTeam`.
 - Team name containing `{`, `}`, `[`, or `]` survives `normalizeSlug` and produces an unquoted YAML flow indicator in member frontmatter, corrupting `gray-matter` round-trips — pre-existing normalizeSlug gap; add a strip of YAML flow characters.
 - Cross-team same email: the second `addMember` call finds an existing profile, appends the new team slug, but writes back the original `name/role/gender/location` — the `promptMemberDetails()` values collected for the second team are permanently discarded with no warning; address when implementing member profile editing.
+
+## Deferred from: code review of 2-4-sample-files-skill-install-readme-and-post-init-summary (2026-05-09)
+
+- `today()` helper returns UTC date — can be off by one day for users in UTC+ timezones; pre-existing pattern used by all templates in `onboarding.templates.ts`.
+- Hard-coded plugin list in `printPostInitSummary` (`obsidian-git, granola-sync, terminal, dataview`) can drift from the set actually installed by `obsidianPluginService` — pre-existing design; consider deriving the list from the service config in a future story.
+- Command-layer empty `catch {}` for skill spinner step has no logging — any unexpected factory throw is swallowed silently; mitigated by P1 (factory inside try); residual safety-net concern.
+- `printSuccess` call in `printPostInitSummary` is not explicitly asserted in unit tests — Dev Notes prescribed test list omits this; a future test hardening story should add the assertion.
+- AC5/FR14 Obsidian "enabling" guidance is passive ("plugins are ready") rather than instructional (step users through Community Plugins settings pane) — content follows Dev Notes verbatim; spec ambiguity to be addressed in a UX-copy story.
+- Non-atomic `SkillRegistryService.installSkill` — `SKILL.md` written by `writeFileSync` before `writeManifest()`; a crash between the two leaves SKILL.md orphaned while the manifest disagrees; pre-existing design in `skill-registry.service.ts`, not introduced by Story 2.4.
+
+## Deferred from: code review of Epic 2 (2026-05-09)
+
+- `promptTeamCount` validate callback returns a plain string on rejection instead of throwing `ValidationError` (AC 2.2.3). Sibling validators (`promptMinimalOnboarding`, `promptLeaderDetails`) both catch and use `InvalidEmailError` from the same error hierarchy; `promptTeamCount` is inconsistent. Address in a test-hygiene or refactor pass.
+- Fixture helper exported as `applyInitPromptFixture(scenario, mockFn)` but spec (TEA-INFRA-001 / AC 2.2.7) names it `initPromptFixture(scenario)` with a single argument. Two-parameter signature is workable but diverges from the agreed contract. Rename in a future test-infra cleanup.
+- INIT-INT-002 (CWD default), INIT-INT-004 (team count 0), INIT-INT-005 (invalid profile email), INIT-INT-006 (invalid leader email) are required by AC 2.2.8 to pass as integration tests but only exist as unit-level prompt-closure tests or are absent entirely. Add full `InitCommand` integration-level coverage for these four scenarios in a dedicated test story.
+- Per-member `ora` spinner granularity (AC 2.3.7 / NFR4): implementation uses one spinner per team wrapping the entire `addMembersToTeam` batch; spec requires one spinner per individual member write. Design accepted during Story 2.3 review; revisit if UX feedback surfaces it.
+- `generateVaultReadme()` lists commands (`tmr process`, `tmr watch`, `tmr update`, `tmr leadership add`) that are not yet implemented. README will be stale until those commands land. Update template as each command ships, or generate the reference dynamically from Commander's command registry.
+- `printError` error-handler call sites in `init.command.ts` do not pass the optional `suggestion` parameter; AC 2.4.6 / R-001 requires a "recovery message" alongside the error. Pre-existing pattern — no call site in the project uses the suggestion param; add a recovery hint to each init error handler in a UX-copy pass.

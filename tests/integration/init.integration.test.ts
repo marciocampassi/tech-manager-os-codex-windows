@@ -43,6 +43,9 @@ jest.unstable_mockModule('chalk', () => ({
     dim: (s: string) => s,
     cyan: (s: string) => s,
     green: (s: string) => s,
+    blue: (s: string) => s,
+    yellow: (s: string) => s,
+    red: (s: string) => s,
   },
 }));
 
@@ -93,6 +96,18 @@ jest.unstable_mockModule('../../src/services/config.service.js', () => ({
     initialize: jest.fn<() => void>(),
     setWorkspacePath: jest.fn<(p: string) => void>(),
   },
+}));
+
+const mockFetchSkillContent = jest
+  .fn<() => Promise<{ success: true; data: { content: string; version: string } }>>()
+  .mockResolvedValue({ success: true, data: { content: '# tmr-inbox skill', version: '1.0.0' } });
+const mockInstallSkillFn = jest.fn<() => void>();
+
+jest.unstable_mockModule('../../src/services/skill-registry.service.js', () => ({
+  SkillRegistryService: jest.fn().mockImplementation(() => ({
+    fetchSkillContent: mockFetchSkillContent,
+    installSkill: mockInstallSkillFn,
+  })),
 }));
 
 // ── Dynamic import (after all mocks) ─────────────────────────────────────────
@@ -407,5 +422,238 @@ describe('InitCommand integration (Story 2.3 — member collection loop)', () =>
       const appended = appendedContent.get(membersFilePath) ?? [];
       expect(appended).toHaveLength(0);
     });
+  });
+
+  // ── README generation (AC: 3 — INIT-INT-012) ─────────────────────────────
+
+  describe('README generation (AC: 3 — INIT-INT-012)', () => {
+    it('README.md is written to the vault root', () => {
+      const paths = Array.from(writtenFiles.keys());
+      expect(paths.some((p) => p === `${WORKSPACE}/README.md`)).toBe(true);
+    });
+
+    it('README.md content contains "tmr project add"', () => {
+      const content = writtenFiles.get(`${WORKSPACE}/README.md`);
+      expect(content).toBeDefined();
+      expect(content).toContain('tmr project add');
+    });
+  });
+
+  // ── sample inbox files (AC: 1 — FR11) ────────────────────────────────────
+
+  describe('sample inbox files (AC: 1 — FR11)', () => {
+    it('inbox/sample-meeting-note.md is written', () => {
+      const paths = Array.from(writtenFiles.keys());
+      expect(paths.some((p) => p === `${WORKSPACE}/inbox/sample-meeting-note.md`)).toBe(true);
+    });
+  });
+
+  // ── full happy path — INIT-INT-001 ────────────────────────────────────────
+
+  describe('full happy path — INIT-INT-001', () => {
+    it('README, sample files, and member profile are all present', () => {
+      const paths = Array.from(writtenFiles.keys());
+      expect(paths.some((p) => p === `${WORKSPACE}/README.md`)).toBe(true);
+      expect(paths.some((p) => p === `${WORKSPACE}/inbox/sample-meeting-note.md`)).toBe(true);
+      expect(
+        paths.some((p) => p.includes(`my-teams/members/${MEMBER_1_EMAIL}/${MEMBER_1_EMAIL}.md`)),
+      ).toBe(true);
+    });
+  });
+});
+
+// ── skill install failure — INIT-INT-010 ─────────────────────────────────────
+
+describe('InitCommand integration — skill install failure (INIT-INT-010)', () => {
+  const writtenFiles2 = new Map<string, string>();
+
+  beforeAll(async () => {
+    mockPrompt.mockReset();
+    mockFetchSkillContent.mockRejectedValueOnce(new Error('simulated network error'));
+
+    mockWriteFile.mockReset();
+    mockWriteFile.mockImplementation(async (filePath: string, content: string) => {
+      writtenFiles2.set(filePath, content);
+    });
+    mockCreateDirectory.mockReset().mockResolvedValue(undefined);
+    mockFsExists.mockReset().mockResolvedValue(false);
+    mockReadFile.mockReset().mockResolvedValue('# Team Members\n');
+    mockAppendFile.mockReset();
+    mockListDirectories.mockReset().mockResolvedValue([]);
+    mockInstallPlugins.mockReset().mockResolvedValue(undefined);
+
+    jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    applyInitPromptFixture(
+      'happy-path',
+      mockPrompt as jest.MockedFunction<() => Promise<Record<string, unknown>>>,
+    );
+
+    try {
+      await new InitCommand().run();
+    } catch {
+      // init should NOT throw on skill failure
+    }
+  });
+
+  afterAll(() => {
+    jest.restoreAllMocks();
+    writtenFiles2.clear();
+  });
+
+  it('init completes: README.md is written even when skill install fails', () => {
+    expect(writtenFiles2.has(`${WORKSPACE}/README.md`)).toBe(true);
+  });
+
+  it('init completes: CLAUDE.md is written even when skill install fails', () => {
+    expect(writtenFiles2.has(`${WORKSPACE}/CLAUDE.md`)).toBe(true);
+  });
+
+  it('init completes: inbox/sample-meeting-note.md is written even when skill install fails', () => {
+    expect(writtenFiles2.has(`${WORKSPACE}/inbox/sample-meeting-note.md`)).toBe(true);
+  });
+});
+
+// ── INIT-INT-007: member loop state preservation (multi-member team) ──────────
+
+describe('InitCommand integration — multi-member team (INIT-INT-007)', () => {
+  const writtenFiles3 = new Map<string, string>();
+  const appendedFiles3 = new Map<string, string[]>();
+
+  beforeAll(async () => {
+    mockPrompt.mockReset();
+    mockPrompt
+      // 1. workspace
+      .mockResolvedValueOnce({ workspacePath: WORKSPACE })
+      // 2. onboarding
+      .mockResolvedValueOnce({
+        name: FIXTURE_DATA.USER_NAME,
+        email: FIXTURE_DATA.USER_EMAIL,
+        role: FIXTURE_DATA.USER_ROLE,
+        company: FIXTURE_DATA.USER_COMPANY,
+      })
+      // 3. leader
+      .mockResolvedValueOnce({
+        name: FIXTURE_DATA.LEADER_NAME,
+        email: FIXTURE_DATA.LEADER_EMAIL,
+        role: FIXTURE_DATA.LEADER_ROLE,
+      })
+      // 4. team count = 2
+      .mockResolvedValueOnce({ teamCount: '2' })
+      // 5–6. team names
+      .mockResolvedValueOnce({ teamName: FIXTURE_DATA.TEAM_1 })
+      .mockResolvedValueOnce({ teamName: FIXTURE_DATA.TEAM_2 })
+      // 7–8. Team 1 member 1
+      .mockResolvedValueOnce({ memberEmail: MEMBER_1_EMAIL })
+      .mockResolvedValueOnce({
+        name: MEMBER_1_NAME,
+        role: MEMBER_1_ROLE,
+        gender: MEMBER_1_GENDER,
+        location: MEMBER_1_LOCATION,
+      })
+      // 9–10. Team 1 member 2 (added after member 1 — validates state is preserved)
+      .mockResolvedValueOnce({ memberEmail: 'second-member@example.com' })
+      .mockResolvedValueOnce({ name: 'Second Member', role: 'Designer', gender: '', location: '' })
+      // 11. Team 1 end loop
+      .mockResolvedValueOnce({ memberEmail: '' })
+      // 12. Team 2 end loop
+      .mockResolvedValueOnce({ memberEmail: '' });
+
+    mockWriteFile.mockReset().mockImplementation(async (filePath: string, content: string) => {
+      writtenFiles3.set(filePath, content);
+    });
+    mockCreateDirectory.mockReset().mockResolvedValue(undefined);
+    mockFsExists.mockReset().mockResolvedValue(false);
+    mockReadFile.mockReset().mockResolvedValue('# Team Members\n');
+    mockAppendFile.mockReset().mockImplementation(async (filePath: string, content: string) => {
+      const existing = appendedFiles3.get(filePath) ?? [];
+      existing.push(content);
+      appendedFiles3.set(filePath, existing);
+    });
+    mockListDirectories.mockReset().mockResolvedValue([]);
+    mockInstallPlugins.mockReset().mockResolvedValue(undefined);
+    mockFetchSkillContent.mockReset().mockResolvedValue({
+      success: true,
+      data: { content: '# skill', version: '1.0.0' },
+    });
+
+    jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    await new InitCommand().run();
+  });
+
+  afterAll(() => {
+    jest.restoreAllMocks();
+    writtenFiles3.clear();
+    appendedFiles3.clear();
+  });
+
+  it('INIT-INT-007: first member profile is written', () => {
+    const paths = Array.from(writtenFiles3.keys());
+    expect(
+      paths.some((p) => p.includes(`my-teams/members/${MEMBER_1_EMAIL}/${MEMBER_1_EMAIL}.md`)),
+    ).toBe(true);
+  });
+
+  it('INIT-INT-007: second member profile is also written — first member not lost', () => {
+    const paths = Array.from(writtenFiles3.keys());
+    expect(paths.some((p) => p.includes('my-teams/members/second-member@example.com'))).toBe(true);
+  });
+
+  it('INIT-INT-007: both members appear in team 1 members file', () => {
+    const membersFilePath = `${WORKSPACE}/my-teams/teams/${TEAM_1_SLUG}/${TEAM_1_SLUG}-members.md`;
+    const appended = appendedFiles3.get(membersFilePath)?.join('') ?? '';
+    expect(appended).toContain(MEMBER_1_EMAIL);
+    expect(appended).toContain('second-member@example.com');
+  });
+});
+
+// ── INIT-INT-011: writeFile throws mid-flow (sample files) ───────────────────
+
+describe('InitCommand integration — copySampleInboxFiles throws (INIT-INT-011)', () => {
+  let stderrOutput = '';
+
+  beforeAll(async () => {
+    mockPrompt.mockReset();
+    applyInitPromptFixture(
+      'happy-path',
+      mockPrompt as jest.MockedFunction<() => Promise<Record<string, unknown>>>,
+    );
+
+    mockWriteFile.mockReset().mockImplementation(async (filePath: string) => {
+      if (filePath.includes('inbox/sample-meeting-note.md')) {
+        throw new Error('disk quota exceeded');
+      }
+    });
+    mockCreateDirectory.mockReset().mockResolvedValue(undefined);
+    mockFsExists.mockReset().mockResolvedValue(false);
+    mockReadFile.mockReset().mockResolvedValue('# Team Members\n');
+    mockAppendFile.mockReset();
+    mockListDirectories.mockReset().mockResolvedValue([]);
+    mockInstallPlugins.mockReset().mockResolvedValue(undefined);
+    mockFetchSkillContent.mockReset().mockResolvedValue({
+      success: true,
+      data: { content: '# skill', version: '1.0.0' },
+    });
+
+    stderrOutput = '';
+    jest.spyOn(process.stderr, 'write').mockImplementation((msg) => {
+      stderrOutput += String(msg);
+      return true;
+    });
+    jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
+
+    await new InitCommand().run();
+  });
+
+  afterAll(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('INIT-INT-011: printError fires to stderr with the error message', () => {
+    expect(stderrOutput).toContain('Failed to copy sample files');
+  });
+
+  it('INIT-INT-011: README.md is NOT written when sample file copy aborts init', () => {
+    const writeCalls = (mockWriteFile.mock.calls as [string, string][]).map((c) => c[0]);
+    expect(writeCalls.some((p) => p.endsWith('README.md'))).toBe(false);
   });
 });

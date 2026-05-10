@@ -51,34 +51,6 @@ export class InitCommand {
     process.stdout.write(banner + '\n\n');
   }
 
-  private displayNextSteps(workspacePath: string): void {
-    if (this.plain) {
-      process.stdout.write(`\n✓ Workspace created at ${workspacePath}\n`);
-      process.stdout.write('\nNext steps:\n');
-      process.stdout.write('  1. Run `tmr config` to set your AI API key\n');
-      process.stdout.write('  2. Run `tmr install tmr-inbox` to install the inbox skill\n');
-      process.stdout.write(`  3. Open ${workspacePath} in Obsidian — plugins are ready\n`);
-      process.stdout.write('  4. Run `tmr --help` to explore all commands\n');
-      process.stdout.write(
-        '\nObsidian plugins installed (obsidian-git, granola-sync, terminal, dataview)\n',
-      );
-      return;
-    }
-    const lines = [
-      chalk.bold.green(`\n✓ Workspace created at ${workspacePath}`),
-      '',
-      chalk.bold('Next steps:'),
-      `  ${chalk.cyan('1.')} Run ${chalk.bold('tmr config')} to set your AI API key`,
-      `  ${chalk.cyan('2.')} Run ${chalk.bold('tmr install tmr-inbox')} to install the inbox skill`,
-      `  ${chalk.cyan('3.')} Open ${chalk.bold(workspacePath)} in Obsidian — plugins are ready`,
-      `  ${chalk.cyan('4.')} Run ${chalk.bold('tmr --help')} to explore all commands`,
-      '',
-      chalk.dim('Obsidian plugins installed (obsidian-git, granola-sync, terminal, dataview)'),
-      '',
-    ];
-    process.stdout.write(lines.join('\n') + '\n');
-  }
-
   async run(): Promise<void> {
     this.displayWelcomeBanner();
 
@@ -220,6 +192,36 @@ export class InitCommand {
     await obsidianPluginService.installPlugins(workspacePath);
     pluginSpinner.succeed('Obsidian plugins installed');
 
-    this.displayNextSteps(workspacePath);
+    const sampleSpinner = startSpinner('Copying sample files', this.plain);
+    try {
+      await initService.copySampleInboxFiles(workspacePath);
+    } catch (err) {
+      printError(
+        `Failed to copy sample files: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      sampleSpinner.fail('Sample file copy failed');
+      return;
+    }
+    sampleSpinner.succeed('Sample files ready');
+
+    const skillSpinner = startSpinner('Installing tmr-inbox skill', this.plain);
+    try {
+      await initService.installDefaultSkill(workspacePath);
+    } catch {
+      // installDefaultSkill never throws — safety net only
+    }
+    skillSpinner.succeed('tmr-inbox skill ready');
+
+    const readmeSpinner = startSpinner('Writing README', this.plain);
+    try {
+      await initService.writeReadme(workspacePath);
+    } catch (err) {
+      printError(`Failed to write README: ${err instanceof Error ? err.message : String(err)}`);
+      readmeSpinner.fail('README generation failed');
+      return;
+    }
+    readmeSpinner.succeed('README written');
+
+    initService.printPostInitSummary(workspacePath, this.plain);
   }
 }

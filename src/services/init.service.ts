@@ -4,6 +4,13 @@ import matter from 'gray-matter';
 import { FileSystemService, fileSystemService } from './file-system.service.js';
 import { LeadershipService, leadershipService } from './leadership.service.js';
 import { TeamService, teamService } from './team.service.js';
+import { SkillRegistryService } from './skill-registry.service.js';
+import { logger } from '../utils/logger.js';
+import { printSuccess, printInfo } from '../utils/display.js';
+import {
+  generateSampleMeetingNote,
+  generateVaultReadme,
+} from '../templates/onboarding.templates.js';
 
 // ── Vault directory list ──────────────────────────────────────────────────────
 
@@ -75,6 +82,9 @@ export class InitService {
     private readonly _fs: FileSystemService,
     private readonly _leadership: LeadershipService,
     private readonly _team: TeamService,
+    private readonly _skillRegistryFactory: (workspaceRoot: string) => SkillRegistryService = (
+      wr,
+    ) => new SkillRegistryService(wr),
   ) {}
 
   /**
@@ -157,7 +167,8 @@ export class InitService {
    * Delegates to `TeamService.addMember()` for each entry.
    * Members are added sequentially to preserve creation order.
    * The raw display name is passed directly — `TeamService` normalises via `normalizeSlug()`.
-   * Throws on any file system failure.
+   * On per-member failure, logs the offending email via `logger.warn` before re-throwing
+   * so the command layer error message includes which member caused the abort.
    */
   async addMembersToTeam(
     vaultPath: string,
@@ -165,13 +176,91 @@ export class InitService {
     members: Array<{ email: string; name: string; role: string; gender: string; location: string }>,
   ): Promise<void> {
     for (const member of members) {
-      await this._team.addMember(
-        teamName,
-        member.email,
-        { name: member.name, role: member.role, gender: member.gender, location: member.location },
-        vaultPath,
+      try {
+        await this._team.addMember(
+          teamName,
+          member.email,
+          {
+            name: member.name,
+            role: member.role,
+            gender: member.gender,
+            location: member.location,
+          },
+          vaultPath,
+        );
+      } catch (err) {
+        logger.warn(
+          `Failed to add member ${member.email} to ${teamName}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+        throw err;
+      }
+    }
+  }
+
+  /**
+   * Copies bundled sample inbox files to the vault's `inbox/` directory.
+   * Writes a sample meeting note to help new users understand the inbox workflow.
+   * Throws on any file system failure.
+   */
+  async copySampleInboxFiles(vaultPath: string): Promise<void> {
+    const filePath = path.join(vaultPath, 'inbox', 'sample-meeting-note.md');
+    await this._fs.writeFile(filePath, generateSampleMeetingNote());
+  }
+
+  /**
+   * Fetches and installs the `tmr-inbox` skill from the registry.
+   * Errors (network failure, 404, or any thrown exception) are logged via
+   * `logger.warn()` and swallowed — a skill install failure MUST NOT abort init.
+   */
+  async installDefaultSkill(vaultPath: string): Promise<void> {
+    try {
+      const registry = this._skillRegistryFactory(vaultPath);
+      const result = await registry.fetchSkillContent('tmr-inbox');
+      if (result.success) {
+        if (result.data.content.trim()) {
+          registry.installSkill('tmr-inbox', result.data.content, result.data.version);
+        } else {
+          logger.warn('tmr-inbox skill install skipped: registry returned empty content');
+        }
+      } else {
+        logger.warn(`tmr-inbox skill install skipped: ${result.error}`);
+      }
+    } catch (err) {
+      logger.warn(
+        `tmr-inbox skill install failed: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
+  }
+
+  /**
+   * Writes a `README.md` to the vault root from the bundled template.
+   * Throws on any file system failure.
+   */
+  async writeReadme(vaultPath: string): Promise<void> {
+    await this._fs.writeFile(path.join(vaultPath, 'README.md'), generateVaultReadme());
+  }
+
+  /**
+   * Prints the post-init next-steps summary to the terminal.
+   * Uses `printSuccess` for the workspace-created confirmation and
+   * `printInfo` for the next-steps list (FR13) and Obsidian guidance (FR14).
+   */
+  printPostInitSummary(vaultPath: string, plain: boolean): void {
+    printSuccess(`Workspace created at ${vaultPath}`, plain);
+    printInfo(
+      [
+        '',
+        'Next steps:',
+        '  1. Run `tmr config` to set your AI API key',
+        '  2. Run `tmr project add` to add your first project',
+        `  3. Open ${vaultPath} in Obsidian — plugins are ready`,
+        '  4. Type /tmr-inbox in Claude Code to process your inbox',
+        '  5. Run `tmr --help` to explore all commands',
+        '',
+        'Obsidian plugins installed: obsidian-git, granola-sync, terminal, dataview',
+      ].join('\n'),
+      plain,
+    );
   }
 }
 

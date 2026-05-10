@@ -23,6 +23,7 @@ jest.unstable_mockModule('chalk', () => ({
     green: (s: string) => s,
     yellow: (s: string) => s,
     red: (s: string) => s,
+    blue: (s: string) => s,
   },
 }));
 
@@ -76,6 +77,15 @@ jest.unstable_mockModule('../../src/services/config.service.js', () => ({
     initialize: mockConfigInitialize,
     setWorkspacePath: mockSetWorkspacePath,
   },
+}));
+
+jest.unstable_mockModule('../../src/services/skill-registry.service.js', () => ({
+  SkillRegistryService: jest.fn().mockImplementation(() => ({
+    fetchSkillContent: jest
+      .fn<() => Promise<{ success: true; data: { content: string; version: string } }>>()
+      .mockResolvedValue({ success: true, data: { content: '# skill', version: '1.0.0' } }),
+    installSkill: jest.fn<() => void>(),
+  })),
 }));
 
 // ── Dynamic import (after all mocks) ─────────────────────────────────────────
@@ -259,11 +269,11 @@ describe('InitCommand', () => {
       expect(allOutput).toContain('tmr config');
     });
 
-    it('stdout contains tmr install tmr-inbox in next steps', async () => {
+    it('stdout contains /tmr-inbox in next steps', async () => {
       setupMinimalHappyPath();
       await new InitCommand().run();
       const allOutput = (stdoutSpy.mock.calls as [string][]).map((c) => c[0]).join('');
-      expect(allOutput).toContain('tmr install tmr-inbox');
+      expect(allOutput).toContain('/tmr-inbox');
     });
 
     it('stdout contains workspace path in next steps', async () => {
