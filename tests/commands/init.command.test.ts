@@ -22,6 +22,8 @@ jest.unstable_mockModule('chalk', () => ({
     cyan: (s: string) => s,
     green: (s: string) => s,
     yellow: (s: string) => s,
+    red: (s: string) => s,
+    blue: (s: string) => s,
   },
 }));
 
@@ -46,12 +48,18 @@ jest.unstable_mockModule('ora', () => ({
 const mockCreateDirectory = jest.fn<() => Promise<void>>();
 const mockWriteFile = jest.fn<(path: string, content: string) => Promise<void>>();
 const mockFsExists = jest.fn<(path: string) => Promise<boolean>>();
+const mockReadFile = jest.fn<(path: string) => Promise<string>>();
+const mockAppendFile = jest.fn<(path: string, content: string) => Promise<void>>();
+const mockListDirectories = jest.fn<(path: string) => Promise<string[]>>();
 
 jest.unstable_mockModule('../../src/services/file-system.service.js', () => ({
   fileSystemService: {
     createDirectory: mockCreateDirectory,
     writeFile: mockWriteFile,
     exists: mockFsExists,
+    readFile: mockReadFile,
+    appendFile: mockAppendFile,
+    listDirectories: mockListDirectories,
   },
 }));
 
@@ -71,24 +79,53 @@ jest.unstable_mockModule('../../src/services/config.service.js', () => ({
   },
 }));
 
+jest.unstable_mockModule('../../src/services/skill-registry.service.js', () => ({
+  SkillRegistryService: jest.fn().mockImplementation(() => ({
+    fetchSkillContent: jest
+      .fn<() => Promise<{ success: true; data: { content: string; version: string } }>>()
+      .mockResolvedValue({ success: true, data: { content: '# skill', version: '1.0.0' } }),
+    installSkill: jest.fn<() => void>(),
+  })),
+}));
+
 // ── Dynamic import (after all mocks) ─────────────────────────────────────────
 
 const { InitCommand } = await import('../../src/commands/init.command.js');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/** Standard happy-path prompt sequence for the new minimal 4-question flow. */
+/** Standard happy-path prompt sequence (Story 2.3): 10 calls total. */
 function setupMinimalHappyPath(): void {
   mockPrompt
-    // promptWorkspacePath
+    // 1. promptWorkspacePath
     .mockResolvedValueOnce({ workspacePath: '/tmp/test-workspace' })
-    // promptMinimalOnboarding — all 4 fields in one call
+    // 2. promptMinimalOnboarding
     .mockResolvedValueOnce({
       name: 'Alice Example',
       email: 'alice@example.com',
       role: 'Engineering Manager',
       company: 'example.com',
-    });
+    })
+    // 3. promptLeaderDetails
+    .mockResolvedValueOnce({
+      name: 'Bob Director',
+      email: 'bob@example.com',
+      role: 'Engineering Director',
+    })
+    // 4. promptTeamCount
+    .mockResolvedValueOnce({ teamCount: '2' })
+    // 5. promptTeamName(1)
+    .mockResolvedValueOnce({ teamName: 'Backend Team' })
+    // 6. promptTeamName(2)
+    .mockResolvedValueOnce({ teamName: 'Frontend Team' })
+    // 7. promptMemberEmail(Backend Team) — one member
+    .mockResolvedValueOnce({ memberEmail: 'member@example.com' })
+    // 8. promptMemberDetails()
+    .mockResolvedValueOnce({ name: 'Test Member', role: 'Engineer', gender: '', location: '' })
+    // 9. promptMemberEmail(Backend Team) — end loop
+    .mockResolvedValueOnce({ memberEmail: '' })
+    // 10. promptMemberEmail(Frontend Team) — end loop
+    .mockResolvedValueOnce({ memberEmail: '' });
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -101,6 +138,9 @@ describe('InitCommand', () => {
     mockCreateDirectory.mockResolvedValue(undefined);
     mockWriteFile.mockResolvedValue(undefined);
     mockFsExists.mockResolvedValue(false);
+    mockReadFile.mockResolvedValue('# Team Members\n');
+    mockAppendFile.mockResolvedValue(undefined);
+    mockListDirectories.mockResolvedValue([]);
     mockInstallPlugins.mockResolvedValue(undefined);
     stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
   });
@@ -174,21 +214,25 @@ describe('InitCommand', () => {
     it('CLAUDE.md content contains the user email and role', async () => {
       setupMinimalHappyPath();
       await new InitCommand().run();
-      const claudeCall = (mockWriteFile.mock.calls as [string, string][]).find(([p]) =>
+      // scaffold() writes a stub first; InitCommand overwrites with user data — check last write
+      const claudeWrites = (mockWriteFile.mock.calls as [string, string][]).filter(([p]) =>
         p.endsWith('CLAUDE.md'),
       );
+      const claudeCall = claudeWrites[claudeWrites.length - 1];
       expect(claudeCall).toBeDefined();
-      expect(claudeCall![1]).toContain('alice@example.com');
-      expect(claudeCall![1]).toContain('Engineering Manager');
+      expect(claudeCall[1]).toContain('alice@example.com');
+      expect(claudeCall[1]).toContain('Engineering Manager');
     });
 
     it('CLAUDE.md content contains the company field', async () => {
       setupMinimalHappyPath();
       await new InitCommand().run();
-      const claudeCall = (mockWriteFile.mock.calls as [string, string][]).find(([p]) =>
+      const claudeWrites = (mockWriteFile.mock.calls as [string, string][]).filter(([p]) =>
         p.endsWith('CLAUDE.md'),
       );
-      expect(claudeCall![1]).toContain('example.com');
+      const claudeCall = claudeWrites[claudeWrites.length - 1];
+      expect(claudeCall).toBeDefined();
+      expect(claudeCall[1]).toContain('example.com');
     });
 
     it('writes my-tasks/tasks.md', async () => {
@@ -211,9 +255,9 @@ describe('InitCommand', () => {
     it('does not collect API keys — no AIProviderFactory calls', async () => {
       setupMinimalHappyPath();
       await new InitCommand().run();
-      // If AIProviderFactory were imported and called, prompt calls would exceed 2.
-      // Two prompt calls: promptWorkspacePath + promptMinimalOnboarding.
-      expect(mockPrompt).toHaveBeenCalledTimes(2);
+      // 10 prompt calls: workspace + onboarding + leader + teamCount + 2 names + 4 member prompts.
+      // No extra API key prompts are made.
+      expect(mockPrompt).toHaveBeenCalledTimes(10);
     });
   });
 
@@ -225,11 +269,11 @@ describe('InitCommand', () => {
       expect(allOutput).toContain('tmr config');
     });
 
-    it('stdout contains tmr install tmr-inbox in next steps', async () => {
+    it('stdout contains /tmr-inbox in next steps', async () => {
       setupMinimalHappyPath();
       await new InitCommand().run();
       const allOutput = (stdoutSpy.mock.calls as [string][]).map((c) => c[0]).join('');
-      expect(allOutput).toContain('tmr install tmr-inbox');
+      expect(allOutput).toContain('/tmr-inbox');
     });
 
     it('stdout contains workspace path in next steps', async () => {
@@ -263,6 +307,80 @@ describe('InitCommand', () => {
           p.endsWith('tasks.md'),
       );
       expect(taskPeriodWrites).toHaveLength(0);
+    });
+  });
+
+  describe('user profile written (AC: 1)', () => {
+    it('writes my-career/<email>/<email>.md', async () => {
+      setupMinimalHappyPath();
+      await new InitCommand().run();
+      const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) => c[0]);
+      expect(writtenPaths.some((p) => p.includes('my-career/alice@example.com'))).toBe(true);
+    });
+  });
+
+  describe('leader profile written (AC: 2)', () => {
+    it('writes my-leadership/<email>/<email>.md', async () => {
+      setupMinimalHappyPath();
+      await new InitCommand().run();
+      const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) => c[0]);
+      expect(writtenPaths.some((p) => p.includes('my-leadership/bob@example.com'))).toBe(true);
+    });
+  });
+
+  describe('member files written (AC: 1)', () => {
+    it('writes member profile at my-teams/members/<email>/<email>.md', async () => {
+      setupMinimalHappyPath();
+      await new InitCommand().run();
+      const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) => c[0]);
+      expect(writtenPaths.some((p) => p.includes('my-teams/members/member@example.com'))).toBe(
+        true,
+      );
+    });
+  });
+
+  describe('scaffold error handling', () => {
+    /** Sets up the full 10-call prompt sequence then injects a scaffold failure. */
+    function setupScaffoldFailure(): void {
+      mockCreateDirectory.mockRejectedValueOnce(new Error('disk full'));
+      mockPrompt
+        .mockResolvedValueOnce({ workspacePath: '/tmp/test-workspace' })
+        .mockResolvedValueOnce({
+          name: 'Alice Example',
+          email: 'alice@example.com',
+          role: 'Engineering Manager',
+          company: 'example.com',
+        })
+        .mockResolvedValueOnce({
+          name: 'Bob Director',
+          email: 'bob@example.com',
+          role: 'Engineering Director',
+        })
+        .mockResolvedValueOnce({ teamCount: '2' })
+        .mockResolvedValueOnce({ teamName: 'Backend Team' })
+        .mockResolvedValueOnce({ teamName: 'Frontend Team' })
+        // member collection for both teams (empty → no members)
+        .mockResolvedValueOnce({ memberEmail: '' })
+        .mockResolvedValueOnce({ memberEmail: '' });
+    }
+
+    it('calls printError and exits gracefully when scaffold fails (AC9)', async () => {
+      const stderrSpy = jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
+      setupScaffoldFailure();
+
+      await new InitCommand().run();
+
+      const stderrOutput = (stderrSpy.mock.calls as [string][]).map((c) => c[0]).join('');
+      expect(stderrOutput).toContain('disk full');
+      stderrSpy.mockRestore();
+    });
+
+    it('does not propagate the error to the caller when scaffold fails', async () => {
+      jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
+      setupScaffoldFailure();
+
+      await expect(new InitCommand().run()).resolves.not.toThrow();
+      jest.restoreAllMocks();
     });
   });
 });

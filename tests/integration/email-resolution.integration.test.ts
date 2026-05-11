@@ -1,7 +1,7 @@
 /**
  * Integration test: EmailResolutionService against a real temp workspace.
- * No filesystem mocks. Uses real FileSystemService, RelationshipService,
- * and EmailResolutionService against a temp directory.
+ * No filesystem mocks. Uses real FileSystemService and EmailResolutionService
+ * against a temp directory.
  */
 import os from 'node:os';
 import path from 'node:path';
@@ -24,23 +24,16 @@ jest.unstable_mockModule('../../src/services/config.service.js', () => ({
 }));
 
 const { FileSystemService } = await import('../../src/services/file-system.service.js');
-const { SectionParserService } = await import('../../src/services/section-parser.service.js');
-const { TemplateService } = await import('../../src/services/template.service.js');
-const { RelationshipService } = await import('../../src/services/relationship.service.js');
 const { EmailResolutionService } = await import('../../src/services/email-resolution.service.js');
 
 describe('EmailResolutionService Integration', () => {
   let workspace: string;
   let svc: InstanceType<typeof EmailResolutionService>;
-  let relSvc: InstanceType<typeof RelationshipService>;
 
   beforeEach(() => {
     workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'tmr-email-res-test-'));
     const realFS = new FileSystemService();
-    const realTemplate = new TemplateService();
-    const realSection = new SectionParserService(realFS);
-    relSvc = new RelationshipService(realFS, realSection, realTemplate);
-    svc = new EmailResolutionService(realFS, relSvc);
+    svc = new EmailResolutionService(realFS);
   });
 
   afterEach(() => {

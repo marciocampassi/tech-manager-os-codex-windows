@@ -5,7 +5,6 @@ import { printError } from './utils/display.js';
 import { createConfigCommand } from './commands/config.command.js';
 import { createTeamCommand, runShow } from './commands/team.command.js';
 import { createMemberCommand } from './commands/member.command.js';
-import { createRelationshipCommand } from './commands/relationship.command.js';
 import { createLeadershipCommand } from './commands/leadership.command.js';
 import { createProjectCommand } from './commands/project.command.js';
 import { createTaskViewCommands } from './commands/task-view.command.js';
@@ -48,7 +47,6 @@ export function createProgram(): Command {
   p.addCommand(createConfigCommand());
   p.addCommand(createTeamCommand());
   p.addCommand(createMemberCommand());
-  p.addCommand(createRelationshipCommand());
   p.addCommand(createLeadershipCommand());
   p.addCommand(createProjectCommand());
 
@@ -57,7 +55,7 @@ export function createProgram(): Command {
   }
 
   p.command('show <email>')
-    .description('display profile for an email address (searches teams, leadership, relationships)')
+    .description('display profile for an email address (searches teams, leadership)')
     .action(async (email: string) => {
       await runShow(email);
     });
@@ -100,15 +98,27 @@ export function createProgram(): Command {
   p.addCommand(
     new Command('install')
       .description('install a skill into your vault from the official registry')
-      .argument('<skill-name>', 'name of the skill to install (e.g. tmr-inbox)')
+      .argument(
+        '[skill-name]',
+        'name of the skill to install (e.g. tmr-inbox); omit to install all available skills',
+      )
       .option('-f, --force', 'reinstall even if already installed', false)
+      .addHelpText(
+        'after',
+        '\nExamples:\n  tmr install\n  tmr install tmr-inbox\n  tmr install tmr-inbox --force\n',
+      )
       .action(
-        async (skillName: string, opts: { force?: boolean }, command: Command): Promise<void> => {
-          const globals = command.parent?.opts() as { plain?: boolean } | undefined;
+        async (
+          skillName: string | undefined,
+          opts: { force?: boolean },
+          command: Command,
+        ): Promise<void> => {
+          const globals = command.parent?.opts() as { plain?: boolean; json?: boolean } | undefined;
           const plain = globals?.plain ?? false;
+          const json = globals?.json ?? false;
           const force = opts.force ?? false;
           const { runInstall } = await import('./commands/install.command.js');
-          await runInstall(skillName, { plain, force });
+          await runInstall(skillName, { plain, force, json });
         },
       ),
   );

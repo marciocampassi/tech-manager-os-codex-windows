@@ -1,7 +1,7 @@
 /**
  * Integration test: full project management workflow on a real temp workspace.
  * No filesystem mocks. Uses real FileSystemService, TemplateService,
- * RelationshipService, and ProjectService against a temp directory.
+ * and ProjectService against a temp directory.
  */
 import os from 'node:os';
 import path from 'node:path';
@@ -25,9 +25,7 @@ jest.unstable_mockModule('../../src/services/config.service.js', () => ({
 }));
 
 const { FileSystemService } = await import('../../src/services/file-system.service.js');
-const { SectionParserService } = await import('../../src/services/section-parser.service.js');
 const { TemplateService } = await import('../../src/services/template.service.js');
-const { RelationshipService } = await import('../../src/services/relationship.service.js');
 const { EmailResolutionService } = await import('../../src/services/email-resolution.service.js');
 const { ProjectService } = await import('../../src/services/project.service.js');
 
@@ -39,9 +37,7 @@ describe('Project Integration', () => {
     workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'tmr-project-test-'));
     const realFS = new FileSystemService();
     const realTemplate = new TemplateService();
-    const realSection = new SectionParserService(realFS);
-    const relSvc = new RelationshipService(realFS, realSection, realTemplate);
-    const emailResolution = new EmailResolutionService(realFS, relSvc);
+    const emailResolution = new EmailResolutionService(realFS);
     svc = new ProjectService(realFS, realTemplate, emailResolution);
   });
 

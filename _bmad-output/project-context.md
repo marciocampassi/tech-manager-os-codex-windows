@@ -101,7 +101,7 @@ _This file contains critical rules and patterns that AI agents must follow when 
 
 - Commands that import heavy deps (AI SDKs, inquirer, googleapis, chokidar) MUST be lazy-
   loaded via dynamic `import()` inside the `.action()` callback in `src/cli.ts`.
-- Lightweight commands (config, team, member, leadership, project, relationship, task-view)
+- Lightweight commands (config, team, member, leadership, project, task-view)
   use static imports and MUST stay that way — do not add heavy deps to them.
 
 ### Configuration
@@ -275,12 +275,11 @@ they drop below.
 - New code MUST use `normalizeSlug(name: string): string` from `src/utils/normalization.ts` (to be created in Story 1.2). It converts to lowercase and replaces spaces/underscores with hyphens: `"Backend Team"` → `"backend-team"`. Idempotent: `"my-team"` → `"my-team"`.
 - Every command and service that accepts a team name **or project name** MUST call `normalizeSlug()` before any file system path construction or comparison.
 
-### Relationship Service (Deprecated)
+### Relationship Service (Removed — Epic 1 Complete)
 
-- `src/services/relationship.service.ts` and `src/commands/relationship.command.ts` are **scheduled for deletion** as part of Epic 1.
-- **DO NOT add any new code that depends on `RelationshipService`.**
-- `EmailResolutionService` currently imports `RelationshipService` for auto-create fallback (step 4 in `_doResolve`). After Epic 1, this fallback must be re-routed to `MemberService` (company-scoped auto-create) — any implementation touching `EmailResolutionService._doResolve` must update this dependency.
-- Test files to delete: `tests/commands/relationship.command.test.ts`, `tests/services/relationship.service.test.ts`, `tests/integration/relationship.integration.test.ts`.
+- `src/services/relationship.service.ts` and `src/commands/relationship.command.ts` were **deleted in Epic 1 (Story 1.4)**. Do not reference or import these files — they no longer exist.
+- `EmailResolutionService._doResolve` step 4 now writes a company-scoped member profile inline (ISSUE-m1 shim). This shim is intentionally temporary — **Story 3.2** must replace it with `MemberService.addMember(email)`.
+- All three relationship test files have been deleted (`tests/commands/relationship.command.test.ts`, `tests/services/relationship.service.test.ts`, `tests/integration/relationship.integration.test.ts`).
 
 ---
 

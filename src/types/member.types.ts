@@ -49,6 +49,15 @@ export interface ICreateMemberOptions {
   role?: string;
 }
 
+/** Options accepted by MemberService.addMember(). */
+export interface IAddMemberOptions {
+  team?: string;
+  location?: string;
+  name?: string;
+  role?: string;
+  gender?: string;
+}
+
 /** Result returned by MemberService.createMemberFile(). */
 export interface ICreateFileResult {
   filePath: string;

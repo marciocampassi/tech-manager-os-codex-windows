@@ -2,7 +2,6 @@ import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import path from 'node:path';
 import { EmailResolutionService } from '../../src/services/email-resolution.service.js';
 import type { FileSystemService } from '../../src/services/file-system.service.js';
-import type { RelationshipService } from '../../src/services/relationship.service.js';
 
 // ── Mock FileSystemService ────────────────────────────────────────────────────
 
@@ -24,20 +23,6 @@ function createMockFS(): MockFS {
   };
 }
 
-// ── Mock RelationshipService ──────────────────────────────────────────────────
-
-type MockRelationship = {
-  addRelationship: jest.MockedFunction<RelationshipService['addRelationship']>;
-};
-
-function createMockRelationship(): MockRelationship {
-  return {
-    addRelationship: jest
-      .fn<RelationshipService['addRelationship']>()
-      .mockResolvedValue({ created: true }),
-  };
-}
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const WS = '/fake/workspace';
@@ -47,15 +32,10 @@ const WS = '/fake/workspace';
 describe('EmailResolutionService', () => {
   let svc: EmailResolutionService;
   let mockFS: MockFS;
-  let mockRel: MockRelationship;
 
   beforeEach(() => {
     mockFS = createMockFS();
-    mockRel = createMockRelationship();
-    svc = new EmailResolutionService(
-      mockFS as unknown as FileSystemService,
-      mockRel as unknown as RelationshipService,
-    );
+    svc = new EmailResolutionService(mockFS as unknown as FileSystemService);
   });
 
   // ── validateEmail ─────────────────────────────────────────────────────────
@@ -160,12 +140,20 @@ describe('EmailResolutionService', () => {
     it('auto-creates relationship and returns created: true when email not found anywhere', async () => {
       mockFS.exists.mockResolvedValue(false);
 
-      const result = await svc.resolve('newguy@co.com', WS);
+      const result = await svc.resolve('new@co.com', WS);
 
-      expect(mockRel.addRelationship).toHaveBeenCalledWith('newguy@co.com', {}, WS);
       expect(result.type).toBe('relationship');
-      expect(result.absolutePath).toContain('my-company/members/newguy@co.com/newguy@co.com.md');
       expect(result.created).toBe(true);
+      expect(result.absolutePath).toContain(
+        path.join('my-company', 'members', 'new@co.com', 'new@co.com.md'),
+      );
+      expect(mockFS.createDirectory).toHaveBeenCalledWith(
+        expect.stringContaining(path.join('my-company', 'members', 'new@co.com', '1on1s')),
+      );
+      expect(mockFS.writeFile).toHaveBeenCalledWith(
+        expect.stringContaining(path.join('my-company', 'members', 'new@co.com', 'new@co.com.md')),
+        expect.stringContaining('email: "new@co.com"'),
+      );
     });
 
     it('throws Error with message matching /Invalid email/ for invalid email', async () => {

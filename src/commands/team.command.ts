@@ -2,6 +2,8 @@ import { Command } from 'commander';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { teamService, TeamService } from '../services/team.service.js';
+import { printError, printSuccess } from '../utils/display.js';
+import { InvalidEmailError } from '../errors/tmr-error.js';
 
 // ── Formatting helpers ────────────────────────────────────────────────────────
 
@@ -56,10 +58,15 @@ async function runCreate(svc: TeamService, teamNameArg: string | undefined): Pro
   }
 
   const ws = svc.getWorkspaceRoot();
-  await svc.createTeam(teamName, ws);
-  process.stdout.write(
-    `${chalk.green('✔')} Team "${teamName}" created at my-teams/teams/${teamName}/\n`,
-  );
+  try {
+    await svc.createTeam(teamName, ws);
+  } catch (err) {
+    printError(
+      `Failed to create team "${teamName}": ${err instanceof Error ? err.message : String(err)}`,
+    );
+    return;
+  }
+  printSuccess(`Team "${teamName}" created`);
 }
 
 async function runAdd(
@@ -84,13 +91,12 @@ async function runAdd(
           type: 'input',
           name: 'email',
           message: 'Member email:',
-          validate: (v: string): boolean | string =>
-            /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) || 'Valid email required',
+          validate: (v: string): boolean | string => v.trim().length > 0 || 'Required',
         },
       ].filter(Boolean) as Parameters<typeof inquirer.prompt>[0],
     );
     teamName = teamName || answers.teamName;
-    email = email || answers.email;
+    email = email || answers.email.trim();
   }
 
   // Secondary prompts for optional fields — always run, skip if pre-filled via flags
@@ -114,8 +120,16 @@ async function runAdd(
   const location = opts.location?.trim() ?? secondaryAnswers.location?.trim() ?? '';
 
   const ws = svc.getWorkspaceRoot();
-  await svc.addMember(teamName, email, { name, role, gender, location }, ws);
-  process.stdout.write(`${chalk.green('✔')} Member "${email}" added to team "${teamName}"\n`);
+  try {
+    await svc.addMember(teamName, email, { name, role, gender, location }, ws);
+  } catch (err) {
+    if (err instanceof InvalidEmailError) {
+      printError(`Invalid email address: ${email}`);
+      return;
+    }
+    throw err;
+  }
+  printSuccess(`Member "${email}" added to team "${teamName}"`);
 }
 
 async function runList(svc: TeamService, teamNameArg: string | undefined): Promise<void> {
@@ -217,7 +231,7 @@ export async function runShow(email: string): Promise<void> {
   const result = await svc.showProfile(email, ws);
   if (!result) {
     process.stdout.write(
-      `Profile not found for ${email}. Use 'tmr team add' or 'tmr relationship add' to create one.\n`,
+      `Profile not found for ${email}. Use 'tmr team add' to create a profile.\n`,
     );
     return;
   }

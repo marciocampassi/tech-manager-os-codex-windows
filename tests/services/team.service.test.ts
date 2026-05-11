@@ -2,6 +2,7 @@ import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import matter from 'gray-matter';
 import { TeamService } from '../../src/services/team.service.js';
 import type { FileSystemService } from '../../src/services/file-system.service.js';
+import { InvalidEmailError } from '../../src/errors/tmr-error.js';
 
 // ── Mock FileSystemService ────────────────────────────────────────────────────
 
@@ -72,6 +73,32 @@ describe('TeamService', () => {
       await svc.createTeam('alpha', WORKSPACE);
 
       expect(mockFS.writeFile).not.toHaveBeenCalled();
+    });
+
+    it('TEAM-UNIT-001: normalizes "Backend Team" → creates files under "backend-team" slug', async () => {
+      mockFS.exists.mockResolvedValue(false);
+
+      await svc.createTeam('Backend Team', WORKSPACE);
+
+      expect(mockFS.writeFile).toHaveBeenCalledWith(
+        expect.stringContaining('teams/backend-team/backend-team-context.md'),
+        expect.any(String),
+      );
+      expect(mockFS.writeFile).toHaveBeenCalledWith(
+        expect.stringContaining('teams/backend-team/backend-team-members.md'),
+        expect.any(String),
+      );
+    });
+
+    it('TEAM-UNIT-002: normalizes "FRONTEND" → creates files under "frontend" slug', async () => {
+      mockFS.exists.mockResolvedValue(false);
+
+      await svc.createTeam('FRONTEND', WORKSPACE);
+
+      expect(mockFS.writeFile).toHaveBeenCalledWith(
+        expect.stringContaining('teams/frontend/frontend-context.md'),
+        expect.any(String),
+      );
     });
   });
 
@@ -188,6 +215,53 @@ describe('TeamService', () => {
       );
     });
 
+    it('appends correct relative wiki-link format to members file (AC-5)', async () => {
+      mockFS.exists.mockImplementation(async (p: string) => {
+        if (p.includes('alpha-context.md')) return true;
+        return false;
+      });
+      mockFS.readFile.mockImplementation(async (p: string) => {
+        if (p.includes('alpha-members.md')) return '# Team Members\n';
+        return '';
+      });
+      mockFS.listDirectories.mockResolvedValue([]);
+
+      await svc.addMember('alpha', 'dev@co.com', { role: 'Engineer' }, WORKSPACE);
+
+      expect(mockFS.appendFile).toHaveBeenCalledWith(
+        expect.stringContaining('alpha-members.md'),
+        '- [[../../members/dev@co.com/dev@co.com.md|dev@co.com]]\n',
+      );
+    });
+
+    it('new member profile uses relative wiki-link for manager (AC-5)', async () => {
+      const managerProfileContent = matter.stringify('', { email: 'manager@co.com' });
+      mockFS.exists.mockImplementation(async (p: string) => {
+        if (p.includes('alpha-context.md')) return true;
+        if (p.includes('my-career')) return true;
+        return false;
+      });
+      mockFS.listDirectories.mockImplementation(async (p: string) => {
+        if (p.includes('my-career')) return ['manager@co.com'];
+        return [];
+      });
+      mockFS.readFile.mockImplementation(async (p: string) => {
+        if (p.includes('manager@co.com.md')) return managerProfileContent;
+        if (p.includes('alpha-members.md')) return '# Team Members\n';
+        return '';
+      });
+
+      await svc.addMember('alpha', 'dev@co.com', { role: 'Engineer' }, WORKSPACE);
+
+      const profileCall = (mockFS.writeFile.mock.calls as [string, string][]).find(([p]) =>
+        p.includes('dev@co.com/dev@co.com.md'),
+      );
+      expect(profileCall).toBeDefined();
+      expect(profileCall![1]).toContain(
+        '[[../../../my-career/manager@co.com/manager@co.com.md|manager@co.com]]',
+      );
+    });
+
     it('skips action-items creation when file already exists (idempotent)', async () => {
       mockFS.exists.mockImplementation(async (p: string) => {
         if (p.includes('alpha-context.md')) return true;
@@ -244,6 +318,27 @@ describe('TeamService', () => {
         p.includes('dev@co.com/dev@co.com.md'),
       );
       expect(profileCall![1]).toContain("action_items_gdoc: ''");
+    });
+
+    it('TEAM-UNIT-003: throws InvalidEmailError before any file write for invalid email', async () => {
+      await expect(svc.addMember('alpha', 'not-an-email', {}, WORKSPACE)).rejects.toThrow(
+        InvalidEmailError,
+      );
+      expect(mockFS.writeFile).not.toHaveBeenCalled();
+      expect(mockFS.createDirectory).not.toHaveBeenCalled();
+    });
+
+    it('TEAM-UNIT-004: valid email → member profile written to correct path', async () => {
+      mockFS.exists.mockResolvedValue(false);
+      mockFS.readFile.mockResolvedValue('# Team Members\n');
+      mockFS.listDirectories.mockResolvedValue([]);
+
+      await svc.addMember('alpha', 'valid@company.com', {}, WORKSPACE);
+
+      expect(mockFS.writeFile).toHaveBeenCalledWith(
+        expect.stringContaining('my-teams/members/valid@company.com/valid@company.com.md'),
+        expect.any(String),
+      );
     });
   });
 

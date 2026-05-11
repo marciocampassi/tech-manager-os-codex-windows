@@ -23,6 +23,8 @@ const mockFetchSkillContent =
       | { success: false; error: string }
     >
   >();
+const mockFetchSkillList =
+  jest.fn<() => Promise<{ success: true; data: string[] } | { success: false; error: string }>>();
 const mockInstallSkill = jest.fn<(n: string, c: string, v: string) => void>();
 const mockListInstalledSkills = jest.fn<
   () => { name: string; version: string; installedAt: string }[]
@@ -33,6 +35,7 @@ jest.unstable_mockModule('../../src/services/skill-registry.service.js', () => (
     isInstalled: mockIsInstalled,
     getInstalledVersion: mockGetInstalledVersion,
     fetchSkillContent: mockFetchSkillContent,
+    fetchSkillList: mockFetchSkillList,
     installSkill: mockInstallSkill,
     listInstalledSkills: mockListInstalledSkills,
   })),
@@ -73,6 +76,7 @@ describe('runInstall', () => {
   afterEach(() => {
     stdoutSpy.mockRestore();
     stderrSpy.mockRestore();
+    process.exitCode = undefined;
   });
 
   it('Test A: install happy path — skill not installed, fetch succeeds', async () => {
@@ -206,5 +210,46 @@ describe('runInstall', () => {
 
     const output = (stdoutSpy.mock.calls as unknown[][]).map((c) => String(c[0])).join('');
     expect(ANSI_RE.test(output)).toBe(false);
+  });
+
+  describe('runInstall — all-skills mode (skillName=undefined)', () => {
+    it('Test K: install-all happy path — fetchSkillList succeeds, installSkill called for each skill', async () => {
+      mockFetchSkillList.mockResolvedValue({ success: true, data: ['tmr-inbox', 'tmr-daily'] });
+      mockGetInstalledVersion.mockReturnValue(undefined);
+      mockFetchSkillContent.mockResolvedValue(makeSuccessResult('1.0.0'));
+
+      await runInstall(undefined, { plain: true, force: false });
+
+      expect(mockInstallSkill).toHaveBeenCalledTimes(2);
+      expect(mockInstallSkill).toHaveBeenCalledWith('tmr-inbox', expect.any(String), '1.0.0');
+      expect(mockInstallSkill).toHaveBeenCalledWith('tmr-daily', expect.any(String), '1.0.0');
+      const output = (stdoutSpy.mock.calls as unknown[][]).map((c) => String(c[0])).join('');
+      expect(output).toContain('Installed');
+      expect(process.exitCode).toBeUndefined();
+    });
+
+    it('Test L: fetchSkillList fails — installSkill NOT called, error on stderr, exitCode 1', async () => {
+      mockFetchSkillList.mockResolvedValue({
+        success: false,
+        error: 'Skill registry index not found',
+      });
+
+      await runInstall(undefined, { plain: true, force: false });
+
+      expect(mockInstallSkill).not.toHaveBeenCalled();
+      const errOutput = (stderrSpy.mock.calls as unknown[][]).map((c) => String(c[0])).join('');
+      expect(errOutput).toContain('not found');
+      expect(process.exitCode).toBe(1);
+    });
+
+    it('Test M: skill already installed without --force — skipped, installSkill not called', async () => {
+      mockFetchSkillList.mockResolvedValue({ success: true, data: ['tmr-inbox'] });
+      mockGetInstalledVersion.mockReturnValue('1.0.0');
+
+      await runInstall(undefined, { plain: true, force: false });
+
+      expect(mockInstallSkill).not.toHaveBeenCalled();
+      expect(process.exitCode).toBeUndefined();
+    });
   });
 });

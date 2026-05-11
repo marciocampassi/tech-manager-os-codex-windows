@@ -2,6 +2,8 @@ import { describe, it, expect } from '@jest/globals';
 import {
   generateActionItemsTemplate,
   generateTeamMemberProfile,
+  generateSampleMeetingNote,
+  generateVaultReadme,
 } from '../../src/templates/onboarding.templates.js';
 import type { TeamMember } from '../../src/types/onboarding.types.js';
 
@@ -120,5 +122,40 @@ describe('generateTeamMemberProfile', () => {
     expect(result).toContain(member.name);
     expect(result).toContain(member.role);
     expect(result).toContain(member.gender);
+  });
+});
+
+describe('generateSampleMeetingNote', () => {
+  it('contains a top-level markdown heading', () => {
+    const result = generateSampleMeetingNote();
+    expect(result).toMatch(/^# /m);
+  });
+
+  it('contains meeting-related content (agenda or action items)', () => {
+    const result = generateSampleMeetingNote();
+    expect(result.toLowerCase()).toMatch(/agenda|action items|meeting/);
+  });
+});
+
+describe('generateVaultReadme', () => {
+  it('contains a README heading', () => {
+    const result = generateVaultReadme();
+    expect(result).toMatch(/^# /m);
+    expect(result.toLowerCase()).toContain('readme');
+  });
+
+  it('contains tmr init command reference', () => {
+    const result = generateVaultReadme();
+    expect(result).toContain('tmr init');
+  });
+
+  it('contains tmr project add command reference', () => {
+    const result = generateVaultReadme();
+    expect(result).toContain('tmr project add');
+  });
+
+  it('contains tmr --help command reference', () => {
+    const result = generateVaultReadme();
+    expect(result).toContain('tmr --help');
   });
 });
