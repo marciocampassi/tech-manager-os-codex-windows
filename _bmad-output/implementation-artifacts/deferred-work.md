@@ -150,3 +150,11 @@ The following items were surfaced by the pre-launch AC audit (Epics 1–5) and a
 - Same-session addition + departure conflict for the same email — if a new report is added and then mentioned as a departure in the same U4 pass, the departure write targets a file that does not exist yet (created in WRITE, not before CONFIRM). AI discretion handles this but no spec guard exists. `skills/tmr-myself-config/SKILL.md` Step U4.
 - U3 context summary does not filter already-departed members (`status: former`) — B3 reads all files without filtering, so former members appear in the U3 TEAM count and list, causing user confusion and spurious re-departure entries. Pre-existing issue in BOOTSTRAP Step B3. `skills/tmr-myself-config/SKILL.md`.
 - Person with dual filing in both `my-teams/members/` and `my-company/members/` — a report added as a collaborator ends up with files in both directories; only one departure question will trigger unless user answers both. Pre-existing routing complexity. `skills/tmr-myself-config/SKILL.md`.
+
+## Deferred from: code review of 7-1-bootstrap-install-scripts (2026-05-11)
+
+- `Read-Host` blocks in CI/non-interactive PS1 execution — out of spec scope; script is an end-user interactive installer, not designed for CI pipelines. `scripts/install.ps1` `Prompt-YN` function.
+- `sudo npm install -g` anti-pattern on Linux — using sudo for global npm installs can cause permission issues (files owned by root); better pattern is user-scoped npm prefix. Spec-defined behavior; dev notes acknowledge. `scripts/install.sh` Linux step 2.
+- "All done!" banner fires even when some optional installs failed — technically misleading UX, but acceptable under AC10 error-resilience design (single failures don't abort). `scripts/install.sh:214-219`.
+- Granola cask name (`brew install --cask granola`) and winget ID (`Granola.Granola`) are unverified — must be checked against Homebrew and winget registries before scripts go live. Pre-deployment verification noted in story dev notes. `scripts/install.sh` + `scripts/install.ps1`.
+- `iwr -useb <url> | iex` supply-chain concern — piping remote scripts directly to a shell/interpreter is a known supply-chain risk pattern; mitigated by hosting on a controlled domain with HTTPS. Spec-defined delivery method (FR52/AC11). `scripts/install.ps1` header comment.
