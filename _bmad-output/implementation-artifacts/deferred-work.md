@@ -103,6 +103,20 @@
 
 ## Deferred from: code review of 3-3-member-feedback-with-global-email-resolver-and-auto-create (2026-05-10)
 
+## Deferred from: code review of 4-1-tmr-install-skill-registry-integration (2026-05-11)
+
+- Path traversal via skill names (`"../.."` in registry index) can escape `.claude/skills/` tree — registry-supplied `name` is passed directly to `path.join(this.skillsDir, name)` in `installSkill`; applies equally to single-skill install. Needs input validation/allowlist in `installSkill` or before calling it.
+- Synchronous fs exceptions from `installSkill` propagate unhandled — `mkdirSync`/`writeFileSync` inside `installSkill` can throw `ENOSPC`, `EACCES`, etc.; neither `runInstall` nor `runInstallAll` wraps the call in try-catch; AC10 gap exists in both paths. Pre-existing; fix with top-level try-catch in both code paths.
+- No HTTP body size cap in `fetchUrl` — all `data` chunks are buffered unboundedly; a malicious or broken registry response can cause OOM. Pre-existing in the shared `fetchUrl` helper.
+- Skill names not URL-encoded before interpolating into registry URL — `getRegistryUrl` uses template literal; names with `?`, `#`, spaces, or non-ASCII yield malformed URLs. Pre-existing.
+- Empty string skill name writes `SKILL.md` at `.claude/skills/` root — `path.join(skillsDir, '')` is `skillsDir`. Pre-existing in `installSkill`.
+- json-mode errors go to stdout via `printJson` rather than stderr via `printError` — AC7 technically requires stderr; the existing single-skill install has the same pattern. Fix requires changing both paths consistently.
+- Per-skill failures in json mode only appear in the final `printJson` summary; no real-time stderr signal during a multi-skill install. Mirrors single-skill json pattern.
+- Empty skill list from registry exits 0 with no user warning — `tmr install` with an empty index prints "Found 0 skill(s)" and exits 0; may mislead users. Design decision.
+- `--json` error schema inconsistent: list-fetch failure emits `{status, message}` while batch result emits `{installed, skipped, failed}`. Follows existing codebase pattern where error and success shapes differ; document or unify in a future API-hardening story.
+
+## Deferred from: code review of 3-3-member-feedback-with-global-email-resolver-and-auto-create (2026-05-10)
+
 - TOCTOU race in `createMemberFile` auto-create path — concurrent calls for the same unknown email can both call `addMember`, construct the same `profilePath`, and reach `appendToFile`, duplicating the wiki-link. Pre-existing architectural pattern (same as Story 3.2 deferral). `src/services/member.service.ts:createMemberFile`.
 - No email/path-traversal guard in `findMemberGlobally` — callers normalize email before calling, but no re-validation at method entry. Defense-in-depth improvement. Pre-existing caller-validates pattern. `src/services/member.service.ts:findMemberGlobally`.
 - Auto-created profile template missing `## 1on1s` and `## Assessments` sections — `addMember({})` body template only includes `## Performance Reviews` and `## Feedbacks`; calling `createMemberFile` with `1on1` or `assessment` type on an auto-created profile may route wiki-links to absent sections. Pre-existing Story 3.2 template scope. `src/services/member.service.ts:addMember body`.
