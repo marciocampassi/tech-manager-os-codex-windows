@@ -5,6 +5,7 @@ import { getWorkspaceRoot as resolveWorkspaceRoot } from '../utils/workspace.js'
 import { generateActionItemsTemplate } from '../templates/onboarding.templates.js';
 import { normalizeSlug } from '../utils/normalization.js';
 import { formatWikiLink } from '../utils/wiki-link.js';
+import { validateEmail } from '../utils/validation.js';
 import type {
   IAddMemberOptions,
   IArchiveOptions,
@@ -173,6 +174,7 @@ export class TeamService {
     options: IAddMemberOptions,
     workspaceRoot: string,
   ): Promise<void> {
+    validateEmail(email);
     const slug = normalizeSlug(teamName);
     const normalizedEmail = email.toLowerCase();
 

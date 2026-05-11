@@ -48,25 +48,32 @@ jest.unstable_mockModule('chalk', () => ({
     bold: (s: string) => s,
     green: (s: string) => s,
     dim: (s: string) => s,
+    red: (s: string) => s,
+    blue: (s: string) => s,
+    yellow: (s: string) => s,
   },
 }));
 
 // Dynamic imports after mocks
 const { createTeamCommand, runShow } = await import('../../src/commands/team.command.js');
+const { InvalidEmailError } = await import('../../src/errors/tmr-error.js');
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('team command', () => {
   let stdoutSpy: ReturnType<typeof jest.spyOn>;
+  let stderrSpy: ReturnType<typeof jest.spyOn>;
 
   beforeEach(() => {
     stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    stderrSpy = jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
     jest.clearAllMocks();
     mockGetWorkspaceRoot.mockReturnValue('/fake/ws');
   });
 
   afterEach(() => {
     stdoutSpy.mockRestore();
+    stderrSpy.mockRestore();
   });
 
   // ── team create ─────────────────────────────────────────────────────────────
@@ -86,6 +93,12 @@ describe('team command', () => {
 
       expect(mockPrompt).toHaveBeenCalled();
       expect(mockCreateTeam).toHaveBeenCalledWith('prompted-team', '/fake/ws');
+    });
+
+    it('TEAM-INT-001: passes raw team name to createTeam (service normalizes to slug)', async () => {
+      const cmd = createTeamCommand();
+      await cmd.parseAsync(['create', 'My Team'], { from: 'user' });
+      expect(mockCreateTeam).toHaveBeenCalledWith('My Team', '/fake/ws');
     });
   });
 
@@ -125,6 +138,19 @@ describe('team command', () => {
         expect.objectContaining({ role: 'QA' }),
         '/fake/ws',
       );
+    });
+
+    it('TEAM-INT-002: printError to stderr when addMember throws InvalidEmailError', async () => {
+      mockAddMember.mockRejectedValueOnce(new InvalidEmailError('bad-email'));
+      mockPrompt.mockResolvedValueOnce({ name: '', role: '', gender: '', location: '' });
+
+      const cmd = createTeamCommand();
+      await expect(
+        cmd.parseAsync(['add', 'my-team', 'bad-email'], { from: 'user' }),
+      ).resolves.not.toThrow();
+
+      const allStderr = (stderrSpy.mock.calls as [string][]).map((c) => c[0]).join('');
+      expect(allStderr).toContain('bad-email');
     });
   });
 
