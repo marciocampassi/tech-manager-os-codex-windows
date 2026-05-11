@@ -4,6 +4,7 @@ import chalk from 'chalk';
 import { memberService, MemberService } from '../services/member.service.js';
 import { printError, printSuccess } from '../utils/display.js';
 import { InvalidEmailError } from '../errors/tmr-error.js';
+import { validateEmail } from '../utils/validation.js';
 import type { FileType } from '../types/member.types.js';
 
 // ── Type guard ────────────────────────────────────────────────────────────────
@@ -78,6 +79,17 @@ export async function runMemberAdd(
 
   // Routing: type-first mode
   if (!isFileType(typeArg)) {
+    // The arg is not a file-type keyword — treat it as an attempted email address
+    // and surface the proper InvalidEmailError (TMR_E103) via validateEmail().
+    try {
+      validateEmail(typeArg);
+    } catch (err) {
+      if (err instanceof InvalidEmailError) {
+        printError(`Invalid email address: ${typeArg}`);
+        process.exitCode = 1;
+        return;
+      }
+    }
     printError(
       `Unknown type "${typeArg}".`,
       `Valid types: ${VALID_TYPES.join(', ')}, or pass an email address to create a member profile`,

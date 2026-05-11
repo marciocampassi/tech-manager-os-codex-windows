@@ -4,6 +4,7 @@ import { TemplateService, templateService } from './template.service.js';
 import { emailResolutionService, EmailResolutionService } from './email-resolution.service.js';
 import { getWorkspaceRoot as resolveWorkspaceRoot } from '../utils/workspace.js';
 import { normalizeSlug } from '../utils/normalization.js';
+import { formatWikiLink } from '../utils/wiki-link.js';
 import type {
   IBatchLinkResult,
   ILinkResult,
@@ -162,7 +163,7 @@ export class ProjectService {
     }
 
     const resolved = await this._emailResolution.resolve(normalizedEmail, ws);
-    const wikiLink = `- ${this._emailResolution.generateWikiLink(normalizedEmail, resolved.absolutePath, overviewPath)}`;
+    const wikiLink = `- ${formatWikiLink(resolved.absolutePath, overviewPath, normalizedEmail)}`;
 
     const content = await this._fs.readFile(overviewPath);
     const updated = this.appendToHashSection(content, 'Team Members', wikiLink);
@@ -183,7 +184,7 @@ export class ProjectService {
     }
 
     const resolved = await this._emailResolution.resolve(normalizedEmail, ws);
-    const wikiLink = `- ${this._emailResolution.generateWikiLink(normalizedEmail, resolved.absolutePath, overviewPath)}`;
+    const wikiLink = `- ${formatWikiLink(resolved.absolutePath, overviewPath, normalizedEmail)}`;
 
     const content = await this._fs.readFile(overviewPath);
     const updated = this.appendToHashSection(content, 'Stakeholders', wikiLink);
@@ -205,7 +206,7 @@ export class ProjectService {
 
       const overviewPath = projectOverviewPath(ws, name);
       const resolved = await this._emailResolution.resolve(normalizedEmail, ws);
-      const wikiLink = `- ${this._emailResolution.generateWikiLink(normalizedEmail, resolved.absolutePath, overviewPath)}`;
+      const wikiLink = `- ${formatWikiLink(resolved.absolutePath, overviewPath, normalizedEmail)}`;
 
       const content = await this._fs.readFile(overviewPath);
       await this._fs.writeFile(
@@ -233,7 +234,7 @@ export class ProjectService {
 
       const overviewPath = projectOverviewPath(ws, name);
       const resolved = await this._emailResolution.resolve(normalizedEmail, ws);
-      const wikiLink = `- ${this._emailResolution.generateWikiLink(normalizedEmail, resolved.absolutePath, overviewPath)}`;
+      const wikiLink = `- ${formatWikiLink(resolved.absolutePath, overviewPath, normalizedEmail)}`;
 
       const content = await this._fs.readFile(overviewPath);
       await this._fs.writeFile(

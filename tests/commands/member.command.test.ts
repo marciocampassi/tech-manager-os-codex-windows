@@ -240,11 +240,11 @@ describe('member command', () => {
   // ── Error handling ────────────────────────────────────────────────────────────
 
   describe('error handling', () => {
-    it('prints error and sets exitCode when type is invalid', async () => {
+    it('prints InvalidEmailError and sets exitCode when first arg is not a valid email or type', async () => {
       await runMemberAdd(mockMemberServiceInstance as never, 'invalid-type', 'john@co.com', {});
 
       const errOutput = stderrSpy.mock.calls.map((c: unknown[]) => c[0]).join('');
-      expect(errOutput).toContain('Unknown type');
+      expect(errOutput).toContain('Invalid email address');
       expect(exitCodeSpy).toHaveBeenCalledWith(1);
     });
 

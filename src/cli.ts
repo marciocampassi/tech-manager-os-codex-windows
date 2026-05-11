@@ -98,15 +98,27 @@ export function createProgram(): Command {
   p.addCommand(
     new Command('install')
       .description('install a skill into your vault from the official registry')
-      .argument('<skill-name>', 'name of the skill to install (e.g. tmr-inbox)')
+      .argument(
+        '[skill-name]',
+        'name of the skill to install (e.g. tmr-inbox); omit to install all available skills',
+      )
       .option('-f, --force', 'reinstall even if already installed', false)
+      .addHelpText(
+        'after',
+        '\nExamples:\n  tmr install\n  tmr install tmr-inbox\n  tmr install tmr-inbox --force\n',
+      )
       .action(
-        async (skillName: string, opts: { force?: boolean }, command: Command): Promise<void> => {
-          const globals = command.parent?.opts() as { plain?: boolean } | undefined;
+        async (
+          skillName: string | undefined,
+          opts: { force?: boolean },
+          command: Command,
+        ): Promise<void> => {
+          const globals = command.parent?.opts() as { plain?: boolean; json?: boolean } | undefined;
           const plain = globals?.plain ?? false;
+          const json = globals?.json ?? false;
           const force = opts.force ?? false;
           const { runInstall } = await import('./commands/install.command.js');
-          await runInstall(skillName, { plain, force });
+          await runInstall(skillName, { plain, force, json });
         },
       ),
   );

@@ -108,3 +108,23 @@
 - Auto-created profile template missing `## 1on1s` and `## Assessments` sections — `addMember({})` body template only includes `## Performance Reviews` and `## Feedbacks`; calling `createMemberFile` with `1on1` or `assessment` type on an auto-created profile may route wiki-links to absent sections. Pre-existing Story 3.2 template scope. `src/services/member.service.ts:addMember body`.
 - `findMember` not marked `@deprecated` after `findMemberGlobally` supersedes it for multi-scope lookups. Pre-existing method, minor cleanup. `src/services/member.service.ts:findMember`.
 - Magic path strings (`'my-teams'`, `'my-company'`, `'members'`) hardcoded in `findMemberGlobally` without constants. Pre-existing codebase pattern. `src/services/member.service.ts:findMemberGlobally`.
+
+## Launch Readiness Audit — Deferred Findings (2026-05-11)
+
+The following items were surfaced by the pre-launch AC audit (Epics 1–5) and accepted as deferred. None are runtime blockers for v1.
+
+### Epic 2 — tmr init Path Convention Mismatch
+- AC-2.2.1/2.2.2/2.3.2: Init writes nested `<email>/<email>.md` paths (`my-career/`, `my-leadership/`, `my-teams/members/`); ACs specified flat `<email>.md`. The implementation is internally consistent and Story 3.3 global resolver supports both. epics.md spec needs updating to match the brownfield convention. `src/services/init.service.ts`, `src/services/team.service.ts`.
+- AC-2.2.6: Fixture helper exported as `applyInitPromptFixture`; ACs name it `initPromptFixture`. Trivial alias. `tests/fixtures/init-prompts.ts`.
+- AC-2.2.7: Integration tests INIT-INT-002 (CWD default), INIT-INT-004 (team count 0), INIT-INT-005 (invalid user email), INIT-INT-006 (invalid leader email) are missing. Already tracked above. `tests/integration/init.integration.test.ts`.
+- AC-2.3.5: Member profile `email:` frontmatter field is a plain string; action-items wiki-link within `team.service.ts` member template not routed through `formatWikiLink`. FR33 entity-reference contract applies to cross-entity links; this is a self-referential field. `src/services/team.service.ts`.
+- AC-2.4.6: `printError` in init command error paths does not pass a recovery `suggestion` argument. Low user impact; verbose mode shows full error context. `src/commands/init.command.ts`.
+- AC-2.4.7: INIT-INT-001 happy-path fixture uses 2 teams/1 member; AC specifies 1 team/2 members. Behavioral coverage is equivalent. `tests/integration/init.integration.test.ts`.
+
+### Epic 3 — Team & Member Management
+- AC-3.1.5: `TEAM-INT-001` is a mocked service test, not a real-filesystem integration test against a temp vault. Add real FS coverage in `tests/integration/team.integration.test.ts`. `tests/commands/team.command.test.ts`.
+
+### Epic 4 — Skill Registry
+- AC-4.1.7: In `--json` mode, error output is routed to stdout via `printJson` (machine-readable contract). Intentional design choice; AC wording is ambiguous on `--json` error behavior. `src/commands/install.command.ts`.
+- AC-4.1.8: `tests/commands/install.command.test.ts` mocks at the service layer, not `node:https`. Service-level isolation is a valid and sufficient boundary; direct `https` mock adds no additional safety. `tests/commands/install.command.test.ts`.
+- AC-4.1.9: Integration Test D (404) asserts exit code but not specific stderr content. Tests I and J do assert specific stderr content. Extend Test D to spy stderr and match error message. `tests/integration/install-update.integration.test.ts`.
