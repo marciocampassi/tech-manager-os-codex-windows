@@ -20,7 +20,13 @@ interface MockResponse {
   on: (event: string, cb: (chunk?: Buffer | string) => void) => void;
 }
 
-let mockHttpsGetImpl: (url: string, cb: HttpsGetCallback) => { on: () => void };
+interface MockRequest {
+  on: (event: string, cb: (err?: Error) => void) => MockRequest;
+  setTimeout?: (ms: number, fn: () => void) => MockRequest;
+  destroy?: (err: Error) => void;
+}
+
+let mockHttpsGetImpl: (url: string, cb: HttpsGetCallback) => MockRequest;
 
 const mockHttpsGet = jest.fn<typeof mockHttpsGetImpl>((url, cb) => mockHttpsGetImpl(url, cb));
 
@@ -71,12 +77,42 @@ function make404Response(): MockResponse {
   };
 }
 
-function makeNetworkErrorRequest(): { on: (event: string, cb: (err: Error) => void) => void } {
-  return {
-    on(event: string, cb: (err: Error) => void): void {
-      if (event === 'error') cb(new Error('ECONNRESET'));
+function makeTimeoutRequest(): MockRequest {
+  let errorCb: ((err: Error) => void) | null = null;
+  const req: MockRequest = {
+    on(event: string, cb: (err?: Error) => void): MockRequest {
+      if (event === 'error') errorCb = cb as (err: Error) => void;
+      return req;
+    },
+    setTimeout(_ms: number, fn: () => void): MockRequest {
+      setImmediate(fn);
+      return req;
+    },
+    destroy(err: Error): void {
+      if (errorCb) errorCb(err);
     },
   };
+  return req;
+}
+
+function makeMalformedResponse(body = '{bad json}'): MockResponse {
+  return {
+    statusCode: 200,
+    on(event: string, cb: (chunk?: Buffer | string) => void): void {
+      if (event === 'data') cb(Buffer.from(body));
+      if (event === 'end') cb();
+    },
+  };
+}
+
+function makeNetworkErrorRequest(): MockRequest {
+  const req: MockRequest = {
+    on(event: string, cb: (err?: Error) => void): MockRequest {
+      if (event === 'error') cb(new Error('ECONNRESET'));
+      return req;
+    },
+  };
+  return req;
 }
 
 // ── Suite ─────────────────────────────────────────────────────────────────────
@@ -93,6 +129,7 @@ describe('install + update integration (real fs, mocked https)', () => {
 
   afterEach(async () => {
     stdoutSpy.mockRestore();
+    process.exitCode = undefined;
     await fs.remove(tmpDir);
   });
 
@@ -102,7 +139,7 @@ describe('install + update integration (real fs, mocked https)', () => {
     it('writes SKILL.md to .claude/skills/<name>/ and sets exit code 0', async () => {
       mockHttpsGetImpl = (_url, cb) => {
         cb(makeSuccessResponse(SKILL_CONTENT_V1));
-        return { on: jest.fn() };
+        return { on: jest.fn() } as unknown as MockRequest;
       };
 
       await runInstall('tmr-inbox', { plain: true, force: false });
@@ -117,7 +154,7 @@ describe('install + update integration (real fs, mocked https)', () => {
     it('writes manifest with name and version', async () => {
       mockHttpsGetImpl = (_url, cb) => {
         cb(makeSuccessResponse(SKILL_CONTENT_V1));
-        return { on: jest.fn() };
+        return { on: jest.fn() } as unknown as MockRequest;
       };
 
       await runInstall('tmr-inbox', { plain: true, force: false });
@@ -133,7 +170,7 @@ describe('install + update integration (real fs, mocked https)', () => {
     it('prints installed confirmation to stdout', async () => {
       mockHttpsGetImpl = (_url, cb) => {
         cb(makeSuccessResponse(SKILL_CONTENT_V1));
-        return { on: jest.fn() };
+        return { on: jest.fn() } as unknown as MockRequest;
       };
 
       await runInstall('tmr-inbox', { plain: true, force: false });
@@ -151,7 +188,7 @@ describe('install + update integration (real fs, mocked https)', () => {
       // First install
       mockHttpsGetImpl = (_url, cb) => {
         cb(makeSuccessResponse(SKILL_CONTENT_V1));
-        return { on: jest.fn() };
+        return { on: jest.fn() } as unknown as MockRequest;
       };
       await runInstall('tmr-inbox', { plain: true, force: false });
 
@@ -179,14 +216,14 @@ describe('install + update integration (real fs, mocked https)', () => {
       // First install v1
       mockHttpsGetImpl = (_url, cb) => {
         cb(makeSuccessResponse(SKILL_CONTENT_V1));
-        return { on: jest.fn() };
+        return { on: jest.fn() } as unknown as MockRequest;
       };
       await runInstall('tmr-inbox', { plain: true, force: false });
 
       // Force reinstall with v2 content
       mockHttpsGetImpl = (_url, cb) => {
         cb(makeSuccessResponse(SKILL_CONTENT_V2));
-        return { on: jest.fn() };
+        return { on: jest.fn() } as unknown as MockRequest;
       };
       stdoutSpy.mockClear();
       await runInstall('tmr-inbox', { plain: true, force: true });
@@ -206,7 +243,7 @@ describe('install + update integration (real fs, mocked https)', () => {
     it('prints error message and sets process.exitCode = 1', async () => {
       mockHttpsGetImpl = (_url, cb) => {
         cb(make404Response());
-        return { on: jest.fn() };
+        return { on: jest.fn() } as unknown as MockRequest;
       };
 
       await runInstall('no-such-skill', { plain: true, force: false });
@@ -235,7 +272,7 @@ describe('install + update integration (real fs, mocked https)', () => {
       // First install v1
       mockHttpsGetImpl = (_url, cb) => {
         cb(makeSuccessResponse(SKILL_CONTENT_V1));
-        return { on: jest.fn() };
+        return { on: jest.fn() } as unknown as MockRequest;
       };
       await runInstall('tmr-inbox', { plain: true, force: false });
       stdoutSpy.mockClear();
@@ -243,7 +280,7 @@ describe('install + update integration (real fs, mocked https)', () => {
       // Update — registry now returns v2
       mockHttpsGetImpl = (_url, cb) => {
         cb(makeSuccessResponse(SKILL_CONTENT_V2));
-        return { on: jest.fn() };
+        return { on: jest.fn() } as unknown as MockRequest;
       };
 
       await runUpdate({ plain: true });
@@ -264,7 +301,7 @@ describe('install + update integration (real fs, mocked https)', () => {
       // Install v1
       mockHttpsGetImpl = (_url, cb) => {
         cb(makeSuccessResponse(SKILL_CONTENT_V1));
-        return { on: jest.fn() };
+        return { on: jest.fn() } as unknown as MockRequest;
       };
       await runInstall('tmr-inbox', { plain: true, force: false });
       stdoutSpy.mockClear();
@@ -272,7 +309,7 @@ describe('install + update integration (real fs, mocked https)', () => {
       // Update — registry returns same v1
       mockHttpsGetImpl = (_url, cb) => {
         cb(makeSuccessResponse(SKILL_CONTENT_V1));
-        return { on: jest.fn() };
+        return { on: jest.fn() } as unknown as MockRequest;
       };
 
       await runUpdate({ plain: true });
@@ -293,6 +330,79 @@ describe('install + update integration (real fs, mocked https)', () => {
     it('command description mentions skill', () => {
       const cmd = createInstallCommand();
       expect(cmd.description()).toBeTruthy();
+    });
+  });
+
+  // ── install-all happy path (SKILL-INT-001) ────────────────────────────────
+
+  describe('Test H: install-all happy path (SKILL-INT-001)', () => {
+    it('fetches index, writes SKILL.md for each listed skill, updates manifest', async () => {
+      mockHttpsGetImpl = (url, cb) => {
+        if (url.includes('index.json')) {
+          cb(makeSuccessResponse(JSON.stringify(['tmr-inbox'])));
+        } else {
+          cb(makeSuccessResponse(SKILL_CONTENT_V1));
+        }
+        return { on: jest.fn() } as unknown as MockRequest;
+      };
+
+      await runInstall(undefined, { plain: true, force: false });
+
+      const skillPath = path.join(tmpDir, '.claude', 'skills', 'tmr-inbox', 'SKILL.md');
+      expect(await fs.pathExists(skillPath)).toBe(true);
+      const written = await fs.readFile(skillPath, 'utf-8');
+      expect(written).toContain('tmr-inbox skill');
+
+      const manifestPath = path.join(tmpDir, '.claude', 'skills', 'skill-manifest.json');
+      const manifest = (await fs.readJson(manifestPath)) as { name: string }[];
+      expect(manifest.some((e) => e.name === 'tmr-inbox')).toBe(true);
+
+      const output = (stdoutSpy.mock.calls as [string][]).map((c) => c[0]).join('');
+      expect(output).toContain('Installed');
+      expect(process.exitCode).toBeUndefined();
+    });
+  });
+
+  // ── install timeout (NFR-EXIT-001) ────────────────────────────────────────
+
+  describe('Test I: install timeout — error on output and exitCode 1 (NFR-EXIT-001)', () => {
+    it('sets process.exitCode = 1 and prints error when request times out', async () => {
+      let stderrOutput = '';
+      const stderrSpy = jest.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+        stderrOutput += String(chunk);
+        return true;
+      });
+
+      mockHttpsGetImpl = (_url, _cb) => makeTimeoutRequest();
+
+      await runInstall('tmr-inbox', { plain: true, force: false });
+
+      stderrSpy.mockRestore();
+      expect(process.exitCode).toBe(1);
+      expect(stderrOutput).toMatch(/timed out/i);
+    });
+  });
+
+  // ── install malformed registry response (SKILL-UNIT-004 integration) ─────
+
+  describe('Test J: install-all with malformed registry index — error and exitCode 1', () => {
+    it('returns error and sets exitCode = 1 when index JSON is malformed', async () => {
+      let stderrOutput = '';
+      const stderrSpy = jest.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+        stderrOutput += String(chunk);
+        return true;
+      });
+
+      mockHttpsGetImpl = (_url, cb) => {
+        cb(makeMalformedResponse());
+        return { on: jest.fn() } as unknown as MockRequest;
+      };
+
+      await runInstall(undefined, { plain: true, force: false });
+
+      stderrSpy.mockRestore();
+      expect(process.exitCode).toBe(1);
+      expect(stderrOutput).toMatch(/malformed/i);
     });
   });
 });
