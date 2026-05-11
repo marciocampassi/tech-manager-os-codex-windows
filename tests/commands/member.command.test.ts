@@ -13,6 +13,9 @@ const mockCreateMemberFile = jest
 const mockCreateMember = jest
   .fn<() => Promise<{ created: boolean }>>()
   .mockResolvedValue({ created: true });
+const mockAddMember = jest
+  .fn<() => Promise<{ created: boolean }>>()
+  .mockResolvedValue({ created: true });
 const mockFindMember = jest
   .fn<() => Promise<string | null>>()
   .mockResolvedValue('/fake/ws/my-teams/members/john@co.com/john@co.com.md');
@@ -21,6 +24,7 @@ const mockMemberServiceInstance = {
   getWorkspaceRoot: mockGetWorkspaceRoot,
   createMemberFile: mockCreateMemberFile,
   createMember: mockCreateMember,
+  addMember: mockAddMember,
   findMember: mockFindMember,
 };
 
@@ -65,6 +69,7 @@ describe('member command', () => {
       wikiLink: '- [[1on1s/2026-03-07-john@co.com-1on1.md]]',
     });
     mockCreateMember.mockResolvedValue({ created: true });
+    mockAddMember.mockResolvedValue({ created: true });
     mockPrompt.mockResolvedValue({});
   });
 
@@ -151,12 +156,12 @@ describe('member command', () => {
   // ── email-first routing ───────────────────────────────────────────────────────
 
   describe('email-first routing (member creation mode)', () => {
-    it('calls createMember when first arg is a valid email', async () => {
+    it('calls addMember when first arg is a valid email', async () => {
       mockPrompt.mockResolvedValue({ name: '', gender: '', role: '' });
 
       await runMemberAdd(mockMemberServiceInstance as never, 'newuser@co.com', undefined, {});
 
-      expect(mockCreateMember).toHaveBeenCalledWith(
+      expect(mockAddMember).toHaveBeenCalledWith(
         'newuser@co.com',
         expect.objectContaining({}),
         '/fake/ws',
@@ -164,9 +169,33 @@ describe('member command', () => {
       expect(mockCreateMemberFile).not.toHaveBeenCalled();
     });
 
+    it('MEM-INT-001: no --team flag routes to company scope (addMember called without team)', async () => {
+      mockPrompt.mockResolvedValue({ name: '', gender: '', role: '' });
+      const cmd = createMemberCommand();
+      await cmd.parseAsync(['add', 'joao@company.com'], { from: 'user' });
+
+      expect(mockAddMember).toHaveBeenCalledWith(
+        'joao@company.com',
+        expect.not.objectContaining({ team: expect.anything() }),
+        '/fake/ws',
+      );
+    });
+
+    it('MEM-INT-002: --team flag routes to team scope (addMember called with team)', async () => {
+      mockPrompt.mockResolvedValue({ name: '', gender: '', role: '' });
+      const cmd = createMemberCommand();
+      await cmd.parseAsync(['add', 'joao@company.com', '--team', 'backend'], { from: 'user' });
+
+      expect(mockAddMember).toHaveBeenCalledWith(
+        'joao@company.com',
+        expect.objectContaining({ team: 'backend' }),
+        '/fake/ws',
+      );
+    });
+
     it('prints success when member is created', async () => {
       mockPrompt.mockResolvedValue({ name: '', gender: '', role: '' });
-      mockCreateMember.mockResolvedValue({ created: true });
+      mockAddMember.mockResolvedValue({ created: true });
 
       await runMemberAdd(mockMemberServiceInstance as never, 'newuser@co.com', undefined, {});
 
@@ -176,7 +205,7 @@ describe('member command', () => {
 
     it('prints already-exists message when member profile exists', async () => {
       mockPrompt.mockResolvedValue({ name: '', gender: '', role: '' });
-      mockCreateMember.mockResolvedValue({ created: false });
+      mockAddMember.mockResolvedValue({ created: false });
 
       await runMemberAdd(mockMemberServiceInstance as never, 'existing@co.com', undefined, {});
 

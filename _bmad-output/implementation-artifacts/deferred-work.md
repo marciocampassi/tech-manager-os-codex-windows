@@ -87,6 +87,14 @@
 - `generateVaultReadme()` lists commands (`tmr process`, `tmr watch`, `tmr update`, `tmr leadership add`) that are not yet implemented. README will be stale until those commands land. Update template as each command ships, or generate the reference dynamically from Commander's command registry.
 - `printError` error-handler call sites in `init.command.ts` do not pass the optional `suggestion` parameter; AC 2.4.6 / R-001 requires a "recovery message" alongside the error. Pre-existing pattern — no call site in the project uses the suggestion param; add a recovery hint to each init error handler in a UX-copy pass.
 
+## Deferred from: code review of story 3-2-company-scoped-vs-team-scoped-member-routing (2026-05-10)
+
+- Non-email subdir in `my-career/` (e.g. `.obsidian`, `archive`) is treated as a manager email — `_resolveManagerLink` takes `subdirs[0]` without validating that it is an email-formatted directory name; a spurious wiki-link with a non-email display name is written to the `manager` field.
+- Cross-scope profile duplication for same email — `addMember` only checks the target-scope path for existence; the same email can be independently created in both `my-company/members/` and `my-teams/members/` without a warning, returning `{ created: true }` for each scope call.
+- `--team` and `--location` are silently accepted but ignored when the CLI is invoked in type-first mode (e.g. `tmr member add 1on1 john@co.com --team backend`) — Commander parses the options but they are not forwarded to `createMemberFile`; user receives no diagnostic.
+- TOCTOU race in `addMember` — two concurrent calls for the same email+scope can both pass the `exists()` guard before either `writeFile` completes, producing a silent overwrite and two `{ created: true }` responses.
+- Email whitespace not trimmed at service layer — `normalizedEmail = email.toLowerCase()` does not trim; `validateEmail` trims only for the regex test, so a space-padded email would pass validation but generate a filename with embedded spaces; command layer always trims, making this a defensive coding gap at the direct-service-call boundary.
+
 ## Deferred from: code review of story 3-1-team-create-and-add-with-normalization-and-email-validation (2026-05-10)
 
 - Prompt email validator downgraded from regex to non-empty check in `team.command.ts` `runAdd` interactive prompt (`src/commands/team.command.ts:89-92`); secondary prompts fire before the invalid email is caught by the service layer — up to 4 fields collected from the user are silently discarded. Intentional per Story 3.1 spec (validation moved to service layer). Future story: add early-exit validation in the command layer before secondary prompts, or re-add the email regex to the prompt validator while keeping service-layer guard as the authoritative check.

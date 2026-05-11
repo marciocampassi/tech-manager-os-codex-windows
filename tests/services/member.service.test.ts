@@ -1,5 +1,6 @@
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import { MemberService } from '../../src/services/member.service.js';
+import { InvalidEmailError } from '../../src/errors/tmr-error.js';
 import type { FileSystemService } from '../../src/services/file-system.service.js';
 import type { SectionParserService } from '../../src/services/section-parser.service.js';
 import { TemplateService } from '../../src/services/template.service.js';
@@ -172,6 +173,115 @@ describe('MemberService', () => {
     it('normalizes email to lowercase', async () => {
       const result = await svc.createMemberFile('JOHN@CO.COM', '1on1', { date: '2026-03-07' }, WS);
       expect(result.filePath).toContain('john@co.com');
+    });
+  });
+
+  // ── addMember ─────────────────────────────────────────────────────────────────
+
+  describe('addMember', () => {
+    beforeEach(() => {
+      // Default: profile does not exist yet; careerRoot does not exist
+      mockFS.exists.mockResolvedValue(false);
+      mockFS.listDirectories.mockResolvedValue([]);
+    });
+
+    it('MEM-UNIT-001: company scope — writes to my-company/members/<email>.md', async () => {
+      await svc.addMember('joao@company.com', {}, WS);
+
+      expect(mockFS.writeFile).toHaveBeenCalledWith(
+        expect.stringContaining(`my-company/members/joao@company.com.md`),
+        expect.any(String),
+      );
+    });
+
+    it('MEM-UNIT-002: team scope — writes to my-teams/members/<email>.md', async () => {
+      await svc.addMember('joao@company.com', { team: 'backend' }, WS);
+
+      expect(mockFS.writeFile).toHaveBeenCalledWith(
+        expect.stringContaining(`my-teams/members/joao@company.com.md`),
+        expect.any(String),
+      );
+    });
+
+    it('MEM-UNIT-003: team scope — frontmatter contains manager wiki-link when career profile exists', async () => {
+      // Sequence of exists() calls:
+      // 1. profilePath (does not exist yet) → false
+      // 2. careerRoot → true
+      // 3. managerProfilePath → true
+      mockFS.exists
+        .mockResolvedValueOnce(false) // profile not yet created
+        .mockResolvedValueOnce(true) // careerRoot exists
+        .mockResolvedValueOnce(true); // managerProfilePath exists
+      mockFS.listDirectories.mockResolvedValueOnce(['boss@co.com']);
+
+      await svc.addMember('joao@company.com', { team: 'backend' }, WS);
+
+      const writtenContent = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
+      expect(writtenContent).toContain('manager:');
+      expect(writtenContent).toMatch(/\[\[.*\|boss@co\.com\]\]/);
+    });
+
+    it('MEM-UNIT-004: location value is present in frontmatter when --location provided', async () => {
+      await svc.addMember('joao@company.com', { location: 'Lisbon' }, WS);
+
+      const writtenContent = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
+      expect(writtenContent).toContain('Lisbon');
+    });
+
+    it('MEM-UNIT-005: location is empty string when no --location provided', async () => {
+      await svc.addMember('joao@company.com', {}, WS);
+
+      const writtenContent = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
+      expect(writtenContent).toMatch(/location:\s*''/);
+    });
+
+    it('MEM-UNIT-009: throws InvalidEmailError before any file write for invalid email', async () => {
+      await expect(svc.addMember('not-an-email', {}, WS)).rejects.toThrow(InvalidEmailError);
+      expect(mockFS.writeFile).not.toHaveBeenCalled();
+      expect(mockFS.createDirectory).not.toHaveBeenCalled();
+    });
+
+    it('MEM-UNIT-010: team-scoped manager value uses wiki-link format, not plain email string', async () => {
+      mockFS.exists
+        .mockResolvedValueOnce(false)
+        .mockResolvedValueOnce(true)
+        .mockResolvedValueOnce(true);
+      mockFS.listDirectories.mockResolvedValueOnce(['boss@co.com']);
+
+      await svc.addMember('joao@company.com', { team: 'backend' }, WS);
+
+      const writtenContent = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
+      // Must use [[...]] wiki-link, not a bare email string
+      expect(writtenContent).toMatch(/manager:.*\[\[/);
+    });
+
+    it('MEM-UNIT-011: manager is empty string when my-career/ directory does not exist', async () => {
+      // First exists(): profile not found; second exists(): careerRoot missing
+      mockFS.exists.mockResolvedValueOnce(false).mockResolvedValueOnce(false);
+
+      await svc.addMember('joao@company.com', { team: 'backend' }, WS);
+
+      const writtenContent = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
+      // manager field should be empty
+      expect(writtenContent).toMatch(/manager:\s*''/);
+    });
+
+    it('returns { created: false } when profile already exists', async () => {
+      mockFS.exists.mockResolvedValueOnce(true); // profile exists
+
+      const result = await svc.addMember('joao@company.com', {}, WS);
+
+      expect(result.created).toBe(false);
+      expect(mockFS.writeFile).not.toHaveBeenCalled();
+    });
+
+    it('normalizes email to lowercase', async () => {
+      await svc.addMember('JOAO@COMPANY.COM', {}, WS);
+
+      expect(mockFS.writeFile).toHaveBeenCalledWith(
+        expect.stringContaining('joao@company.com'),
+        expect.any(String),
+      );
     });
   });
 });

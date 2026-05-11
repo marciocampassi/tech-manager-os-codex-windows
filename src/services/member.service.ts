@@ -4,9 +4,13 @@ import { FileSystemService, fileSystemService } from './file-system.service.js';
 import { SectionParserService, sectionParserService } from './section-parser.service.js';
 import { TemplateService, templateService } from './template.service.js';
 import { getWorkspaceRoot as resolveWorkspaceRoot } from '../utils/workspace.js';
+import { validateEmail } from '../utils/validation.js';
+import { formatWikiLink } from '../utils/wiki-link.js';
+import { logger } from '../utils/logger.js';
 import {
   FILE_TYPE_CONFIG,
   type FileType,
+  type IAddMemberOptions,
   type ICreateFileOptions,
   type ICreateFileResult,
   type ICreateMemberOptions,
@@ -96,6 +100,70 @@ export class MemberService {
     const profilePath = memberProfilePath(workspaceRoot, email.toLowerCase());
     const exists = await this._fs.exists(profilePath);
     return exists ? profilePath : null;
+  }
+
+  /**
+   * Routes a new member profile to the correct scope:
+   * - Company scope (no team): my-company/members/<email>.md
+   * - Team scope (team provided): my-teams/members/<email>.md with manager wiki-link
+   * Idempotent — returns { created: false } if profile already exists.
+   */
+  async addMember(
+    email: string,
+    opts: IAddMemberOptions,
+    workspaceRoot: string,
+  ): Promise<{ created: boolean }> {
+    validateEmail(email);
+    const normalizedEmail = email.toLowerCase();
+
+    const profilePath = opts.team
+      ? path.join(workspaceRoot, 'my-teams', 'members', `${normalizedEmail}.md`)
+      : path.join(workspaceRoot, 'my-company', 'members', `${normalizedEmail}.md`);
+
+    if (await this._fs.exists(profilePath)) {
+      return { created: false };
+    }
+
+    const managerLink = opts.team ? await this._resolveManagerLink(profilePath, workspaceRoot) : '';
+
+    const fm: Record<string, unknown> = {
+      email: normalizedEmail,
+      name: opts.name ?? '',
+      role: opts.role ?? '',
+      gender: opts.gender ?? '',
+      location: opts.location ?? '',
+      date_added: todayIso(),
+      ...(opts.team ? { manager: managerLink } : {}),
+    };
+
+    const body = '\n## Performance Reviews\n\n## Feedbacks\n';
+    const profileMd = matter.stringify(body, fm);
+
+    await this._fs.createDirectory(path.dirname(profilePath));
+    await this._fs.writeFile(profilePath, profileMd);
+
+    return { created: true };
+  }
+
+  /**
+   * Resolves the manager's wiki-link from the `my-career/` directory.
+   * Assumes a single career profile subdirectory (the current user's own career folder).
+   * If multiple subdirectories are found, the first alphabetically is used and a warning is logged.
+   */
+  private async _resolveManagerLink(memberPath: string, workspaceRoot: string): Promise<string> {
+    const careerRoot = path.join(workspaceRoot, 'my-career');
+    if (!(await this._fs.exists(careerRoot))) return '';
+    const subdirs = await this._fs.listDirectories(careerRoot);
+    if (subdirs.length === 0) return '';
+    if (subdirs.length > 1) {
+      logger.warn(
+        `_resolveManagerLink: found ${subdirs.length} entries in my-career/ — expected 1. Using "${subdirs[0]}" as manager.`,
+      );
+    }
+    const managerEmail = subdirs[0] as string;
+    const managerProfilePath = path.join(careerRoot, managerEmail, `${managerEmail}.md`);
+    if (!(await this._fs.exists(managerProfilePath))) return '';
+    return formatWikiLink(managerProfilePath, memberPath, managerEmail);
   }
 
   /**
