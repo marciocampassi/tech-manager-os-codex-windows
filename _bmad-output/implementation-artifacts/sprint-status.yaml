@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-27
-last_updated: 2026-05-11 (story 6.1 done)
+last_updated: 2026-05-11 (story 6.2 done)
 project: tech-manager-os
 project_key: NOKEY
 tracking_system: file-system
@@ -78,7 +78,7 @@ development_status:
   # ── Epic 6: Self Profile & AI Context Personalization (tmr-myself-config) ──
   epic-6: in-progress
   6-1-tmr-myself-config-skill-setup-flow: done
-  6-2-tmr-myself-config-update-delta-review-mode: backlog
+  6-2-tmr-myself-config-update-delta-review-mode: done
   epic-6-retrospective: optional
 
   # ── Epic 7: Zero-Friction Setup ──
