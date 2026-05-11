@@ -2,7 +2,8 @@ import { Command } from 'commander';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { memberService, MemberService } from '../services/member.service.js';
-import { printError } from '../utils/display.js';
+import { printError, printSuccess } from '../utils/display.js';
+import { InvalidEmailError } from '../errors/tmr-error.js';
 import type { FileType } from '../types/member.types.js';
 
 // ── Type guard ────────────────────────────────────────────────────────────────
@@ -28,7 +29,7 @@ export async function runMemberAdd(
   svc: MemberService,
   typeArg: string,
   emailArg: string | undefined,
-  opts: { date?: string },
+  opts: { date?: string; team?: string; location?: string },
 ): Promise<void> {
   // Routing: if first arg is a valid email → member-creation mode
   if (isEmail(typeArg)) {
@@ -45,18 +46,30 @@ export async function runMemberAdd(
     ]);
 
     const ws = svc.getWorkspaceRoot();
-    const result = await svc.createMember(
-      email,
-      {
-        name: name.trim() || undefined,
-        gender: gender.trim() || undefined,
-        role: role.trim() || undefined,
-      },
-      ws,
-    );
+    let result;
+    try {
+      result = await svc.addMember(
+        email,
+        {
+          team: opts.team,
+          location: opts.location,
+          name: name.trim() || undefined,
+          gender: gender.trim() || undefined,
+          role: role.trim() || undefined,
+        },
+        ws,
+      );
+    } catch (err) {
+      if (err instanceof InvalidEmailError) {
+        printError(`Invalid email address: ${email}`);
+        return;
+      }
+      printError(err instanceof Error ? err.message : String(err));
+      return;
+    }
 
     if (result.created) {
-      process.stdout.write(`${chalk.green('✔')} Member profile created for "${email}"\n`);
+      printSuccess(`Member profile created for "${email}"`);
     } else {
       process.stdout.write(`${chalk.dim('ℹ')} Member profile for "${email}" already exists\n`);
     }
@@ -117,9 +130,17 @@ export function createMemberCommand(): Command {
       `add a file for a team member, or create a member profile\n  type: ${VALID_TYPES.join(' | ')}\n  email: creates a member profile`,
     )
     .option('--date <date>', 'date for the file (YYYY-MM-DD), defaults to today')
-    .action(async (typeOrEmail: string, email: string | undefined, opts: { date?: string }) => {
-      await runMemberAdd(svc, typeOrEmail, email, opts);
-    });
+    .option('--team <name>', 'scope the member profile to a team (routes to my-teams/members/)')
+    .option('--location <location>', 'location field for the member profile')
+    .action(
+      async (
+        typeOrEmail: string,
+        email: string | undefined,
+        opts: { date?: string; team?: string; location?: string },
+      ) => {
+        await runMemberAdd(svc, typeOrEmail, email, opts);
+      },
+    );
 
   return cmd;
 }
