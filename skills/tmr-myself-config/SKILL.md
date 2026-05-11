@@ -1,4 +1,4 @@
-<!-- version: 1.0.0 -->
+<!-- version: 1.2.0 -->
 
 # tmr-myself-config
 
@@ -557,7 +557,15 @@ If changed: collect new priorities list (replaces current).
 **Team changes:**
 > *"Anyone joined or left your direct reports since your last update?"*
 
-If yes: collect additions (email, name, role) and removals (name or email). For additions, collect project assignment.
+If yes:
+- **Additions**: collect email, name, role, and project assignment for each new report. Add to `NEW_REPORTS` list.
+- **Departures**: for each departed report (name or email), apply the following steps in sequence:
+  1. **Resolve to email** — if only a name was given, search `my-teams/members/*.md` by `name:` frontmatter field. If one unique match: use its email. If multiple: list them and ask *"Which one? (enter email)"*. If none: warn *"No profile found for '[name]' — skipping."* and continue to the next departure.
+  2. **Check file exists** — if `my-teams/members/<email>.md` is not found, warn *"No profile found for <email> — skipping departure."* and continue.
+  3. **Ask departure date** — *"When did [name] leave? (press Enter for today: <YYYY-MM-DD>)"* — if Enter is pressed, use today's date.
+  4. **Guard existing record** — if the profile already has a `departure_date` field, do not overwrite it. Inform: *"[name] is already marked as former since <existing date> — skipping date update."* Still ensure `status: former` is set if absent.
+  5. **Write** — update `my-teams/members/<email>.md` frontmatter: set `status: former` and set `departure_date: <YYYY-MM-DD>` (from step 3, only if not already present).
+  6. Add to `DEPARTED_REPORTS` list for CONFIRM and WRITE.
 
 **Project changes:**
 > *"Any projects wrapped up, paused, or newly started?"*
@@ -567,15 +575,39 @@ If yes: for each changed project: new status (`active` / `maintenance` / `archiv
 **Contractor changes:**
 > *"Any changes to your contractors? (new engagements started, or people who wrapped up)"*
 
-If yes: collect additions or mark departures (add `status: former` to their profile frontmatter).
+If yes:
+- **Additions**: collect email, name, role, and company. Add to `COLLABORATORS` list with `relationship: contractor` tag.
+- **Departures**: for each departed contractor (name or email), apply the same resolution, file-check, date-prompt, and overwrite-guard steps as direct-report departures (searching `my-company/contractors/members/*.md` instead). Write to `my-company/contractors/members/<email>.md` frontmatter: set `status: former` and `departure_date: <YYYY-MM-DD>`. Add to `DEPARTED_CONTRACTORS` list.
 
 **Collaborator changes:**
 > *"Any new regular collaborators, or people who are no longer relevant?"*
 
-If yes: collect additions or note departures.
+If yes:
+- **Additions**: collect email, name, role, and context. Add to `COLLABORATORS` list.
+- **Departures**: for each departed collaborator (name or email), apply the same resolution, file-check, date-prompt, and overwrite-guard steps as direct-report departures (searching `my-company/members/*.md` instead). Write to `my-company/members/<email>.md` frontmatter: set `status: former` and `departure_date: <YYYY-MM-DD>`. Add to `DEPARTED_COLLABORATORS` list.
 
 ### Step U5: CONFIRM and WRITE
 
 If no changes were collected across all sections: print *"Nothing to update — your context is current."* and exit.
 
-Otherwise: run CONFIRM and WRITE for only the changed sections. Use the same merge strategy as setup.
+Otherwise: run CONFIRM for only the changed sections. When departures are present, include them in the confirm summary before any file is written:
+
+```
+DEPARTURES (direct reports)
+  my-teams/members/<email>.md — status: former, departure_date: <YYYY-MM-DD>
+  [list one per line, or omit section if none]
+
+DEPARTURES (collaborators)
+  my-company/members/<email>.md — status: former, departure_date: <YYYY-MM-DD>
+  [list one per line, or omit section if none]
+
+DEPARTURES (contractors)
+  my-company/contractors/members/<email>.md — status: former, departure_date: <YYYY-MM-DD>
+  [list one per line, or omit section if none]
+```
+
+If any departures were recorded, WRITE will also re-write the `## My Team` and `## Key Collaborators` sections in `my-career/<email>.md` and the `### Direct Reports`, `### Contractors`, and `### Key Collaborators` tables in `CLAUDE.md ## Manager Context`, removing departed entries — keeping AI context accurate.
+
+To remove a mistakenly entered departure before confirming, say *"edit departures"* and the skill will return to U4 for corrections.
+
+Then WRITE for only the changed sections. Use the same merge strategy as setup.
