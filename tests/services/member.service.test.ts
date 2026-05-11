@@ -63,6 +63,47 @@ describe('MemberService', () => {
     );
   });
 
+  // ── findMemberGlobally ────────────────────────────────────────────────────────
+
+  describe('findMemberGlobally', () => {
+    beforeEach(() => {
+      mockFS.exists.mockResolvedValue(false);
+    });
+
+    it('returns team-flat path when first candidate exists', async () => {
+      mockFS.exists.mockResolvedValueOnce(true);
+      const result = await svc.findMemberGlobally('john@co.com', WS);
+      expect(result).toContain('my-teams/members/john@co.com.md');
+    });
+
+    it('returns company-flat path when team-flat absent', async () => {
+      mockFS.exists.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+      const result = await svc.findMemberGlobally('john@co.com', WS);
+      expect(result).toContain('my-company/members/john@co.com.md');
+    });
+
+    it('returns nested legacy path when first two candidates absent', async () => {
+      mockFS.exists
+        .mockResolvedValueOnce(false)
+        .mockResolvedValueOnce(false)
+        .mockResolvedValueOnce(true);
+      const result = await svc.findMemberGlobally('john@co.com', WS);
+      expect(result).toContain('my-teams/members/john@co.com/john@co.com.md');
+    });
+
+    it('returns null when all three candidates absent', async () => {
+      mockFS.exists.mockResolvedValue(false);
+      const result = await svc.findMemberGlobally('john@co.com', WS);
+      expect(result).toBeNull();
+    });
+
+    it('normalizes email to lowercase before searching', async () => {
+      mockFS.exists.mockResolvedValueOnce(true);
+      const result = await svc.findMemberGlobally('JOHN@CO.COM', WS);
+      expect(result).toContain('john@co.com');
+    });
+  });
+
   // ── findMember ───────────────────────────────────────────────────────────────
 
   describe('findMember', () => {
@@ -89,14 +130,55 @@ describe('MemberService', () => {
 
   describe('createMemberFile', () => {
     beforeEach(() => {
-      mockFS.exists.mockResolvedValue(true);
+      // findMemberGlobally makes exactly 3 exists() calls in order:
+      //   call 1 → team-flat (my-teams/members/<email>.md)
+      //   call 2 → company-flat (my-company/members/<email>.md)
+      //   call 3 → nested legacy (my-teams/members/<email>/<email>.md)  ← PROFILE_PATH
+      // Returning false/false/true routes all pre-existing tests through the nested-legacy
+      // profile (PROFILE_PATH = '.../my-teams/members/john@co.com/john@co.com.md').
+      // memberSubDirFromProfile uses path.dirname(PROFILE_PATH) = '.../my-teams/members/john@co.com'
+      // because path.basename(dirname) === email → the nested branch.
+      // IMPORTANT: if findMemberGlobally's candidate order changes, update this setup.
+      mockFS.exists
+        .mockResolvedValueOnce(false) // team-flat not found
+        .mockResolvedValueOnce(false) // company-flat not found
+        .mockResolvedValue(true); // nested found + any further calls (e.g. createDirectory guards)
     });
 
-    it('throws if member profile does not exist', async () => {
-      mockFS.exists.mockResolvedValue(false);
-      await expect(svc.createMemberFile(EMAIL, '1on1', {}, WS)).rejects.toThrow(
-        /not found.*tmr team add/i,
+    it('memberSubDirFromProfile: nested profile uses parentDir as subdir root', async () => {
+      // beforeEach routes findMemberGlobally to PROFILE_PATH (nested legacy).
+      // PROFILE_PATH = '.../my-teams/members/john@co.com/john@co.com.md'
+      // memberSubDirFromProfile should return '.../my-teams/members/john@co.com' (not a sibling dir).
+      await svc.createMemberFile(EMAIL, '1on1', { date: '2026-01-15' }, WS);
+
+      expect(mockFS.createDirectory).toHaveBeenCalledWith(
+        expect.stringMatching(/my-teams\/members\/john@co\.com\/1on1s$/),
       );
+    });
+
+    it('memberSubDirFromProfile: flat profile uses sibling dir as subdir root', async () => {
+      // Override: team-flat found immediately → PROFILE_PATH is a flat file
+      mockFS.exists.mockReset();
+      mockFS.exists.mockResolvedValueOnce(true); // team-flat found
+      // profilePath = '.../my-teams/members/john@co.com.md' (flat)
+      // memberSubDirFromProfile should return '.../my-teams/members/john@co.com' (sibling dir)
+      await svc.createMemberFile(EMAIL, '1on1', { date: '2026-01-15' }, WS);
+
+      expect(mockFS.createDirectory).toHaveBeenCalledWith(
+        expect.stringMatching(/my-teams\/members\/john@co\.com\/1on1s$/),
+      );
+    });
+
+    it('auto-creates company-scoped profile when member does not exist (FR24)', async () => {
+      // All exists() calls return false → triggers auto-create
+      mockFS.exists.mockResolvedValue(false);
+
+      await svc.createMemberFile(EMAIL, 'feedback', { date: '2026-03-07' }, WS);
+
+      // Two writeFile calls: profile creation + dated feedback file
+      expect(mockFS.writeFile).toHaveBeenCalledTimes(2);
+      // First write is the auto-created company-scoped profile
+      expect(mockFS.writeFile.mock.calls[0]![0]).toContain('my-company/members/john@co.com.md');
     });
 
     it('creates the 1on1 file at correct path', async () => {
@@ -280,6 +362,61 @@ describe('MemberService', () => {
 
       expect(mockFS.writeFile).toHaveBeenCalledWith(
         expect.stringContaining('joao@company.com'),
+        expect.any(String),
+      );
+    });
+  });
+
+  // ── createMemberFile — global email resolver (Story 3.3) ──────────────────────
+
+  describe('createMemberFile — global email resolver', () => {
+    beforeEach(() => {
+      mockFS.exists.mockResolvedValue(false);
+    });
+
+    it('MEM-UNIT-006: routes to flat team-scoped profile when it exists in my-teams/members/', async () => {
+      // findMemberGlobally: team-flat → true (found immediately)
+      mockFS.exists.mockResolvedValueOnce(true);
+
+      await svc.createMemberFile('joao@company.com', 'feedback', { date: '2026-01-15' }, WS);
+
+      // appendToFile must use the team-flat profile path
+      expect(mockParser.appendToFile).toHaveBeenCalledWith(
+        expect.stringContaining('my-teams/members/joao@company.com.md'),
+        'Feedbacks',
+        expect.any(String),
+      );
+    });
+
+    it('MEM-UNIT-007: routes to flat company-scoped profile when team-flat absent', async () => {
+      // findMemberGlobally: team-flat → false, company-flat → true
+      mockFS.exists.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+
+      await svc.createMemberFile('pedro@company.com', 'feedback', { date: '2026-01-15' }, WS);
+
+      expect(mockParser.appendToFile).toHaveBeenCalledWith(
+        expect.stringContaining('my-company/members/pedro@company.com.md'),
+        'Feedbacks',
+        expect.any(String),
+      );
+    });
+
+    it('MEM-UNIT-008: auto-creates company profile and writes feedback when no profile found', async () => {
+      // findMemberGlobally: all 3 → false; addMember idempotency check → false (creates)
+      mockFS.exists.mockResolvedValue(false);
+
+      await svc.createMemberFile('unknown@company.com', 'feedback', { date: '2026-01-15' }, WS);
+
+      // writeFile called twice: addMember creates profile + createMemberFile writes dated file
+      expect(mockFS.writeFile).toHaveBeenCalledTimes(2);
+      // Profile auto-created at company scope
+      expect(mockFS.writeFile.mock.calls[0]![0]).toContain(
+        'my-company/members/unknown@company.com.md',
+      );
+      // Feedback wiki-link appended to the auto-created profile
+      expect(mockParser.appendToFile).toHaveBeenCalledWith(
+        expect.stringContaining('my-company/members/unknown@company.com.md'),
+        'Feedbacks',
         expect.any(String),
       );
     });
