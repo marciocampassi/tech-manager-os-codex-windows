@@ -49,6 +49,26 @@ FR24: System auto-creates a company-scoped member profile when feedback is reque
 FR25: User can install all available skills from the official skill registry in a single command
 FR26: User can install a specific skill from the official skill registry by name
 FR27: System accesses the skill registry through an abstracted service layer that supports future registry evolution
+FR35: System automatically installs the `tmr-project-impact` skill as part of every `tmr init` run, enabling dependency tracking across project files
+FR36: The `CLAUDE.md` written to the vault root during `tmr init` includes: (a) a rule instructing AI agents to run `/tmr-project-impact` whenever a file changes inside `my-company/projects/`; and (b) a `## Manager Context` placeholder section with a CTA to run `/tmr-myself-config`
+FR37: System creates a stub `deps.yaml` file inside the new project directory when `tmr project add` is run, so that `/tmr-project-impact` can be invoked at any time without a manual file creation step
+FR38: Vault scaffold includes `my-company/contractors/members/` directory
+FR39: `tmr init` writes `<vault>/config/organization.yaml` with the user's email domain as the initial internal domain entry after collecting the user profile
+FR40: `tmr init` optionally prompts for additional trusted internal email domains; entered domains are appended to `config/organization.yaml`; pressing Enter skips
+FR41: `tmr member add <email>` checks the email domain against `config/organization.yaml`; external domains prompt for contractor vs. company routing (default: contractors); `--contractor` flag bypasses domain detection
+FR42: Contractor profiles stored in `my-company/contractors/members/<email>.md` with `contractor: true` and `company:` frontmatter fields
+FR43: `tmr init` auto-installs the `tmr-myself-config` skill during onboarding; install failure is logged but does not abort onboarding
+FR44: Default `CLAUDE.md` template written during `tmr init` includes a `## Manager Context` placeholder section with CTA to run `/tmr-myself-config`
+FR45: `tmr init` post-init next-steps summary recommends `/tmr-myself-config` as Step 1 for AI personalization
+FR46: `/tmr-myself-config` (setup mode) — adaptive questionnaire, profile enrichment, CLAUDE.md merge, project scaffolding, member/contractor routing
+FR47: `/tmr-myself-config update` (update mode) — delta review of priorities, team changes, project status, contractor changes; merges only changed sections
+FR48: System scaffolds `.obsidian/plugins/granola-sync/data.json` during `tmr init` with `customBaseFolder: "inbox"` and `saveAsIndividualFiles: true`, pre-configuring the Granola Sync plugin without any manual user configuration
+FR49: Bootstrap install script for macOS — auto-installs Homebrew if absent, then Node.js ≥ 18, tmr, and optionally Obsidian/Granola/Google Drive via `brew install --cask`; ends with `tmr init`
+FR50: Bootstrap install script for Windows — detects winget availability; if absent, directs user to App Installer; otherwise installs Node.js ≥ 18, tmr, and optionally Obsidian/Granola/Google Drive via winget; ends with `tmr init`
+FR51: Linux install script — auto-detects package manager (apt-get/dnf/yum/pacman); exits gracefully if none found; installs Node.js ≥ 18, tmr, and Obsidian only; skips Granola/Google Drive with explanatory message
+FR52: Install scripts hosted at public HTTPS URL; invocable via `curl | bash` (macOS/Linux) and `iwr | iex` (Windows)
+FR53: `tmr doctor` command validates full environment (Node.js, tmr, Obsidian, Granola, Google Drive, vault config) with ✔/⚠ per check and exact remediation commands
+FR54: `tmr doctor` exits non-zero when any check produces ⚠ status
 FR28: System validates all email inputs before any file system operation and rejects invalid formats with a descriptive error
 FR29: System re-prompts the user on invalid input during interactive flows without losing progress or crashing
 FR30: System validates team count input during init as a positive integer greater than zero
@@ -156,8 +176,30 @@ N/A — `tech-manager-os` is a CLI tool with no graphical interface. No UX desig
 | FR26 | Epic 4 | `tmr install <skill-name>` — installs single skill |
 | FR27 | Epic 4 | `SkillRegistryService` abstraction layer (no hardcoded URLs) |
 | FR34 | Epic 5 | `CONTRIBUTING.md` in repo root |
+| FR35 | Epic 2 | Auto-install `tmr-project-impact` skill during `tmr init` |
+| FR36 | Epic 2 | `CLAUDE.md` hook: AI agents run `/tmr-project-impact` on changes in `my-company/projects/` |
+| FR37 | Epic 2 | `tmr project add` scaffolds stub `deps.yaml` in new project directory |
 
-**Total: 34/34 FRs covered** ✓
+| FR38 | Epic 2 | `my-company/contractors/members/` in vault scaffold |
+| FR39 | Epic 2 | `config/organization.yaml` written with internal domain during init |
+| FR40 | Epic 2 | Optional prompt for additional internal domains during init |
+| FR41 | Epic 3 | Domain-based contractor routing in `MemberService`; `--contractor` flag |
+| FR42 | Epic 3 | Contractor profile format: `contractor: true` + `company:` fields |
+| FR43 | Epic 2 | Auto-install `tmr-myself-config` skill during `tmr init` |
+| FR44 | Epic 2 | `## Manager Context` placeholder in default `CLAUDE.md` template |
+| FR45 | Epic 2 | Post-init next-steps recommends `/tmr-myself-config` as Step 1 |
+| FR46 | Epic 6 | `/tmr-myself-config` setup flow — full adaptive questionnaire |
+| FR47 | Epic 6 | `/tmr-myself-config update` — delta review mode |
+
+| FR48 | Epic 2 | `.obsidian/plugins/granola-sync/data.json` scaffolded during `tmr init` with `inbox/` pre-configured |
+| FR49 | Epic 7 | macOS bootstrap install script — Homebrew auto-install + Node + tmr + optional tools |
+| FR50 | Epic 7 | Windows bootstrap install script — winget detection + Node + tmr + optional tools |
+| FR51 | Epic 7 | Linux install script — package manager detection + Node + tmr + Obsidian only |
+| FR52 | Epic 7 | Scripts hosted at public HTTPS URL |
+| FR53 | Epic 7 | `tmr doctor` environment health check with ✔/⚠ per tool and fix instructions |
+| FR54 | Epic 7 | `tmr doctor` non-zero exit code on any failing check |
+
+**Total: 54/54 FRs covered** ✓ *(FR35–FR37 added 2026-04-29 via sprint change #1; FR38–FR47 added 2026-04-29 via sprint change #2; FR48–FR54 added 2026-04-29 via sprint change #4)*
 
 ---
 
@@ -177,11 +219,11 @@ Engineers and downstream epics can rely on consistent, shared building blocks fo
 ---
 
 ### Epic 2: Zero-to-Operational Onboarding (`tmr init` Rework)
-A new engineering manager runs `tmr init`, answers a single guided session of prompts, and arrives at a fully populated vault — their profile, their leader, their teams and team members, sample inbox notes, and an installed skill — without reading docs or running any additional commands.
+A new engineering manager runs `tmr init`, answers a single guided session of prompts, and arrives at a fully populated vault — their profile, their leader, their teams and team members, sample inbox notes, two installed skills (`tmr-inbox` and `tmr-project-impact`), and a `CLAUDE.md` with a dependency-tracking hook — without reading docs or running any additional commands. Adding a project via `tmr project add` automatically scaffolds a `deps.yaml` ready for dependency tracking.
 
-**FRs covered:** FR1–FR14, FR30
+**FRs covered:** FR1–FR14, FR30, FR35, FR36, FR37, FR38–FR45, FR48
 
-**TEA quality gates:** INIT-INT-001 (happy path), INIT-INT-002 (CWD default), INIT-INT-004/005/006/007 (validation rejections), INIT-INT-009 (team name normalization), INIT-INT-010 (skill install resilience), INIT-INT-011 (partial write failure → stderr), INIT-INT-012 (README exists), INIT-INT-013 (wiki-link format)
+**TEA quality gates:** INIT-INT-001 (happy path), INIT-INT-002 (CWD default), INIT-INT-004/005/006/007 (validation rejections), INIT-INT-009 (team name normalization), INIT-INT-010 (skill install resilience), INIT-INT-010b (`tmr-project-impact` install resilience), INIT-INT-011 (partial write failure → stderr), INIT-INT-012 (README exists), INIT-INT-013 (Granola Sync plugin config present with correct folder), INIT-UNIT-008 (CLAUDE.md contains project impact hook), PROJ-UNIT-001 (deps.yaml scaffolded by `tmr project add`)
 
 **Test infrastructure prerequisite:** `tests/fixtures/init-prompts.ts` (`initPromptFixture` helper) must be created in this epic before integration tests are written.
 
@@ -399,6 +441,22 @@ So that all required directories exist and the vault is ready to be populated by
 **When** the scaffold completes
 **Then** a `CLAUDE.md` file is written to the vault root (INIT-UNIT-007)
 
+**Given** the `CLAUDE.md` is written to the vault root
+**When** its content is inspected
+**Then** it includes an instruction to AI agents: "Whenever any file changes inside `my-company/projects/`, run `/tmr-project-impact` to check for dependent document updates. Use `/tmr-project-impact <project-path> deps` to set up a project's dependency manifest for the first time." (FR36, INIT-UNIT-008)
+
+**Given** the `CLAUDE.md` is written to the vault root
+**When** its content is inspected
+**Then** it includes a `## Manager Context` placeholder section with a CTA to run `/tmr-myself-config` in Claude Code (FR44, INIT-UNIT-009)
+
+**Given** `InitService` creates the folder structure
+**When** the scaffold completes
+**Then** `my-company/contractors/members/` exists in the vault (FR38, INIT-UNIT-010)
+
+**Given** `InitService` creates the vault scaffold
+**When** the scaffold completes
+**Then** `.obsidian/plugins/granola-sync/data.json` is written with `customBaseFolder: "inbox"`, `saveAsIndividualFiles: true`, `isSyncEnabled: true`, `syncInterval: 1800`, and all other fields set to plugin defaults — so that when the user installs the Granola Sync community plugin in Obsidian, it is already pointed at the vault's inbox with no manual configuration required (FR48, INIT-UNIT-013)
+
 **Given** a file system write error occurs during scaffolding
 **When** the error is caught
 **Then** `printError` is called with a descriptive message to `process.stderr` and the process does not exit silently (NFR1, INIT-INT-011)
@@ -444,6 +502,14 @@ So that my profile, my leader's profile, and team folder entries are created aut
 **Given** an invalid email is entered for the user profile or leader
 **When** `validateEmail()` is called
 **Then** the input is rejected with `InvalidEmailError` and the prompt re-displays without losing any previously entered data (INIT-INT-005, INIT-INT-006)
+
+**Given** `InitService` collects the user's email during the profile prompt
+**When** the profile file is written to `my-career/`
+**Then** `config/organization.yaml` is written to the vault root with the user's email domain under `internal_domains:` (FR39, INIT-UNIT-011)
+
+**Given** `InitService` has written `config/organization.yaml`
+**When** the optional additional-domains prompt is displayed
+**Then** the user can enter zero or more additional internal domains; each is appended to `internal_domains:` in `config/organization.yaml`; pressing Enter skips the step with no error (FR40, INIT-UNIT-012)
 
 **Given** `tests/fixtures/init-prompts.ts` does not yet exist
 **When** this story is implemented
@@ -495,6 +561,10 @@ So that all team member files are created with the correct scope, frontmatter, a
 **When** the write begins
 **Then** an `ora` spinner is visible to the user during the operation (NFR4)
 
+**Given** `InitService` writes a team member file during the member collection loop
+**When** the file is created at `my-teams/members/<email>.md`
+**Then** the frontmatter includes `relationship: direct-report`
+
 ---
 
 ### Story 2.4: Sample Files, Skill Install, README & Post-Init Summary
@@ -513,13 +583,33 @@ So that my vault is immediately useful and I know exactly what to do next — ev
 **When** the network call fails (timeout, 404, or any error)
 **Then** the error is logged but onboarding continues — a skill install failure does NOT abort `tmr init` (FR10, NFR1, INIT-INT-010)
 
+**Given** `InitService` installs `tmr-project-impact` via `SkillRegistryService` immediately after `tmr-inbox`
+**When** the network call succeeds
+**Then** the skill files are written to `<workspace>/.claude/skills/tmr-project-impact/` (FR35)
+
+**Given** `InitService` installs `tmr-project-impact` via `SkillRegistryService`
+**When** the network call fails (timeout, 404, or any error)
+**Then** the error is logged but onboarding continues — failure does NOT abort `tmr init` (FR35, INIT-INT-010b)
+
+**Given** `InitService` installs `tmr-myself-config` via `SkillRegistryService` immediately after `tmr-project-impact`
+**When** the network call succeeds
+**Then** the skill files are written to `<workspace>/.claude/skills/tmr-myself-config/` (FR43)
+
+**Given** `InitService` installs `tmr-myself-config` via `SkillRegistryService`
+**When** the network call fails (timeout, 404, or any error)
+**Then** the error is logged but onboarding continues — failure does NOT abort `tmr init` (FR43, INIT-INT-010c)
+
+**Given** `tests/integration/init.integration.test.ts` mocks both skill installs (one succeeds, one fails)
+**When** the integration test runs
+**Then** INIT-INT-010b passes: onboarding completes regardless of `tmr-project-impact` install outcome
+
 **Given** `InitService` reaches the README generation step
 **When** `InitService` writes the README
 **Then** `README.md` exists in the vault root with content covering the most-used commands and a full command reference (FR12, INIT-UNIT-002, INIT-INT-012)
 
 **Given** `InitService` completes all steps
 **When** the post-init summary is printed
-**Then** `printInfo` outputs a next-steps message directing the user to `tmr project add` and `/tmr-inbox` (FR13, INIT-UNIT-006)
+**Then** `printInfo` outputs a numbered next-steps message: Step 1 directs the user to run `/tmr-myself-config` in Claude Code; Step 2 directs to `tmr project add`; Step 3 directs to `/tmr-inbox`; and informs the user that `/tmr-project-impact <project-path> deps` can be run after adding projects (FR13, FR45, INIT-UNIT-006)
 
 **Given** `InitService` completes all steps
 **When** the post-init summary is printed
@@ -532,6 +622,36 @@ So that my vault is immediately useful and I know exactly what to do next — ev
 **Given** `tests/integration/init.integration.test.ts` exercises the full happy-path flow
 **When** the integration test runs using `initPromptFixture('happy-path')`
 **Then** INIT-INT-001 (full happy path: 1 team + 2 members → all correct files) passes
+
+---
+
+### Story 2.5: `tmr project add` — Scaffold `deps.yaml` for Dependency Tracking
+
+As a `tmr` user who just created a project via `tmr project add`,
+I want a stub `deps.yaml` automatically created in the project folder,
+So that I can run `/tmr-project-impact <project-path> deps` at any time to set up dependency tracking without any manual file creation.
+
+**Acceptance Criteria:**
+
+**Given** `tmr project add <name>` is run
+**When** the project directory is created at `my-company/projects/<name>/`
+**Then** a stub `deps.yaml` is written to `my-company/projects/<name>/deps.yaml` with the standard header comment and an empty `sources: {}` block (FR37, PROJ-UNIT-001)
+
+**Given** the stub `deps.yaml` is written
+**When** its content is inspected
+**Then** it contains the header comment block explaining its purpose and how to populate it (`/tmr-project-impact <project-path> deps`), and a valid empty `sources: {}` block ready for the interactive tool to populate
+
+**Given** `tests/commands/project.command.test.ts` (or equivalent) exercises `tmr project add`
+**When** the unit test runs
+**Then** PROJ-UNIT-001 passes: `deps.yaml` exists in the scaffolded project folder with the correct header and empty sources block
+
+**Given** any unexpected runtime error occurs during `deps.yaml` creation
+**When** the error propagates
+**Then** it is caught, surfaced via `printError` to `process.stderr`, and no stack trace is visible to the user (NFR2)
+
+**Given** `tmr project add <name>` is run
+**When** the project file `my-company/projects/<name>/<name>-project.md` is written
+**Then** its frontmatter contains: `name`, `status` (default: `active`), `start_date` (today's date as `YYYY-MM-DD`), and `owner` (wiki-link resolved from `my-career/` if available, else the string `"unknown"`)
 
 ---
 
@@ -609,9 +729,37 @@ So that the correct file path and frontmatter are produced based solely on conte
 **When** `MemberService.addMember()` validates the email
 **Then** `validateEmail()` throws `InvalidEmailError` (TMR_E103) before any file write (MEM-UNIT-009)
 
+**Given** `tmr member add external@agency.com` is run and `agency.com` is not in `config/organization.yaml internal_domains`
+**When** `MemberService.addMember()` checks the domain
+**Then** the user is prompted: *"external@agency.com looks external (agency.com). Route to: [c]ontractors or [m]embers?"* with contractors as the default (FR41, MEM-INT-006)
+
+**Given** the user selects contractors at the routing prompt
+**When** `MemberService` writes the profile
+**Then** the profile is written to `my-company/contractors/members/external@agency.com.md` with `contractor: true` and `company: <collected company name>` frontmatter fields (FR42, MEM-INT-007)
+
+**Given** `tmr member add external@agency.com --contractor` is run
+**When** `MemberService.addMember()` processes the `--contractor` flag
+**Then** it routes directly to `my-company/contractors/members/` without any domain-check prompt (FR41, MEM-UNIT-012)
+
+**Given** `tmr member add internal@techcorp.com` is run and `techcorp.com` is in `config/organization.yaml internal_domains`
+**When** `MemberService.addMember()` checks the domain
+**Then** it routes to `my-company/members/` with no additional prompts — existing FR18 behavior unaffected (FR41)
+
 **Given** a member profile file write is performed during integration tests
 **When** the write completes
 **Then** the elapsed time is less than 500ms under normal local I/O conditions (NFR5)
+
+**Given** `tmr member add <email>` is run (no `--team` flag)
+**When** `MemberService` writes the profile
+**Then** the frontmatter includes `relationship: company`
+
+**Given** `tmr member add <email> --team <name>` is run
+**When** `MemberService` writes the profile
+**Then** the frontmatter includes `relationship: direct-report`
+
+**Given** `tmr member add <email> --contractor` is run, or the domain-check prompt routes to contractor
+**When** `MemberService` writes the profile
+**Then** the frontmatter includes `relationship: contractor`
 
 **Given** `tests/fixtures/member-profiles.ts` does not yet exist
 **When** this story is implemented
@@ -710,6 +858,13 @@ So that I can access the full skills ecosystem in one command and never wonder w
 
 ---
 
+### Epic 6: Self Profile & AI Context Personalization (`tmr-myself-config`)
+Engineering managers can run `/tmr-myself-config` after `tmr init` to enrich their profile, map their team and projects, classify contractors, and populate `CLAUDE.md` with deep personal context — making every AI skill assertive and role-aware from day one. The `update` mode keeps the context current as priorities, teams, and projects evolve.
+
+**FRs covered:** FR46, FR47
+
+---
+
 ## Epic 5: Open Source Community Readiness
 
 External contributors can set up the project locally, understand all coding conventions, run the test suite, submit PRs, and contribute skills to the official registry — all guided by a single `CONTRIBUTING.md`.
@@ -745,3 +900,176 @@ So that I can contribute code, documentation, or skills without asking the maint
 **Given** `CONTRIBUTING.md` covers skill submission
 **When** a contributor reads the skills section
 **Then** it documents the official skill registry structure, `SKILL.md` format requirements, and the submission process for community skills
+
+---
+
+## Epic 6: Self Profile & AI Context Personalization (`tmr-myself-config`)
+
+Engineering managers can run `/tmr-myself-config` after `tmr init` to enrich their profile, map their team and projects, classify contractors, and populate `CLAUDE.md` with deep personal context — making every AI skill assertive and role-aware from day one. The `update` mode keeps the context current as priorities, teams, and projects evolve.
+
+### Story 6.1: `tmr-myself-config` Skill — Setup Flow
+
+As an engineering manager setting up their vault for the first time,
+I want to run `/tmr-myself-config` in Claude Code and have a guided adaptive conversation that learns about my role, working style, products, and team,
+So that my profile is enriched, my vault graph is built, and every AI skill gives me assertive, personalized responses from day one.
+
+**Acceptance Criteria:**
+
+**Given** `docs/TMR-MYSELF-CONFIG-SKILL.md` is authored and registered in the skill registry
+**When** the skill is invoked as `/tmr-myself-config`
+**Then** it follows the BOOTSTRAP → ARCHETYPE → BASE-CONTEXT → PRODUCT/PEOPLE branches → CONTRACTOR-CHECK → CONFIRM → WRITE flow as specified in the skill document (FR46)
+
+**Given** BOOTSTRAP runs before any question is asked
+**When** it reads the vault
+**Then** it loads: `my-career/<email>.md`, `my-leadership/`, `my-teams/members/`, `my-company/projects/`, `config/organization.yaml`; greets the user with a summary of what was found; and skips questions for already-known fields (FR46, SKILL-MYSELF-001)
+
+**Given** the ARCHETYPE step runs
+**When** the user selects product / people / hybrid
+**Then** PRODUCT-BRANCH is executed for product/hybrid and PEOPLE-BRANCH is executed for people/hybrid (FR46)
+
+**Given** CONFIRM is reached
+**When** the summary of planned writes is shown
+**Then** no file has been written yet; the user can approve, edit, or cancel (FR46)
+
+**Given** WRITE runs after confirmation
+**When** all outputs are written
+**Then**: enriched `my-career/<email>.md` (merged — no existing fields overwritten); `CLAUDE.md ## Manager Context` section replaced; new project folders contain full `<name>-project.md` + `deps.yaml`; new member profiles in `my-teams/members/`, `my-company/members/`, or `my-company/contractors/members/` as appropriate; all entity references use `formatWikiLink()` (FR46, SKILL-MYSELF-002)
+
+**Given** CONTRACTOR-CHECK runs for a collected email with an external domain
+**When** the user classifies it as a contractor
+**Then** the profile is written to `my-company/contractors/members/<email>.md` with `contractor: true` and `company:` fields (FR46)
+
+---
+
+### Story 6.2: `tmr-myself-config update` — Delta Review Mode
+
+As an engineering manager whose context has changed over time,
+I want to run `/tmr-myself-config update` and have a lightweight review conversation that asks only about what changed in my priorities, team, and projects,
+So that my profile and `CLAUDE.md` stay accurate without re-running the full setup.
+
+**Acceptance Criteria:**
+
+**Given** `/tmr-myself-config update` is invoked
+**When** BOOTSTRAP completes
+**Then** the skill presents a structured summary of current known context: priorities, team, projects, contractors, collaborators; and shows the last-updated timestamp from `CLAUDE.md ## Manager Context` (FR47, SKILL-MYSELF-003)
+
+**Given** the delta review runs
+**When** the user answers each section question
+**Then** sections answered "no change" or skipped with Enter are not written; only changed sections trigger file updates (FR47)
+
+**Given** delta questions cover all four change categories
+**When** the review completes
+**Then** priorities, direct report changes (joins/leaves), project status changes (new/wrapped/archived), and contractor changes are all addressable in a single update run (FR47, SKILL-MYSELF-004)
+
+**Given** new direct reports or projects are discovered during update
+**When** WRITE runs
+**Then** new members and project files are created using the same templates as the setup flow (FR47)
+
+**Given** no changes are collected across all sections
+**When** the update completes
+**Then** the skill prints "Nothing to update — your context is current." and exits without writing any file (FR47)
+
+---
+
+## Epic 7: Zero-Friction Setup
+
+Engineering managers on macOS, Windows, and Linux can go from zero to a fully operational `tmr` vault in a single command. Bootstrap install scripts handle all prerequisite and tool installation with per-step opt-in prompts. `tmr doctor` validates the environment at any time and surfaces actionable fix instructions for anything missing or misconfigured.
+
+**FRs covered:** FR49–FR54
+*(FR48 is covered in Epic 2 Story 2.1 — Granola Sync plugin config scaffolded during `tmr init`)*
+
+---
+
+### Story 7.1: Bootstrap Install Scripts
+
+As a new engineering manager who has never used `tmr`,
+I want to run a single command that installs all necessary tools and drops me into the `tmr init` guided flow,
+So that I go from zero to a fully operational vault without needing to know what Node.js, Homebrew, or winget are.
+
+**Acceptance Criteria:**
+
+**Given** a macOS user runs `curl -fsSL <url>/install.sh | bash` and Homebrew is not installed
+**When** the script detects `brew` is absent
+**Then** it installs Homebrew via the official script (`/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`) before proceeding (FR49, INSTALL-UNIT-001)
+
+**Given** Homebrew is present (or just installed)
+**When** the macOS script continues
+**Then** it checks for Node.js ≥ 18; installs via `brew install node` if absent; installs `tmr` globally via npm (FR49)
+
+**Given** the macOS script has installed `tmr`
+**When** the optional-tools section runs
+**Then** the user is prompted: *"Install Obsidian? [Y/n]"*, *"Install Granola? [Y/n]"*, *"Install Google Drive? [Y/n]"*; each accepted prompt runs the corresponding `brew install --cask` command (FR49)
+
+**Given** a Linux user runs `curl -fsSL <url>/install.sh | bash`
+**When** the script executes
+**Then** it detects the package manager in priority order: `apt-get` → `dnf` → `yum` → `pacman`; if none found, it exits with: *"No supported package manager detected (apt, dnf, yum, pacman). Please install Node.js ≥ 18 manually and re-run."* (FR51, INSTALL-UNIT-002)
+
+**Given** a Linux package manager is detected
+**When** the optional-tools section runs
+**Then** only Obsidian is offered (via detected package manager or `snap` as fallback); Granola and Google Drive prompts are skipped with: *"Granola and Google Drive are not available on Linux — install them manually if needed."* (FR51)
+
+**Given** a Windows user runs `iwr -useb <url>/install.ps1 | iex` and `winget` is not available
+**When** the script detects `winget` is absent
+**Then** it prints: *"winget (App Installer) is required. Install it from the Microsoft Store: https://aka.ms/getwinget — then re-run this script."* and exits (FR50, INSTALL-UNIT-003)
+
+**Given** `winget` is present
+**When** the Windows script continues
+**Then** it installs Node.js ≥ 18 via `winget install OpenJS.NodeJS.LTS` if absent; installs `tmr` globally via npm; prompts for Obsidian, Granola, and Google Drive installation via winget (FR50)
+
+**Given** all installations complete (any platform)
+**When** the final script step runs
+**Then** `tmr init` is launched automatically (FR49, FR50)
+
+**Given** Google Drive is installed or detected
+**When** the script outputs its summary
+**Then** it prints: *"Tip: For automatic cloud backup, place your vault inside your Google Drive folder."* (FR49)
+
+**Given** any install step fails (brew error, winget error, package manager error, npm error)
+**When** the error is caught
+**Then** the script prints a descriptive message and continues with remaining steps — a single tool failure does not abort the entire script
+
+**Given** `scripts/install.sh` and `scripts/install.ps1` exist in the repository root
+**When** they are hosted via Cloudflare Pages or equivalent at the configured domain
+**Then** they are accessible over HTTPS with correct content type (FR52)
+
+---
+
+### Story 7.2: `tmr doctor` Environment Health Check
+
+As an engineering manager troubleshooting a `tmr` setup issue,
+I want to run `tmr doctor` and see the status of every required and recommended tool in my environment,
+So that I know exactly what is missing or misconfigured and the exact command to run to fix it — without digging through documentation.
+
+**Acceptance Criteria:**
+
+**Given** `tmr doctor` is run on a fully configured system
+**When** all checks pass
+**Then** each line shows `✔  <tool>  <version or status>` and exit code is `0` (FR53, DOCTOR-UNIT-001)
+
+**Given** `tmr doctor` is run and Obsidian is not installed
+**When** the Obsidian check fails
+**Then** output includes `⚠  Obsidian  not found — run: brew install --cask obsidian` (macOS) or platform-appropriate instruction (FR53, DOCTOR-UNIT-002)
+
+**Given** `tmr doctor` is run and the vault is not configured
+**When** the vault check fails
+**Then** output includes `⚠  Vault  not configured — run: tmr init` (FR53, DOCTOR-UNIT-003)
+
+**Given** `tmr doctor` is run and the Granola Sync plugin config is missing or `customBaseFolder` is not `"inbox"`
+**When** the plugin config check runs
+**Then** output includes `⚠  Granola Sync  plugin config missing or misconfigured — re-run tmr init to repair` (FR53, DOCTOR-UNIT-004)
+
+**Given** `tmr doctor` is run and any check has `⚠` status
+**When** all checks complete
+**Then** exit code is non-zero (FR54, DOCTOR-UNIT-005)
+
+**Given** `tmr doctor` is run with `--json` flag
+**When** output is generated
+**Then** a structured JSON object is emitted with each check as a key (e.g. `{ "nodejs": { "ok": true, "version": "20.x.x" }, ... }`) following the `--json` output contract
+
+**Given** `tmr doctor` detects Granola is not installed on Linux
+**When** the Granola check runs
+**Then** it prints `ℹ  Granola  not available on Linux` (info only, not `⚠`) and does not contribute to non-zero exit code
+
+**Given** any unexpected runtime error occurs during `tmr doctor`
+**When** the error propagates
+**Then** it is caught, surfaced via `printError` to `process.stderr`, and no stack trace is visible to the user (NFR2)

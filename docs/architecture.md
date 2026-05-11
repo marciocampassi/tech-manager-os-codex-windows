@@ -127,7 +127,7 @@ Files with `confidence < threshold` (default 0.75) are flagged `needsReview = tr
 
 ### 4. Workspace Structure
 
-`tmr init` scaffolds a **local Obsidian vault** at the user-chosen path:
+`tmr init` scaffolds a **local Obsidian vault** at the user-chosen path. `config/organization.yaml` (written during init) stores internal email domains and is read by `MemberService` to determine contractor vs. company-member routing for external email addresses.
 
 ```
 ~/tech-leadership-workspace/
@@ -137,8 +137,10 @@ Files with `confidence < threshold` (default 0.75) are flagged `needsReview = tr
 ├── my-tasks/                    ← tasks.md + today/week/month/quarter views
 ├── my-teams/members/            ← Per-member context files
 ├── my-teams/teams/              ← Team configuration
-├── my-company/members/          ← Company-scoped member profiles
-├── my-company/projects/         ← Project metadata
+├── my-company/members/              ← Internal company member profiles
+├── my-company/contractors/members/  ← Contractor and external collaborator profiles
+├── my-company/projects/             ← Project metadata
+├── config/organization.yaml         ← Internal email domains (written by tmr init)
 ├── my-leadership/               ← Leadership contacts
 ├── my-career/                   ← Assessments, feedback
 ├── knowledge-base/              ← Company docs, people, process
@@ -208,7 +210,9 @@ The `plain` flag propagates from global opts into every service via function par
 
 | Commands (static import) | Commands (lazy import) |
 |--------------------------|----------------------|
-| config, team, member, leadership, project, task-view | init, process, watch, install, update |
+| config, team, member, leadership, project, task-view | init, process, watch, install, update, myself |
+
+> **Note:** The `myself` command is reserved for future CLI sub-commands under `tmr myself`. The `tmr-myself-config` setup flow is implemented as a Claude Code skill (`docs/TMR-MYSELF-CONFIG-SKILL.md`), not a CLI command.
 
 This ensures `tmr --version`, `tmr --help`, `tmr team list`, etc. do not pay the startup cost of loading AI SDKs, googleapis, chokidar, or inquirer.
 

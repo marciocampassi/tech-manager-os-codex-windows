@@ -74,3 +74,15 @@ development_status:
   epic-5: done
   5-1-contributing-md-for-open-source-contributors: done
   epic-5-retrospective: optional
+
+  # ── Epic 6: Self Profile & AI Context Personalization (tmr-myself-config) ──
+  epic-6: backlog
+  6-1-tmr-myself-config-skill-setup-flow: backlog
+  6-2-tmr-myself-config-update-delta-review-mode: backlog
+  epic-6-retrospective: optional
+
+  # ── Epic 7: Zero-Friction Setup ──
+  epic-7: backlog
+  7-1-bootstrap-install-scripts: backlog
+  7-2-tmr-doctor-environment-health-check: backlog
+  epic-7-retrospective: optional
