@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-27
-last_updated: 2026-05-10 (story 3.2 done)
+last_updated: 2026-05-10 (story 3.3 done)
 project: tech-manager-os
 project_key: NOKEY
 tracking_system: file-system
@@ -62,7 +62,7 @@ development_status:
   epic-3: in-progress
   3-1-team-create-and-add-with-normalization-and-email-validation: done
   3-2-company-scoped-vs-team-scoped-member-routing: done
-  3-3-member-feedback-with-global-email-resolver-and-auto-create: backlog
+  3-3-member-feedback-with-global-email-resolver-and-auto-create: done
   epic-3-retrospective: optional
 
   # ── Epic 4: Skill Ecosystem Access (tmr install) ──

@@ -134,17 +134,25 @@ describe('Member Integration', () => {
     expect(profileContent).toContain('[[performance-reviews/2026-03-07-john@co.com-review.md]]');
   });
 
-  // ── Error: member not found ───────────────────────────────────────────────────
+  // ── Error: member not found → auto-create (Story 3.3) ───────────────────────
 
-  it('AC5: throws descriptive error when member does not exist', async () => {
-    await expect(
-      memberSvc.createMemberFile(
-        'ghost@co.com',
-        '1on1',
-        { date: '2026-03-07', noEdit: true },
-        workspace,
-      ),
-    ).rejects.toThrow(/not found.*tmr team add/i);
+  it('AC5: auto-creates company profile and creates file for unknown member (Story 3.3)', async () => {
+    const result = await memberSvc.createMemberFile(
+      'ghost@co.com',
+      'feedback',
+      { date: '2026-03-07', noEdit: true },
+      workspace,
+    );
+
+    // Profile auto-created at company scope
+    expect(fs.existsSync(path.join(workspace, 'my-company', 'members', 'ghost@co.com.md'))).toBe(
+      true,
+    );
+    // Dated feedback file created
+    expect(fs.existsSync(result.filePath)).toBe(true);
+    // Wiki-link appended to auto-created profile
+    const profileContent = fs.readFileSync(result.profilePath, 'utf8');
+    expect(profileContent).toContain('[[feedback/');
   });
 
   // ── Multiple files accumulate in section ──────────────────────────────────────
@@ -194,5 +202,110 @@ describe('Member Integration', () => {
     );
     expect(result.filePath).toContain('john@co.com');
     expect(fs.existsSync(result.filePath)).toBe(true);
+  });
+
+  // ── Global Email Resolver & Auto-create (Story 3.3) ──────────────────────────
+
+  describe('Global Email Resolver & Auto-create (Story 3.3)', () => {
+    it('MEM-INT-001: addMember without --team writes profile to my-company/members/', async () => {
+      await memberSvc.addMember('joao@company.com', {}, workspace);
+
+      expect(
+        fs.existsSync(path.join(workspace, 'my-company', 'members', 'joao@company.com.md')),
+      ).toBe(true);
+    });
+
+    it('MEM-INT-002: addMember with --team writes flat profile to my-teams/members/ with manager wiki-link', async () => {
+      // Seed career profile so _resolveManagerLink resolves
+      const careerDir = path.join(workspace, 'my-career', 'boss@co.com');
+      fs.mkdirSync(careerDir, { recursive: true });
+      fs.writeFileSync(path.join(careerDir, 'boss@co.com.md'), '---\nemail: boss@co.com\n---\n');
+
+      await memberSvc.addMember('joao@company.com', { team: 'backend' }, workspace);
+
+      const profilePath = path.join(workspace, 'my-teams', 'members', 'joao@company.com.md');
+      expect(fs.existsSync(profilePath)).toBe(true);
+      const content = fs.readFileSync(profilePath, 'utf8');
+      expect(content).toContain('manager:');
+      // Verify the wiki-link actually points to the seeded manager, not just any [[
+      expect(content).toContain('boss@co.com');
+    });
+
+    it('MEM-INT-003b: createMemberFile routes feedback to existing flat team-scoped profile (AC1)', async () => {
+      // Seed a flat team-scoped profile (addMember with --team, no career profile needed)
+      await memberSvc.addMember('joao@company.com', { team: 'backend' }, workspace);
+
+      const result = await memberSvc.createMemberFile(
+        'joao@company.com',
+        'feedback',
+        { date: '2026-01-15', noEdit: true },
+        workspace,
+      );
+
+      expect(fs.existsSync(result.filePath)).toBe(true);
+      // Routed to the team-flat profile, not company-flat
+      expect(result.profilePath).toContain('my-teams/members/joao@company.com.md');
+      const profileContent = fs.readFileSync(result.profilePath, 'utf8');
+      expect(profileContent).toContain('[[feedback/');
+    });
+
+    it('MEM-INT-003: createMemberFile routes feedback to existing flat company-scoped profile', async () => {
+      // Seed a flat company-scoped profile
+      await memberSvc.addMember('joao@company.com', {}, workspace);
+
+      const result = await memberSvc.createMemberFile(
+        'joao@company.com',
+        'feedback',
+        { date: '2026-01-15', noEdit: true },
+        workspace,
+      );
+
+      expect(fs.existsSync(result.filePath)).toBe(true);
+      const profileContent = fs.readFileSync(result.profilePath, 'utf8');
+      expect(profileContent).toContain('## Feedbacks');
+      expect(profileContent).toContain('[[feedback/');
+      expect(result.profilePath).toContain('my-company/members/joao@company.com.md');
+    });
+
+    it('MEM-INT-004: createMemberFile auto-creates company profile for unknown email', async () => {
+      const result = await memberSvc.createMemberFile(
+        'unknown@company.com',
+        'feedback',
+        { date: '2026-01-15', noEdit: true },
+        workspace,
+      );
+
+      // Profile auto-created
+      expect(
+        fs.existsSync(path.join(workspace, 'my-company', 'members', 'unknown@company.com.md')),
+      ).toBe(true);
+      // Dated feedback file created
+      expect(fs.existsSync(result.filePath)).toBe(true);
+      // Wiki-link appended
+      const profileContent = fs.readFileSync(result.profilePath, 'utf8');
+      expect(profileContent).toContain('[[feedback/');
+    });
+
+    it('MEM-INT-005: case-insensitive lookup resolves to existing lowercase profile without duplicate', async () => {
+      // Seed a flat company-scoped profile with lowercase email
+      await memberSvc.addMember('joao@company.com', {}, workspace);
+
+      const result = await memberSvc.createMemberFile(
+        'JOAO@COMPANY.COM',
+        'feedback',
+        { date: '2026-01-15', noEdit: true },
+        workspace,
+      );
+
+      // No duplicate created — directory listing shows only the lowercase-stored filename
+      const membersDir = path.join(workspace, 'my-company', 'members');
+      const files = fs.readdirSync(membersDir);
+      expect(files).toContain('joao@company.com.md');
+      expect(files).not.toContain('JOAO@COMPANY.COM.md');
+      // Feedback appended to the correct profile
+      expect(result.profilePath).toContain('joao@company.com.md');
+      const profileContent = fs.readFileSync(result.profilePath, 'utf8');
+      expect(profileContent).toContain('[[feedback/');
+    });
   });
 });

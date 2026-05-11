@@ -34,6 +34,19 @@ function todayIso(): string {
   return new Date().toISOString().split('T')[0] as string;
 }
 
+/**
+ * Resolves the directory where dated files (1on1s, feedback, etc.) should be written,
+ * given a profile path that may be either nested or flat.
+ *
+ * - Nested profile: `.../members/<email>/<email>.md`  → parent dir IS the member dir
+ * - Flat profile:   `.../members/<email>.md`           → create a sibling dir named <email>
+ */
+function memberSubDirFromProfile(profilePath: string, email: string): string {
+  const parentDir = path.dirname(profilePath);
+  if (path.basename(parentDir) === email) return parentDir;
+  return path.join(parentDir, email);
+}
+
 // ── MemberService ─────────────────────────────────────────────────────────────
 
 export class MemberService {
@@ -95,11 +108,33 @@ export class MemberService {
 
   /**
    * Returns the member profile path if the member exists, null otherwise.
+   * Searches only the legacy nested path (my-teams/members/<email>/<email>.md).
+   * Use findMemberGlobally() when all scopes must be searched.
    */
   async findMember(email: string, workspaceRoot: string): Promise<string | null> {
     const profilePath = memberProfilePath(workspaceRoot, email.toLowerCase());
     const exists = await this._fs.exists(profilePath);
     return exists ? profilePath : null;
+  }
+
+  /**
+   * Searches all three member scopes in priority order:
+   *   1. my-teams/members/<email>.md   (flat team-scoped, Story 3.2)
+   *   2. my-company/members/<email>.md (flat company-scoped, Story 3.2)
+   *   3. my-teams/members/<email>/<email>.md (nested legacy, TeamService)
+   * Returns the first matching path, or null if the member is not found in any scope.
+   */
+  async findMemberGlobally(email: string, workspaceRoot: string): Promise<string | null> {
+    const normalizedEmail = email.toLowerCase();
+    const candidates = [
+      path.join(workspaceRoot, 'my-teams', 'members', `${normalizedEmail}.md`),
+      path.join(workspaceRoot, 'my-company', 'members', `${normalizedEmail}.md`),
+      memberProfilePath(workspaceRoot, normalizedEmail),
+    ];
+    for (const p of candidates) {
+      if (await this._fs.exists(p)) return p;
+    }
+    return null;
   }
 
   /**
@@ -169,6 +204,9 @@ export class MemberService {
   /**
    * Creates a dated member file (1on1, feedback, assessment, performance-review),
    * then appends its wiki-link to the corresponding section in the member profile.
+   *
+   * Searches all scopes via findMemberGlobally() — flat team, flat company, and nested legacy.
+   * If the member is not found in any scope, a company-scoped profile is auto-created.
    */
   async createMemberFile(
     email: string,
@@ -180,15 +218,17 @@ export class MemberService {
     const date = options.date ?? todayIso();
     const config = FILE_TYPE_CONFIG[type];
 
-    const profilePath = memberProfilePath(workspaceRoot, normalizedEmail);
-    const memberExists = await this._fs.exists(profilePath);
-    if (!memberExists) {
-      throw new Error(
-        `Member '${normalizedEmail}' not found. Run 'tmr team add <team> ${normalizedEmail}' first.`,
-      );
+    // Global lookup across all three scopes; auto-create if not found (FR24)
+    let profilePath = await this.findMemberGlobally(normalizedEmail, workspaceRoot);
+    if (!profilePath) {
+      await this.addMember(normalizedEmail, {}, workspaceRoot);
+      profilePath = path.join(workspaceRoot, 'my-company', 'members', `${normalizedEmail}.md`);
     }
 
-    const subDirPath = path.join(memberDir(workspaceRoot, normalizedEmail), config.subDir);
+    const subDirPath = path.join(
+      memberSubDirFromProfile(profilePath, normalizedEmail),
+      config.subDir,
+    );
     await this._fs.createDirectory(subDirPath);
 
     const fileName = `${date}-${normalizedEmail}-${config.fileSuffix}.md`;
