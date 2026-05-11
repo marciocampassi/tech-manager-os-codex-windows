@@ -29,6 +29,27 @@ const { SkillRegistryService } = await import('../../src/services/skill-registry
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+function makeTimeoutResponse(): void {
+  mockHttpsGet.mockImplementation((_url: unknown, _cb: unknown) => {
+    let errorCb: ((err: Error) => void) | null = null;
+    const reqEmitter = {
+      on(event: string, fn: unknown) {
+        if (event === 'error') errorCb = fn as (err: Error) => void;
+        return reqEmitter;
+      },
+      setTimeout(_ms: number, fn: () => void) {
+        setImmediate(fn);
+        return reqEmitter;
+      },
+      destroy(err: Error) {
+        if (errorCb) errorCb(err);
+        return reqEmitter;
+      },
+    };
+    return reqEmitter;
+  });
+}
+
 function makeHttpResponse(statusCode: number, body: string): void {
   mockHttpsGet.mockImplementation((_url: unknown, cb: (res: unknown) => void) => {
     const listeners: Record<string, ((...args: unknown[]) => void)[]> = {};
@@ -172,6 +193,96 @@ describe('SkillRegistryService', () => {
       expect(manifestData).toHaveLength(1);
       expect((manifestData[0] as Record<string, string>)['name']).toBe('tmr-inbox');
       expect((manifestData[0] as Record<string, string>)['version']).toBe('1.0.0');
+    });
+  });
+
+  describe('getRegistryIndexUrl', () => {
+    it('returns URL ending with /index.json on the registry base', () => {
+      const url = service.getRegistryIndexUrl();
+      expect(url).toContain('https://raw.githubusercontent.com');
+      expect(url).toMatch(/\/index\.json$/);
+    });
+  });
+
+  describe('fetchSkillList', () => {
+    it('SKILL-UNIT-005 happy path — returns parsed array of skill names', async () => {
+      const skills = ['tmr-inbox', 'tmr-daily'];
+      makeHttpResponse(200, JSON.stringify(skills));
+
+      const result = await service.fetchSkillList();
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data).toEqual(['tmr-inbox', 'tmr-daily']);
+      }
+    });
+
+    it('404 response — returns index not found error', async () => {
+      makeHttpResponse(404, 'Not Found');
+
+      const result = await service.fetchSkillList();
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.toLowerCase()).toContain('not found');
+      }
+    });
+
+    it('SKILL-UNIT-004 malformed JSON — returns descriptive error without crashing', async () => {
+      makeHttpResponse(200, '{this is not valid json}');
+
+      const result = await service.fetchSkillList();
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toContain('Malformed');
+      }
+    });
+
+    it('non-array JSON — returns "expected JSON array" error', async () => {
+      makeHttpResponse(200, JSON.stringify({ skills: ['tmr-inbox'] }));
+
+      const result = await service.fetchSkillList();
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toContain('expected JSON array');
+      }
+    });
+
+    it('array with non-string elements — returns "non-string elements" error', async () => {
+      makeHttpResponse(200, JSON.stringify(['tmr-inbox', null, 42]));
+
+      const result = await service.fetchSkillList();
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toContain('non-string elements');
+      }
+    });
+
+    it('SKILL-UNIT-002 network/timeout error — returns network error with message', async () => {
+      makeTimeoutResponse();
+
+      const result = await service.fetchSkillList();
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toContain('Network error');
+      }
+    });
+  });
+
+  describe('fetchSkillContent — timeout (SKILL-UNIT-002)', () => {
+    it('times out — returns network error containing "timed out"', async () => {
+      makeTimeoutResponse();
+
+      const result = await service.fetchSkillContent('tmr-inbox');
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toContain('timed out');
+      }
     });
   });
 });

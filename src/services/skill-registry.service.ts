@@ -55,6 +55,48 @@ export class SkillRegistryService {
     return `${REGISTRY_BASE_URL}/${skillName}/SKILL.md`;
   }
 
+  getRegistryIndexUrl(): string {
+    return `${REGISTRY_BASE_URL}/index.json`;
+  }
+
+  async fetchSkillList(): Promise<Result<string[]>> {
+    const url = this.getRegistryIndexUrl();
+    let response: { statusCode: number; body: string };
+    try {
+      response = await fetchUrl(url);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { success: false, error: `Network error: ${msg}` };
+    }
+
+    if (response.statusCode === 404) {
+      return { success: false, error: 'Skill registry index not found' };
+    }
+    if (response.statusCode !== 200) {
+      return {
+        success: false,
+        error: `Registry returned status ${response.statusCode} for skill index`,
+      };
+    }
+
+    try {
+      const parsed: unknown = JSON.parse(response.body);
+      if (!Array.isArray(parsed)) {
+        return { success: false, error: 'Malformed registry response: expected JSON array' };
+      }
+      const nonStrings = parsed.filter((el) => typeof el !== 'string');
+      if (nonStrings.length > 0) {
+        return {
+          success: false,
+          error: `Malformed registry response: array contains non-string elements`,
+        };
+      }
+      return { success: true, data: parsed as string[] };
+    } catch {
+      return { success: false, error: 'Malformed registry response: invalid JSON' };
+    }
+  }
+
   async fetchSkillContent(
     skillName: string,
   ): Promise<Result<{ content: string; version: string }>> {

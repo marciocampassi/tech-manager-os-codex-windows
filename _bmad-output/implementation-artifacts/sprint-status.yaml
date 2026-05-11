@@ -59,7 +59,7 @@ development_status:
   epic-2-retrospective: optional
 
   # ── Epic 3: Flexible Team & Member Management ──
-  epic-3: in-progress
+  epic-3: done
   3-1-team-create-and-add-with-normalization-and-email-validation: done
   3-2-company-scoped-vs-team-scoped-member-routing: done
   3-3-member-feedback-with-global-email-resolver-and-auto-create: done
