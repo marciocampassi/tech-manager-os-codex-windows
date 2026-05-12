@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-27
-last_updated: 2026-05-11 (story 7.1 done)
+last_updated: 2026-05-11 (mvp integration sign-off)
 project: tech-manager-os
 project_key: NOKEY
 tracking_system: file-system
@@ -84,5 +84,5 @@ development_status:
   # ── Epic 7: Zero-Friction Setup ──
   epic-7: in-progress
   7-1-bootstrap-install-scripts: done
-  7-2-tmr-doctor-environment-health-check: backlog
+  7-2-tmr-doctor-environment-health-check: done
   epic-7-retrospective: optional

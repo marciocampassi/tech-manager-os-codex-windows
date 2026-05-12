@@ -158,3 +158,8 @@ The following items were surfaced by the pre-launch AC audit (Epics 1–5) and a
 - "All done!" banner fires even when some optional installs failed — technically misleading UX, but acceptable under AC10 error-resilience design (single failures don't abort). `scripts/install.sh:214-219`.
 - Granola cask name (`brew install --cask granola`) and winget ID (`Granola.Granola`) are unverified — must be checked against Homebrew and winget registries before scripts go live. Pre-deployment verification noted in story dev notes. `scripts/install.sh` + `scripts/install.ps1`.
 - `iwr -useb <url> | iex` supply-chain concern — piping remote scripts directly to a shell/interpreter is a known supply-chain risk pattern; mitigated by hosting on a controlled domain with HTTPS. Spec-defined delivery method (FR52/AC11). `scripts/install.ps1` header comment.
+
+## Deferred from: code review of 7-2-tmr-doctor-environment-health-check (2026-05-11)
+
+- `Promise.all` atomic rejection in `DoctorService.runChecks()` — if any single async check (`checkObsidian`, `checkGranola`, `checkGoogleDrive`) throws unexpectedly, `Promise.all` rejects and all results are discarded; the command-level catch shows a generic error rather than partial results with the failing check flagged. The outer try/catch in `runDoctor` handles this per AC8; per-check resilience is a UX improvement beyond spec scope. `src/services/doctor.service.ts:runChecks`.
+- ~~`checkTmr()` unguarded synchronous `require('../../package.json')`~~ — **RESOLVED 2026-05-11**: version now injected via `DoctorService` constructor; `require` removed from service layer entirely. `createDoctorCommand(pkg.version)` in `src/cli.ts` supplies the version using `cli.ts`'s already-correct `'../package.json'` resolution path.

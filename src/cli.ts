@@ -3,6 +3,7 @@ import { createRequire } from 'module';
 import { printError } from './utils/display.js';
 // Lightweight commands — imported statically (file-I/O only, no AI SDKs or heavy deps)
 import { createConfigCommand } from './commands/config.command.js';
+import { createDoctorCommand } from './commands/doctor.command.js';
 import { createTeamCommand, runShow } from './commands/team.command.js';
 import { createMemberCommand } from './commands/member.command.js';
 import { createLeadershipCommand } from './commands/leadership.command.js';
@@ -45,6 +46,7 @@ export function createProgram(): Command {
     });
 
   p.addCommand(createConfigCommand());
+  p.addCommand(createDoctorCommand(pkg.version));
   p.addCommand(createTeamCommand());
   p.addCommand(createMemberCommand());
   p.addCommand(createLeadershipCommand());
