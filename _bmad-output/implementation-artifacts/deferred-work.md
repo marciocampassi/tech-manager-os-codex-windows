@@ -159,6 +159,10 @@ The following items were surfaced by the pre-launch AC audit (Epics 1–5) and a
 - Granola cask name (`brew install --cask granola`) and winget ID (`Granola.Granola`) are unverified — must be checked against Homebrew and winget registries before scripts go live. Pre-deployment verification noted in story dev notes. `scripts/install.sh` + `scripts/install.ps1`.
 - `iwr -useb <url> | iex` supply-chain concern — piping remote scripts directly to a shell/interpreter is a known supply-chain risk pattern; mitigated by hosting on a controlled domain with HTTPS. Spec-defined delivery method (FR52/AC11). `scripts/install.ps1` header comment.
 
+## Deferred from: code review of init-vault-config-corrections (2026-05-13)
+
+- `copySampleInboxFiles()` unconditionally overwrites existing inbox sample files on re-init — if a user edits those files and re-runs `tmr init`, their edits are silently lost. Pattern: mirror the `my-tasks/` existence check at `init.command.ts:124`. `src/services/init.service.ts:copySampleInboxFiles`.
+
 ## Deferred from: code review of 7-2-tmr-doctor-environment-health-check (2026-05-11)
 
 - `Promise.all` atomic rejection in `DoctorService.runChecks()` — if any single async check (`checkObsidian`, `checkGranola`, `checkGoogleDrive`) throws unexpectedly, `Promise.all` rejects and all results are discarded; the command-level catch shows a generic error rather than partial results with the failing check flagged. The outer try/catch in `runDoctor` handles this per AC8; per-check resilience is a UX improvement beyond spec scope. `src/services/doctor.service.ts:runChecks`.

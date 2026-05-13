@@ -7,10 +7,8 @@ import { TeamService, teamService } from './team.service.js';
 import { SkillRegistryService } from './skill-registry.service.js';
 import { logger } from '../utils/logger.js';
 import { printSuccess, printInfo } from '../utils/display.js';
-import {
-  generateSampleMeetingNote,
-  generateVaultReadme,
-} from '../templates/onboarding.templates.js';
+import { INBOX_SAMPLE_FILES, generateVaultReadme } from '../templates/onboarding.templates.js';
+import { formatWikiLink } from '../utils/wiki-link.js';
 
 // ── Vault directory list ──────────────────────────────────────────────────────
 
@@ -121,13 +119,23 @@ export class InitService {
    */
   async writeUserProfile(
     vaultPath: string,
-    opts: { email: string; name: string; role: string },
+    opts: { email: string; name: string; role: string; leaderEmail?: string },
   ): Promise<void> {
     const email = opts.email.trim().toLowerCase();
     const dir = path.join(vaultPath, 'my-career', email);
     const filePath = path.join(dir, `${email}.md`);
     const fm = { email, name: opts.name, role: opts.role, date_added: todayIso() };
-    const content = matter.stringify('\n# Career Profile\n\n## Notes\n\n## Goals\n', fm);
+
+    let body = '\n# Career Profile\n\n## Notes\n\n## Goals\n';
+
+    if (opts.leaderEmail?.trim()) {
+      const leaderEmail = opts.leaderEmail.trim().toLowerCase();
+      const leaderFile = path.join(vaultPath, 'my-leadership', leaderEmail, `${leaderEmail}.md`);
+      const leaderLink = formatWikiLink(leaderFile, filePath, leaderEmail);
+      body += `\n## Leadership\n\n- ${leaderLink}\n`;
+    }
+
+    const content = matter.stringify(body, fm);
     await this._fs.createDirectory(dir);
     await this._fs.writeFile(filePath, content);
   }
@@ -198,37 +206,43 @@ export class InitService {
   }
 
   /**
-   * Copies bundled sample inbox files to the vault's `inbox/` directory.
-   * Writes a sample meeting note to help new users understand the inbox workflow.
+   * Copies bundled Granola-formatted sample meeting notes to the vault's `inbox/` directory.
+   * These real examples demonstrate the `/tmr-inbox` workflow immediately after init.
    * Throws on any file system failure.
    */
   async copySampleInboxFiles(vaultPath: string): Promise<void> {
-    const filePath = path.join(vaultPath, 'inbox', 'sample-meeting-note.md');
-    await this._fs.writeFile(filePath, generateSampleMeetingNote());
+    for (const { filename, content } of INBOX_SAMPLE_FILES) {
+      await this._fs.writeFile(path.join(vaultPath, 'inbox', filename), content);
+    }
   }
 
   /**
-   * Fetches and installs the `tmr-inbox` skill from the registry.
-   * Errors (network failure, 404, or any thrown exception) are logged via
-   * `logger.warn()` and swallowed — a skill install failure MUST NOT abort init.
+   * Fetches and installs default skills (tmr-inbox, tmr-project-impact, tmr-myself-config)
+   * from the registry. Each skill is installed independently — a failure for one does not
+   * prevent the others from being attempted. Errors are logged via `logger.warn()` and
+   * swallowed — skill install failures MUST NOT abort init.
    */
   async installDefaultSkill(vaultPath: string): Promise<void> {
-    try {
-      const registry = this._skillRegistryFactory(vaultPath);
-      const result = await registry.fetchSkillContent('tmr-inbox');
-      if (result.success) {
-        if (result.data.content.trim()) {
-          registry.installSkill('tmr-inbox', result.data.content, result.data.version);
+    const registry = this._skillRegistryFactory(vaultPath);
+    const skills = ['tmr-inbox', 'tmr-project-impact', 'tmr-myself-config'] as const;
+
+    for (const skillName of skills) {
+      try {
+        const result = await registry.fetchSkillContent(skillName);
+        if (result.success) {
+          if (result.data.content.trim()) {
+            registry.installSkill(skillName, result.data.content, result.data.version);
+          } else {
+            logger.warn(`${skillName} skill install skipped: registry returned empty content`);
+          }
         } else {
-          logger.warn('tmr-inbox skill install skipped: registry returned empty content');
+          logger.warn(`${skillName} skill install skipped: ${result.error}`);
         }
-      } else {
-        logger.warn(`tmr-inbox skill install skipped: ${result.error}`);
+      } catch (err) {
+        logger.warn(
+          `${skillName} skill install failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
       }
-    } catch (err) {
-      logger.warn(
-        `tmr-inbox skill install failed: ${err instanceof Error ? err.message : String(err)}`,
-      );
     }
   }
 
@@ -254,8 +268,15 @@ export class InitService {
         '  1. Run `tmr config` to set your AI API key',
         '  2. Run `tmr project add` to add your first project',
         `  3. Open ${vaultPath} in Obsidian — plugins are ready`,
-        '  4. Type /tmr-inbox in Claude Code to process your inbox',
-        '  5. Run `tmr --help` to explore all commands',
+        '  4. Run /tmr-myself-config in Claude Code to personalize your AI context (do this first)',
+        '  5. Run /tmr-inbox in Claude Code to process your inbox meeting notes',
+        '  6. Run /tmr-project-impact after changes to any project file to check impact',
+        '  7. Run `tmr --help` to explore all commands',
+        '',
+        'Skills installed:',
+        '  /tmr-myself-config      — personalize AI context across your vault',
+        '  /tmr-inbox              — process inbox meeting notes into structured entries',
+        '  /tmr-project-impact     — detect which docs are affected when a project changes',
         '',
         'Obsidian plugins installed: obsidian-git, granola-sync, terminal, dataview',
       ].join('\n'),

@@ -135,6 +135,7 @@ export class InitCommand {
         name: answers.name,
         email: answers.email,
         role: answers.role,
+        leaderEmail: leader.email,
       });
     } catch (err) {
       printError(

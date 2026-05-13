@@ -442,9 +442,42 @@ describe('InitCommand integration (Story 2.3 — member collection loop)', () =>
   // ── sample inbox files (AC: 1 — FR11) ────────────────────────────────────
 
   describe('sample inbox files (AC: 1 — FR11)', () => {
-    it('inbox/sample-meeting-note.md is written', () => {
+    it('inbox/2026-04-10-Marlon-Alex.md is written', () => {
       const paths = Array.from(writtenFiles.keys());
-      expect(paths.some((p) => p === `${WORKSPACE}/inbox/sample-meeting-note.md`)).toBe(true);
+      expect(paths.some((p) => p === `${WORKSPACE}/inbox/2026-04-10-Marlon-Alex.md`)).toBe(true);
+    });
+
+    it('inbox/2026-04-15-Team-Sync.md is written', () => {
+      const paths = Array.from(writtenFiles.keys());
+      expect(paths.some((p) => p === `${WORKSPACE}/inbox/2026-04-15-Team-Sync.md`)).toBe(true);
+    });
+  });
+
+  // ── skill installs (AC: 5) ─────────────────────────────────────────────────
+
+  describe('skill installs (AC: 5)', () => {
+    it('installSkill called for tmr-inbox', () => {
+      expect(mockInstallSkillFn).toHaveBeenCalledWith(
+        'tmr-inbox',
+        expect.any(String),
+        expect.any(String),
+      );
+    });
+
+    it('installSkill called for tmr-project-impact', () => {
+      expect(mockInstallSkillFn).toHaveBeenCalledWith(
+        'tmr-project-impact',
+        expect.any(String),
+        expect.any(String),
+      );
+    });
+
+    it('installSkill called for tmr-myself-config', () => {
+      expect(mockInstallSkillFn).toHaveBeenCalledWith(
+        'tmr-myself-config',
+        expect.any(String),
+        expect.any(String),
+      );
     });
   });
 
@@ -454,10 +487,18 @@ describe('InitCommand integration (Story 2.3 — member collection loop)', () =>
     it('README, sample files, and member profile are all present', () => {
       const paths = Array.from(writtenFiles.keys());
       expect(paths.some((p) => p === `${WORKSPACE}/README.md`)).toBe(true);
-      expect(paths.some((p) => p === `${WORKSPACE}/inbox/sample-meeting-note.md`)).toBe(true);
+      expect(paths.some((p) => p === `${WORKSPACE}/inbox/2026-04-10-Marlon-Alex.md`)).toBe(true);
+      expect(paths.some((p) => p === `${WORKSPACE}/inbox/2026-04-15-Team-Sync.md`)).toBe(true);
       expect(
         paths.some((p) => p.includes(`my-teams/members/${MEMBER_1_EMAIL}/${MEMBER_1_EMAIL}.md`)),
       ).toBe(true);
+    });
+
+    it('career profile contains leadership wiki-link', () => {
+      const careerPath = `${WORKSPACE}/my-career/${USER_EMAIL}/${USER_EMAIL}.md`;
+      const content = writtenFiles.get(careerPath);
+      expect(content).toBeDefined();
+      expect(content).toContain(LEADER_EMAIL);
     });
   });
 });
@@ -508,8 +549,8 @@ describe('InitCommand integration — skill install failure (INIT-INT-010)', () 
     expect(writtenFiles2.has(`${WORKSPACE}/CLAUDE.md`)).toBe(true);
   });
 
-  it('init completes: inbox/sample-meeting-note.md is written even when skill install fails', () => {
-    expect(writtenFiles2.has(`${WORKSPACE}/inbox/sample-meeting-note.md`)).toBe(true);
+  it('init completes: inbox/2026-04-10-Marlon-Alex.md is written even when skill install fails', () => {
+    expect(writtenFiles2.has(`${WORKSPACE}/inbox/2026-04-10-Marlon-Alex.md`)).toBe(true);
   });
 });
 
@@ -619,7 +660,7 @@ describe('InitCommand integration — copySampleInboxFiles throws (INIT-INT-011)
     );
 
     mockWriteFile.mockReset().mockImplementation(async (filePath: string) => {
-      if (filePath.includes('inbox/sample-meeting-note.md')) {
+      if (filePath.includes('inbox/2026-04-10-Marlon-Alex.md')) {
         throw new Error('disk quota exceeded');
       }
     });

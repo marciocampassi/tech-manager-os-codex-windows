@@ -281,40 +281,136 @@ updated: ${date}
 `;
 }
 
-export function generateSampleMeetingNote(): string {
-  const date = today();
-  return `---
-type: meeting-note
-date: ${date}
-attendees: []
-tags: [inbox, sample]
+// ── Inbox sample files (from examples/inbox-samples/) ────────────────────────
+
+const INBOX_SAMPLE_1 = `---
+granola_id: a3f9c821-7b42-4d1e-9c33-f80b124d5e91
+granola_url: https://app.granola.ai/meetings/a3f9c821-7b42-4d1e-9c33-f80b124d5e91
+title: "Marlon / Alex"
+date: 2026-04-10
+created: 2026-04-10T14:00:00.000Z
+updated: 2026-04-10T15:05:22.430Z
+attendees:
+  - "[[alex.chen@acmecorp.com]]"
+tags:
+  - meeting
+  - granola
 ---
 
-# Sample Meeting Note
+# Marlon / Alex — 1:1 — April 10, 2026
 
-> This is a sample file placed in your \`inbox/\` by \`tmr init\`.
-> Drop your real meeting notes here and run \`tmr process\` to categorize them automatically.
-> Delete this file once you are ready to use your vault.
+## Check-in
 
-## Agenda
+Alex mentioned they had a productive week despite the deployment incident on Tuesday. The platform migration PR is finally through review and merged. Feeling good about the team's momentum.
 
-- [ ] Introductions
-- [ ] Review goals for this quarter
-- [ ] Align on next steps
+## Status Updates
 
-## Notes
+**Platform Migration**
+- Migration PR merged — staging deploy looks clean
+- Alex is planning production rollout for April 15 with a 2-hour maintenance window
+- Rollback plan documented in Notion; Alex will share link with the team
 
-_Add your meeting notes here._
+**On-call rotation**
+- Alex flagged that the current on-call rotation leaves them as primary for 3 consecutive weeks in May
+- Will coordinate with Riley Kim to share the load
 
-## Action Items
+## Growth & Development
 
-- [ ] Follow up with team — owner: _you_ — due: _next week_
+Alex asked about the timeline for the senior engineer promotion discussion. Shared that the next calibration cycle is in June. Suggested Alex document two concrete examples of scope-stretching work before then — specifically the incident response ownership and the migration planning.
 
-## Decisions Made
+**Action items:**
+- [ ] Alex: draft two examples of senior-level scope for June calibration (due: May 1)
+- [ ] Marlon: connect Alex with Director-level visibility opportunity before EOQ
+- [ ] Marlon: review on-call rotation for May and adjust via PagerDuty (due: April 12)
 
-_Record key decisions here so they are searchable later._
+## Team Dynamics
+
+Alex raised a concern about unclear ownership on the observability project — specifically which team owns the SLO definitions. Agreed this needs a working session with the infra team.
+
+- [ ] Alex + Riley: schedule observability ownership working session (due: April 17)
+
+## Parking Lot
+
+- RFC for new deployment workflow: Alex will review and comment by EOW
+- Q2 goals doc: still needs final sign-off from Director
 `;
-}
+
+const INBOX_SAMPLE_2 = `---
+granola_id: b7d2e954-3a18-4c7f-8e22-c91d537b6f04
+granola_url: https://app.granola.ai/meetings/b7d2e954-3a18-4c7f-8e22-c91d537b6f04
+title: "Platform Team Weekly Sync"
+date: 2026-04-15
+created: 2026-04-15T10:00:00.000Z
+updated: 2026-04-15T11:02:44.120Z
+attendees:
+  - "[[alex.chen@acmecorp.com]]"
+  - "[[sam.patel@acmecorp.com]]"
+  - "[[jordan.lee@acmecorp.com]]"
+  - "[[riley.kim@acmecorp.com]]"
+tags:
+  - meeting
+  - granola
+---
+
+# Platform Team Weekly Sync — April 15, 2026
+
+## Attendees
+
+- Alex Chen (EM) — facilitator
+- Sam Patel — platform migration lead
+- Jordan Lee — backend services
+- Riley Kim — infrastructure / SREs
+
+## Production Deployment Update
+
+Sam confirmed the platform migration production rollout completed successfully at 10:30 AM with zero incidents. The 2-hour maintenance window was not needed — rollout took 40 minutes. Rollback procedure was never triggered.
+
+**Wins:**
+- Zero errors in first hour of production traffic
+- p99 latency improved from 340ms to 210ms after migration
+- Monitoring dashboards all green
+
+## Incident Retrospective — April 12 EPERM Error
+
+Jordan walked through the postmortem for the April 12 deployment incident (EPERM on read-only directory). Root cause: workspace builder was throwing on \`.cursor/\` directory creation in production — now fixed to use \`Promise.allSettled\` and log warnings instead of fatal errors.
+
+**Action items:**
+- [ ] Jordan: add regression test for EPERM handling (due: April 17)
+- [ ] Sam: update deployment runbook with the new workspace-builder behavior
+
+## Observability SLO Ownership
+
+Riley presented three options for SLO ownership: (1) platform team owns all SLOs, (2) each service team owns its own SLOs with infra providing tooling, (3) shared model with explicit RACI.
+
+The team aligned on option 2 as the north star. Riley will draft an ownership document for review.
+
+**Action items:**
+- [ ] Riley: draft SLO ownership document (due: April 22)
+- [ ] Alex: schedule broader review with Director once draft is ready
+
+## Q2 Goals Review
+
+Reviewed Q2 goals — 3 of 5 are on track. Two goals need attention:
+- "Zero P0 incidents" — one incident already in April; team agreed to focus on pre-merge checklist rigor
+- "On-call health score ≥ 4/5" — currently at 3.2; Riley will audit alert fatigue sources by April 22
+
+**Action items:**
+- [ ] Team: implement pre-merge checklist by April 21
+- [ ] Riley: audit alert fatigue sources and propose reduction plan (due: April 22)
+
+## Shoutouts
+
+Sam gave a shoutout to Jordan for thorough incident documentation during the April 12 issue. Alex echoed and noted it will be highlighted in the next all-hands.
+
+## Next Meeting
+
+April 22 — same time, same link.
+`;
+
+export const INBOX_SAMPLE_FILES: Array<{ filename: string; content: string }> = [
+  { filename: '2026-04-10-Marlon-Alex.md', content: INBOX_SAMPLE_1 },
+  { filename: '2026-04-15-Team-Sync.md', content: INBOX_SAMPLE_2 },
+];
 
 export function generateVaultReadme(): string {
   return `# Tech Manager OS — Vault README
