@@ -72,10 +72,13 @@ jest.unstable_mockModule('../../src/services/obsidian-plugin.service.js', () => 
 const mockConfigInitialize = jest.fn<() => void>();
 const mockSetWorkspacePath = jest.fn<(p: string) => void>();
 
+const mockConfigSet = jest.fn<(key: string, value: unknown) => void>();
+
 jest.unstable_mockModule('../../src/services/config.service.js', () => ({
   configService: {
     initialize: mockConfigInitialize,
     setWorkspacePath: mockSetWorkspacePath,
+    set: mockConfigSet,
   },
 }));
 

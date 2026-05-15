@@ -163,6 +163,61 @@ The code already separates `id` from `repo` in the `OBSIDIAN_PLUGINS` constant (
 **Commands:**
 - `npm run validate` — expected: lint clean, type-check passes, all tests pass, build succeeds
 
+## Addendum — Init & Skills Corrections (2026-05-15)
+
+The following corrections were identified post-implementation and applied as a second pass. They extend the original spec without renegotiating its frozen intent.
+
+### New Issues Fixed
+
+| # | Bug | Location |
+|---|-----|----------|
+| A1 | `company/domain` collected during init but never stored in config | `init.command.ts`, `config.types.ts` |
+| A2 | `my-company/contractors` and `config` folders absent from scaffold | `init.service.ts` `VAULT_DIRS` |
+| A3 | `installDefaultSkill()` fetches from GitHub — fails offline, diverges from `docs/skills/` | `init.service.ts` |
+| A4 | `tmr-project-impact` missing from `skills/` registry; `skills/` out of sync with `docs/skills/` | `skills/index.json`, `skills/` |
+| A5 | `tmr-inbox` skill has no contractor routing; `tmr member add` has no `--contractor` flag | `docs/skills/tmr-inbox/SKILL.md`, `member.command.ts` |
+
+### Constraints (addendum)
+
+**Always:**
+- `company_domain` stored via existing `configService.set()` — no new persistence mechanism.
+- Skill content read from `docs/skills/<name>/SKILL.md` using synchronous `fs.readFileSync`; resolve path via `fileURLToPath(new URL('../../..', import.meta.url))` from compiled `dist/services/`.
+- `installDefaultSkill()` must never throw — same swallow-on-failure contract as before.
+- Contractor profiles written to `my-company/contractors/<email>/<email>.md` (email-subfolder pattern, consistent with all other member scopes).
+
+**Never:**
+- Do not change how `tmr install` / `tmr update` fetch skills (those still use GitHub registry).
+- Do not rename `skills/tmr-myself-config/` in the remote registry — keep the existing folder name.
+
+### Tasks (addendum)
+
+- [ ] `src/types/config.types.ts` — add `company_domain?: string` to `AppConfig` and `CONFIG_KEYS`.
+
+- [ ] `src/commands/init.command.ts` — after `configService.initialize()`, call `configService.set('company_domain', answers.company)`. Update spinner label from `'Installing tmr-inbox skill'` → `'Installing default skills'`; succeed message → `'Default skills installed'`.
+
+- [ ] `src/services/init.service.ts` — (a) add `'my-company/contractors'` and `'config'` to `VAULT_DIRS`; update JSDoc count on `scaffold()`. (b) Add module-level `parseBundledVersion(content: string): string` using `/<!--\s*version:\s*(\S+)\s*-->/` regex; default `'0.0.0'`. (c) Add private `readBundledSkill(docsFolder: string): string | null` that reads `<pkgRoot>/docs/skills/<docsFolder>/SKILL.md` synchronously via `fs.readFileSync`; resolve `pkgRoot` as `fileURLToPath(new URL('../../..', import.meta.url))`. (d) Replace the `fetchSkillContent` network loop in `installDefaultSkill()` with a `BUNDLED_SKILLS` array `[{docsFolder: 'tmr-inbox', skillName: 'tmr-inbox'}, {docsFolder: 'tmr-project-impact', skillName: 'tmr-project-impact'}, {docsFolder: 'tmr-myself-config', skillName: 'tmr-myself-config'}]` read via `readBundledSkill`; call `registry.installSkill(skillName, content, parseBundledVersion(content))`. Add `import * as fs from 'node:fs'` and `import { fileURLToPath } from 'node:url'`.
+
+- [ ] `docs/skills/tmr-myself/` → rename to `docs/skills/tmr-myself-config/` to match skill name and registry folder.
+
+- [ ] `docs/skills/tmr-inbox/SKILL.md` — (a) Rule 1: add `Else check my-company/contractors/[email]/ → type: 1on1-contractor` before the final `1on1-member` fallback; update destination list. (b) Step 2b: extend 1:1 types list to include `1on1-contractor`; add check for `my-company/contractors/[email]/` and scaffold `mkdir -p "my-company/contractors/[email]/1on1s"`. (c) T3 ambiguous prompt: add option `e) Contractor 1:1 → my-company/contractors/[email]/1on1s/`; add `e` → `1on1-contractor` in apply block. (d) Step 2c relationship derivation: add `1on1-contractor` → `contractor`. (e) Step 2h profile lookup: add `my-company/contractors/[email]/` as third search location (before `my-company/members/`). (f) Step 2a name-to-email resolution: add `my-company/contractors/` to the profile scan list.
+
+- [ ] `skills/` registry — create `skills/tmr-project-impact/SKILL.md` from `docs/skills/tmr-project-impact/SKILL.md`; overwrite `skills/tmr-inbox/SKILL.md` from `docs/skills/tmr-inbox/SKILL.md` (after the SKILL.md is updated above); overwrite `skills/tmr-myself-config/SKILL.md` from `docs/skills/tmr-myself-config/SKILL.md`; update `skills/index.json` to `["tmr-inbox", "tmr-myself-config", "tmr-project-impact"]`.
+
+- [ ] `src/types/member.types.ts` — add `contractor?: boolean` to `IAddMemberOptions`.
+
+- [ ] `src/services/member.service.ts` — (a) in `addMember()`: add contractor branch that writes profile to `my-company/contractors/<email>/<email>.md` with `relationship: contractor`; create `my-company/contractors/<email>/1on1s/` directory. (b) in `findMemberGlobally()`: add `my-company/contractors/<email>/<email>.md` as a search candidate.
+
+- [ ] `src/commands/member.command.ts` — add `.option('--contractor', 'create profile in my-company/contractors/ for external/contractor members')` to the `add` subcommand; pass `contractor: opts.contractor` into `svc.addMember()`.
+
+### Acceptance Criteria (addendum)
+
+- Given `tmr init` completes, when `~/.config/tmr/config.json` is read, then `company_domain` equals the value entered at the company prompt.
+- Given `tmr init` completes, when the vault is inspected, then `my-company/contractors/` and `config/` directories exist.
+- Given `tmr init` completes offline (registry unreachable), then all three default skills are still installed from bundled `docs/skills/` files.
+- Given `tmr init` completes, when `.claude/skills/` is inspected, then `tmr-inbox/`, `tmr-project-impact/`, and `tmr-myself-config/` all exist with non-empty `SKILL.md` files.
+- Given `tmr member add --contractor contractor@agency.com`, then `my-company/contractors/contractor@agency.com/contractor@agency.com.md` is created with `relationship: contractor` and `my-company/contractors/contractor@agency.com/1on1s/` exists.
+- Given a 1:1 inbox note whose sole attendee has a folder under `my-company/contractors/`, then tmr-inbox routes it to `my-company/contractors/[email]/1on1s/`.
+
 ## Suggested Review Order
 
 **Leadership wiki-link in career profile**

@@ -118,10 +118,11 @@ export class MemberService {
   }
 
   /**
-   * Searches all three member scopes in priority order:
-   *   1. my-teams/members/<email>.md   (flat team-scoped, Story 3.2)
-   *   2. my-company/members/<email>.md (flat company-scoped, Story 3.2)
-   *   3. my-teams/members/<email>/<email>.md (nested legacy, TeamService)
+   * Searches all member scopes in priority order:
+   *   1. my-teams/members/<email>.md                           (flat team-scoped)
+   *   2. my-company/members/<email>.md                         (flat company-scoped)
+   *   3. my-company/contractors/<email>/<email>.md             (contractor-scoped)
+   *   4. my-teams/members/<email>/<email>.md                   (nested legacy, TeamService)
    * Returns the first matching path, or null if the member is not found in any scope.
    */
   async findMemberGlobally(email: string, workspaceRoot: string): Promise<string | null> {
@@ -129,6 +130,13 @@ export class MemberService {
     const candidates = [
       path.join(workspaceRoot, 'my-teams', 'members', `${normalizedEmail}.md`),
       path.join(workspaceRoot, 'my-company', 'members', `${normalizedEmail}.md`),
+      path.join(
+        workspaceRoot,
+        'my-company',
+        'contractors',
+        normalizedEmail,
+        `${normalizedEmail}.md`,
+      ),
       memberProfilePath(workspaceRoot, normalizedEmail),
     ];
     for (const p of candidates) {
@@ -139,8 +147,10 @@ export class MemberService {
 
   /**
    * Routes a new member profile to the correct scope:
-   * - Company scope (no team): my-company/members/<email>.md
+   * - Contractor scope (contractor: true): my-company/contractors/<email>/<email>.md
+   *   Also creates my-company/contractors/<email>/1on1s/ for future meeting notes.
    * - Team scope (team provided): my-teams/members/<email>.md with manager wiki-link
+   * - Company scope (default): my-company/members/<email>.md
    * Idempotent — returns { created: false } if profile already exists.
    */
   async addMember(
@@ -151,9 +161,17 @@ export class MemberService {
     validateEmail(email);
     const normalizedEmail = email.toLowerCase();
 
-    const profilePath = opts.team
-      ? path.join(workspaceRoot, 'my-teams', 'members', `${normalizedEmail}.md`)
-      : path.join(workspaceRoot, 'my-company', 'members', `${normalizedEmail}.md`);
+    const profilePath = opts.contractor
+      ? path.join(
+          workspaceRoot,
+          'my-company',
+          'contractors',
+          normalizedEmail,
+          `${normalizedEmail}.md`,
+        )
+      : opts.team
+        ? path.join(workspaceRoot, 'my-teams', 'members', `${normalizedEmail}.md`)
+        : path.join(workspaceRoot, 'my-company', 'members', `${normalizedEmail}.md`);
 
     if (await this._fs.exists(profilePath)) {
       return { created: false };
@@ -168,6 +186,7 @@ export class MemberService {
       gender: opts.gender ?? '',
       location: opts.location ?? '',
       date_added: todayIso(),
+      ...(opts.contractor ? { relationship: 'contractor' } : {}),
       ...(opts.team ? { manager: managerLink } : {}),
     };
 
@@ -175,6 +194,9 @@ export class MemberService {
     const profileMd = matter.stringify(body, fm);
 
     await this._fs.createDirectory(path.dirname(profilePath));
+    if (opts.contractor) {
+      await this._fs.createDirectory(path.join(path.dirname(profilePath), '1on1s'));
+    }
     await this._fs.writeFile(profilePath, profileMd);
 
     return { created: true };

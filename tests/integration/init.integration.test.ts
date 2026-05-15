@@ -95,6 +95,7 @@ jest.unstable_mockModule('../../src/services/config.service.js', () => ({
   configService: {
     initialize: jest.fn<() => void>(),
     setWorkspacePath: jest.fn<(p: string) => void>(),
+    set: jest.fn<(key: string, value: unknown) => void>(),
   },
 }));
 
@@ -510,7 +511,10 @@ describe('InitCommand integration — skill install failure (INIT-INT-010)', () 
 
   beforeAll(async () => {
     mockPrompt.mockReset();
-    mockFetchSkillContent.mockRejectedValueOnce(new Error('simulated network error'));
+    // Simulate installSkill throwing — init must still complete despite skill registry error
+    mockInstallSkillFn.mockImplementationOnce(() => {
+      throw new Error('simulated registry error');
+    });
 
     mockWriteFile.mockReset();
     mockWriteFile.mockImplementation(async (filePath: string, content: string) => {

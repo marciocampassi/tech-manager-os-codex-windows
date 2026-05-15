@@ -30,7 +30,7 @@ export async function runMemberAdd(
   svc: MemberService,
   typeArg: string,
   emailArg: string | undefined,
-  opts: { date?: string; team?: string; location?: string },
+  opts: { date?: string; team?: string; location?: string; contractor?: boolean },
 ): Promise<void> {
   // Routing: if first arg is a valid email → member-creation mode
   if (isEmail(typeArg)) {
@@ -54,6 +54,7 @@ export async function runMemberAdd(
         {
           team: opts.team,
           location: opts.location,
+          contractor: opts.contractor,
           name: name.trim() || undefined,
           gender: gender.trim() || undefined,
           role: role.trim() || undefined,
@@ -144,11 +145,15 @@ export function createMemberCommand(): Command {
     .option('--date <date>', 'date for the file (YYYY-MM-DD), defaults to today')
     .option('--team <name>', 'scope the member profile to a team (routes to my-teams/members/)')
     .option('--location <location>', 'location field for the member profile')
+    .option(
+      '--contractor',
+      'create profile in my-company/contractors/ for external/contractor members',
+    )
     .action(
       async (
         typeOrEmail: string,
         email: string | undefined,
-        opts: { date?: string; team?: string; location?: string },
+        opts: { date?: string; team?: string; location?: string; contractor?: boolean },
       ) => {
         await runMemberAdd(svc, typeOrEmail, email, opts);
       },

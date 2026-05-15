@@ -156,9 +156,9 @@ describe('InitService', () => {
       expect(dirs).not.toContain(path.join(WS, 'my-teams', 'feedback-templates'));
     });
 
-    it('creates exactly 12 directories — no extra ones', async () => {
+    it('creates exactly 14 directories — no extra ones', async () => {
       await svc.scaffold(WS);
-      expect(mockFS.createDirectory).toHaveBeenCalledTimes(12);
+      expect(mockFS.createDirectory).toHaveBeenCalledTimes(14);
     });
 
     // ── INIT-UNIT-007 ──────────────────────────────────────────────────────────
@@ -436,76 +436,83 @@ describe('InitService', () => {
 
   describe('installDefaultSkill', () => {
     let mockRegistry: MockSkillRegistry;
+    let mockReadSkillFile: jest.MockedFunction<(p: string) => string>;
     let svcWithRegistry: InitService;
 
     beforeEach(() => {
       mockRegistry = createMockSkillRegistry();
+      mockReadSkillFile = jest.fn<(p: string) => string>().mockReturnValue('# skill content');
       svcWithRegistry = new InitService(
         mockFS as unknown as FileSystemService,
         mockLeadership as unknown as LeadershipService,
         mockTeam as unknown as TeamService,
         () => mockRegistry as unknown as SkillRegistryService,
+        mockReadSkillFile,
       );
     });
 
-    it('calls fetchSkillContent for all three default skills', async () => {
+    it('reads bundled SKILL.md for all three default skills', async () => {
       await svcWithRegistry.installDefaultSkill(WS);
-      expect(mockRegistry.fetchSkillContent).toHaveBeenCalledWith('tmr-inbox');
-      expect(mockRegistry.fetchSkillContent).toHaveBeenCalledWith('tmr-project-impact');
-      expect(mockRegistry.fetchSkillContent).toHaveBeenCalledWith('tmr-myself-config');
-      expect(mockRegistry.fetchSkillContent).toHaveBeenCalledTimes(3);
+      expect(mockReadSkillFile).toHaveBeenCalledTimes(3);
+      expect(mockReadSkillFile).toHaveBeenCalledWith(expect.stringContaining('tmr-inbox'));
+      expect(mockReadSkillFile).toHaveBeenCalledWith(expect.stringContaining('tmr-project-impact'));
+      expect(mockReadSkillFile).toHaveBeenCalledWith(expect.stringContaining('tmr-myself-config'));
     });
 
-    it('calls installSkill for each skill on successful fetch', async () => {
+    it('calls installSkill for each skill when bundled file is readable', async () => {
       await svcWithRegistry.installDefaultSkill(WS);
-      expect(mockRegistry.installSkill).toHaveBeenCalledWith('tmr-inbox', '# skill', '1.0.0');
+      expect(mockRegistry.installSkill).toHaveBeenCalledWith(
+        'tmr-inbox',
+        '# skill content',
+        '0.0.0',
+      );
       expect(mockRegistry.installSkill).toHaveBeenCalledWith(
         'tmr-project-impact',
-        '# skill',
-        '1.0.0',
+        '# skill content',
+        '0.0.0',
       );
       expect(mockRegistry.installSkill).toHaveBeenCalledWith(
         'tmr-myself-config',
-        '# skill',
-        '1.0.0',
+        '# skill content',
+        '0.0.0',
       );
     });
 
-    it('installs remaining skills even when one throws', async () => {
-      mockRegistry.fetchSkillContent
-        .mockRejectedValueOnce(new Error('network error')) // tmr-inbox fails
-        .mockResolvedValue({ success: true, data: { content: '# skill', version: '1.0.0' } });
+    it('parses version comment when present', async () => {
+      mockReadSkillFile.mockReturnValue('<!-- version: 2.1.0 -->\n# skill');
+      await svcWithRegistry.installDefaultSkill(WS);
+      expect(mockRegistry.installSkill).toHaveBeenCalledWith(
+        'tmr-inbox',
+        expect.any(String),
+        '2.1.0',
+      );
+    });
+
+    it('installs remaining skills even when one file read throws', async () => {
+      mockReadSkillFile
+        .mockImplementationOnce(() => {
+          throw new Error('ENOENT');
+        })
+        .mockReturnValue('# skill content');
       await expect(svcWithRegistry.installDefaultSkill(WS)).resolves.toBeUndefined();
       expect(mockRegistry.installSkill).toHaveBeenCalledTimes(2);
     });
 
-    it('calls logger.warn and does NOT throw when a skill fetch throws', async () => {
+    it('calls logger.warn and does NOT throw when a file read throws', async () => {
       const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => logger);
-      mockRegistry.fetchSkillContent.mockRejectedValueOnce(new Error('network error'));
-      await expect(svcWithRegistry.installDefaultSkill(WS)).resolves.toBeUndefined();
-      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('network error'));
-      warnSpy.mockRestore();
-    });
-
-    it('calls logger.warn and does NOT call installSkill when registry returns success=false', async () => {
-      const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => logger);
-      mockRegistry.fetchSkillContent.mockResolvedValueOnce({
-        success: false,
-        error: 'skill not found',
-      } as unknown as Awaited<ReturnType<SkillRegistryService['fetchSkillContent']>>);
-      await expect(svcWithRegistry.installDefaultSkill(WS)).resolves.toBeUndefined();
-      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('skill not found'));
-      warnSpy.mockRestore();
-    });
-
-    it('calls logger.warn and does NOT call installSkill when registry returns empty content', async () => {
-      const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => logger);
-      mockRegistry.fetchSkillContent.mockResolvedValueOnce({
-        success: true,
-        data: { content: '   ', version: '1.0.0' },
+      mockReadSkillFile.mockImplementationOnce(() => {
+        throw new Error('ENOENT: no such file');
       });
       await expect(svcWithRegistry.installDefaultSkill(WS)).resolves.toBeUndefined();
-      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('empty content'));
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('bundled file not found'));
+      warnSpy.mockRestore();
+    });
+
+    it('calls logger.warn and does NOT call installSkill when bundled file is empty', async () => {
+      const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => logger);
+      mockReadSkillFile.mockReturnValueOnce('   ');
+      await expect(svcWithRegistry.installDefaultSkill(WS)).resolves.toBeUndefined();
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('empty'));
       warnSpy.mockRestore();
     });
   });

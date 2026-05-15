@@ -56,6 +56,8 @@ export interface IAddMemberOptions {
   name?: string;
   role?: string;
   gender?: string;
+  /** When true, routes the profile to my-company/contractors/<email>/<email>.md */
+  contractor?: boolean;
 }
 
 /** Result returned by MemberService.createMemberFile(). */

@@ -1,5 +1,7 @@
+import * as fs from 'node:fs';
 import path from 'node:path';
 import { homedir } from 'node:os';
+import { fileURLToPath } from 'node:url';
 import matter from 'gray-matter';
 import { FileSystemService, fileSystemService } from './file-system.service.js';
 import { LeadershipService, leadershipService } from './leadership.service.js';
@@ -19,10 +21,12 @@ const VAULT_DIRS = [
   'my-teams/members',
   'my-teams/teams',
   'my-company/members',
+  'my-company/contractors',
   'my-company/projects',
   'my-leadership',
   'my-career',
   'knowledge-base',
+  'config',
   '.claude/skills',
   '.cursor/rules/tmr',
 ] as const;
@@ -69,6 +73,11 @@ function buildClaudeMdStub(): string {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+function parseBundledVersion(content: string): string {
+  const match = /<!--\s*version:\s*(\S+)\s*-->/.exec(content);
+  return match?.[1] ?? '0.0.0';
+}
+
 function todayIso(): string {
   return new Date().toISOString().split('T')[0] as string;
 }
@@ -83,6 +92,8 @@ export class InitService {
     private readonly _skillRegistryFactory: (workspaceRoot: string) => SkillRegistryService = (
       wr,
     ) => new SkillRegistryService(wr),
+    private readonly _readSkillFile: (filePath: string) => string = (p) =>
+      fs.readFileSync(p, 'utf8'),
   ) {}
 
   /**
@@ -101,7 +112,7 @@ export class InitService {
 
   /**
    * Creates the standard vault directory structure and writes a CLAUDE.md stub.
-   * Exactly 12 directories are created — no more, no less.
+   * Exactly 14 directories are created — no more, no less.
    * Throws on any file system failure; the caller is responsible for surfacing
    * the error to the user.
    *
@@ -217,32 +228,53 @@ export class InitService {
   }
 
   /**
-   * Fetches and installs default skills (tmr-inbox, tmr-project-impact, tmr-myself-config)
-   * from the registry. Each skill is installed independently — a failure for one does not
-   * prevent the others from being attempted. Errors are logged via `logger.warn()` and
-   * swallowed — skill install failures MUST NOT abort init.
+   * Installs default skills (tmr-inbox, tmr-project-impact, tmr-myself-config) by reading
+   * their SKILL.md files directly from the bundled `docs/skills/` directory — no network
+   * required. Each skill is installed independently; a failure for one does not prevent
+   * the others from being attempted. Errors are logged via `logger.warn()` and swallowed —
+   * skill install failures MUST NOT abort init.
    */
   async installDefaultSkill(vaultPath: string): Promise<void> {
     const registry = this._skillRegistryFactory(vaultPath);
-    const skills = ['tmr-inbox', 'tmr-project-impact', 'tmr-myself-config'] as const;
+    const BUNDLED_SKILLS = [
+      { docsFolder: 'tmr-inbox', skillName: 'tmr-inbox' },
+      { docsFolder: 'tmr-project-impact', skillName: 'tmr-project-impact' },
+      { docsFolder: 'tmr-myself-config', skillName: 'tmr-myself-config' },
+    ] as const;
 
-    for (const skillName of skills) {
+    for (const { docsFolder, skillName } of BUNDLED_SKILLS) {
       try {
-        const result = await registry.fetchSkillContent(skillName);
-        if (result.success) {
-          if (result.data.content.trim()) {
-            registry.installSkill(skillName, result.data.content, result.data.version);
-          } else {
-            logger.warn(`${skillName} skill install skipped: registry returned empty content`);
-          }
-        } else {
-          logger.warn(`${skillName} skill install skipped: ${result.error}`);
+        const content = this._readBundledSkill(docsFolder);
+        if (content === null) {
+          logger.warn(`${skillName} skill install skipped: bundled file not found`);
+          continue;
         }
+        if (!content.trim()) {
+          logger.warn(`${skillName} skill install skipped: bundled file is empty`);
+          continue;
+        }
+        registry.installSkill(skillName, content, parseBundledVersion(content));
       } catch (err) {
         logger.warn(
           `${skillName} skill install failed: ${err instanceof Error ? err.message : String(err)}`,
         );
       }
+    }
+  }
+
+  /**
+   * Reads a bundled skill SKILL.md from `docs/skills/<docsFolder>/SKILL.md` relative to
+   * the package root. Resolves the package root by going two levels up from the compiled
+   * file at `dist/services/init.service.js` (dist/services/ → dist/ → project root).
+   * Returns null on any read error.
+   */
+  private _readBundledSkill(docsFolder: string): string | null {
+    try {
+      const pkgRoot = fileURLToPath(new URL('../..', import.meta.url));
+      const skillPath = path.join(pkgRoot, 'docs', 'skills', docsFolder, 'SKILL.md');
+      return this._readSkillFile(skillPath);
+    } catch {
+      return null;
     }
   }
 
