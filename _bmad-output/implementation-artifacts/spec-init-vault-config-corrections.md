@@ -2,7 +2,7 @@
 title: 'init-vault-config-corrections'
 type: 'feature'
 created: '2026-05-13'
-status: 'done'
+status: 'in-review'
 baseline_commit: 'b7567eb9b950079d64066d0f27eeec1f315d5c7c'
 context:
   - '_bmad-output/project-context.md'
@@ -140,6 +140,23 @@ Note: `enableWhenOpenVault` is NOT a plugin field — "enable when open vault" m
 **Granola-sync path:** `.obsidian/plugins/granola-sync/data.json` is already the path `DoctorService.checkGranolaSync()` validates — writing here makes the existing doctor check pass with no doctor changes.
 
 **Leadership wiki-link path:** From `my-career/<email>/<email>.md` to `my-leadership/<leaderEmail>/<leaderEmail>.md` is two levels up. `formatWikiLink(resolvedPath, fromPath, displayName)` computes the relative path automatically.
+
+## Follow-on Finding: Plugin ID / Folder Name Mismatch
+
+**Discovery (2026-05-15):** Post-implementation analysis confirmed that `granola-obsidian` and the `terminal` plugin do not load when the vault is opened in Obsidian, while `dataview` and `obsidian-git` load correctly. The root cause is a plugin ID mismatch between the values used in `OBSIDIAN_PLUGINS` and the `id` field in each plugin's `manifest.json`.
+
+Obsidian requires: folder name = `manifest.json` `id` = entry in `community-plugins.json`. Any deviation silently prevents the plugin from loading.
+
+| Plugin entry in code | Folder installed | Actual manifest `id` | Loads? |
+|---|---|---|---|
+| `dataview` | `plugins/dataview/` | `dataview` | ✓ |
+| `obsidian-git` | `plugins/obsidian-git/` | `obsidian-git` | ✓ |
+| `obsidian-granola-sync` | `plugins/obsidian-granola-sync/` | `granola-sync` | ✗ |
+| `obsidian-terminal` | `plugins/obsidian-terminal/` | `terminal` | ✗ |
+
+The code already separates `id` from `repo` in the `OBSIDIAN_PLUGINS` constant (the download URL uses `plugin.repo`), so the fix is limited to correcting the two `id` values. The `writeGranolaConfig` path (`plugins/granola-sync/data.json`) is already correct for the fixed folder name.
+
+**Fix applied:** Changed `id: 'obsidian-granola-sync'` → `id: 'granola-sync'` and `id: 'obsidian-terminal'` → `id: 'terminal'` in `src/services/obsidian-plugin.service.ts`. Updated `community-plugins.json` expected values in `tests/services/obsidian-plugin.service.test.ts` and all other test/source files referencing the old IDs.
 
 ## Verification
 

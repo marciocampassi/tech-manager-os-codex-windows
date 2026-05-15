@@ -139,8 +139,8 @@ describe('ObsidianPluginService', () => {
       expect(communityPluginsCall).toBeDefined();
       expect(JSON.parse(communityPluginsCall![1])).toEqual([
         'obsidian-git',
-        'obsidian-granola-sync',
-        'obsidian-terminal',
+        'granola-sync',
+        'terminal',
         'dataview',
       ]);
     });

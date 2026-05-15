@@ -4,8 +4,8 @@ import { logger } from '../utils/logger.js';
 
 const OBSIDIAN_PLUGINS = [
   { id: 'obsidian-git', owner: 'Vinzent03', repo: 'obsidian-git' },
-  { id: 'obsidian-granola-sync', owner: 'tomelliot', repo: 'obsidian-granola-sync' },
-  { id: 'obsidian-terminal', owner: 'polyipseity', repo: 'obsidian-terminal' },
+  { id: 'granola-sync', owner: 'tomelliot', repo: 'obsidian-granola-sync' },
+  { id: 'terminal', owner: 'polyipseity', repo: 'obsidian-terminal' },
   { id: 'dataview', owner: 'blacksmithgu', repo: 'obsidian-dataview' },
 ] as const;
 
