@@ -2,7 +2,7 @@
 title: 'init-vault-config-corrections'
 type: 'feature'
 created: '2026-05-13'
-status: 'in-review'
+status: 'done'
 baseline_commit: 'b7567eb9b950079d64066d0f27eeec1f315d5c7c'
 context:
   - '_bmad-output/project-context.md'
@@ -106,6 +106,7 @@ context:
 
 ## Spec Change Log
 
+- **2026-05-15 (addendum pass 2+3):** Implemented all Addendum A and B tasks. B1: fixed `_readBundledSkill` pkgRoot to `new URL('..', import.meta.url)`. B2: added `writeOrgConfig()` to `InitService` and wired it in `InitCommand` after scaffold with fail-fast error handling. B3: added BOOTSTRAP section (BT1/BT2/BT3) to `tmr-inbox/SKILL.md` before SETUP; replaced all hardcoded `marlon.ferreira@example.com` and `@example.com` references with `MANAGER_EMAIL` / `INTERNAL_DOMAINS`; added INTERNAL_DOMAINS BOOTSTRAP note to Step 2c. Test fixes: added `node:fs` mock to `init.command.test.ts` and `init.integration.test.ts` so `_readBundledSkill` returns content in Jest ESM context; added `writeOrgConfig` unit test suite; added `organization.yaml` assertion to command test. All 1074 tests pass.
 - **2026-05-13 (review loop 1):** Patched `writeUserProfile` leaderEmail guard from `if (opts.leaderEmail)` to `if (opts.leaderEmail?.trim())` — whitespace-only string was truthy and produced a broken `my-leadership/.md` path. Corrected stale AC-1 field name `periodicSyncEnabled` → `isSyncEnabled`. Added missing integration-test and command-test assertions for skill installs and sample filenames (spec task gaps). Re-init overwrites of inbox samples deferred — pre-existing behavior, not in scope.
 
 ## Design Notes
@@ -191,23 +192,23 @@ The following corrections were identified post-implementation and applied as a s
 
 ### Tasks (addendum)
 
-- [ ] `src/types/config.types.ts` — add `company_domain?: string` to `AppConfig` and `CONFIG_KEYS`.
+- [x] `src/types/config.types.ts` — add `company_domain?: string` to `AppConfig` and `CONFIG_KEYS`.
 
-- [ ] `src/commands/init.command.ts` — after `configService.initialize()`, call `configService.set('company_domain', answers.company)`. Update spinner label from `'Installing tmr-inbox skill'` → `'Installing default skills'`; succeed message → `'Default skills installed'`.
+- [x] `src/commands/init.command.ts` — after `configService.initialize()`, call `configService.set('company_domain', answers.company)`. Update spinner label from `'Installing tmr-inbox skill'` → `'Installing default skills'`; succeed message → `'Default skills installed'`.
 
-- [ ] `src/services/init.service.ts` — (a) add `'my-company/contractors'` and `'config'` to `VAULT_DIRS`; update JSDoc count on `scaffold()`. (b) Add module-level `parseBundledVersion(content: string): string` using `/<!--\s*version:\s*(\S+)\s*-->/` regex; default `'0.0.0'`. (c) Add private `readBundledSkill(docsFolder: string): string | null` that reads `<pkgRoot>/docs/skills/<docsFolder>/SKILL.md` synchronously via `fs.readFileSync`; resolve `pkgRoot` as `fileURLToPath(new URL('../../..', import.meta.url))`. (d) Replace the `fetchSkillContent` network loop in `installDefaultSkill()` with a `BUNDLED_SKILLS` array `[{docsFolder: 'tmr-inbox', skillName: 'tmr-inbox'}, {docsFolder: 'tmr-project-impact', skillName: 'tmr-project-impact'}, {docsFolder: 'tmr-myself-config', skillName: 'tmr-myself-config'}]` read via `readBundledSkill`; call `registry.installSkill(skillName, content, parseBundledVersion(content))`. Add `import * as fs from 'node:fs'` and `import { fileURLToPath } from 'node:url'`.
+- [x] `src/services/init.service.ts` — (a) add `'my-company/contractors'` and `'config'` to `VAULT_DIRS`; update JSDoc count on `scaffold()`. (b) Add module-level `parseBundledVersion(content: string): string` using `/<!--\s*version:\s*(\S+)\s*-->/` regex; default `'0.0.0'`. (c) Add private `readBundledSkill(docsFolder: string): string | null` that reads `<pkgRoot>/docs/skills/<docsFolder>/SKILL.md` synchronously via `fs.readFileSync`; resolve `pkgRoot` as `fileURLToPath(new URL('../../..', import.meta.url))`. (d) Replace the `fetchSkillContent` network loop in `installDefaultSkill()` with a `BUNDLED_SKILLS` array `[{docsFolder: 'tmr-inbox', skillName: 'tmr-inbox'}, {docsFolder: 'tmr-project-impact', skillName: 'tmr-project-impact'}, {docsFolder: 'tmr-myself-config', skillName: 'tmr-myself-config'}]` read via `readBundledSkill`; call `registry.installSkill(skillName, content, parseBundledVersion(content))`. Add `import * as fs from 'node:fs'` and `import { fileURLToPath } from 'node:url'`.
 
-- [ ] `docs/skills/tmr-myself/` → rename to `docs/skills/tmr-myself-config/` to match skill name and registry folder.
+- [x] `docs/skills/tmr-myself/` → rename to `docs/skills/tmr-myself-config/` to match skill name and registry folder.
 
-- [ ] `docs/skills/tmr-inbox/SKILL.md` — (a) Rule 1: add `Else check my-company/contractors/[email]/ → type: 1on1-contractor` before the final `1on1-member` fallback; update destination list. (b) Step 2b: extend 1:1 types list to include `1on1-contractor`; add check for `my-company/contractors/[email]/` and scaffold `mkdir -p "my-company/contractors/[email]/1on1s"`. (c) T3 ambiguous prompt: add option `e) Contractor 1:1 → my-company/contractors/[email]/1on1s/`; add `e` → `1on1-contractor` in apply block. (d) Step 2c relationship derivation: add `1on1-contractor` → `contractor`. (e) Step 2h profile lookup: add `my-company/contractors/[email]/` as third search location (before `my-company/members/`). (f) Step 2a name-to-email resolution: add `my-company/contractors/` to the profile scan list.
+- [x] `docs/skills/tmr-inbox/SKILL.md` — (a) Rule 1: add `Else check my-company/contractors/[email]/ → type: 1on1-contractor` before the final `1on1-member` fallback; update destination list. (b) Step 2b: extend 1:1 types list to include `1on1-contractor`; add check for `my-company/contractors/[email]/` and scaffold `mkdir -p "my-company/contractors/[email]/1on1s"`. (c) T3 ambiguous prompt: add option `e) Contractor 1:1 → my-company/contractors/[email]/1on1s/`; add `e` → `1on1-contractor` in apply block. (d) Step 2c relationship derivation: add `1on1-contractor` → `contractor`. (e) Step 2h profile lookup: add `my-company/contractors/[email]/` as third search location (before `my-company/members/`). (f) Step 2a name-to-email resolution: add `my-company/contractors/` to the profile scan list.
 
-- [ ] `skills/` registry — create `skills/tmr-project-impact/SKILL.md` from `docs/skills/tmr-project-impact/SKILL.md`; overwrite `skills/tmr-inbox/SKILL.md` from `docs/skills/tmr-inbox/SKILL.md` (after the SKILL.md is updated above); overwrite `skills/tmr-myself-config/SKILL.md` from `docs/skills/tmr-myself-config/SKILL.md`; update `skills/index.json` to `["tmr-inbox", "tmr-myself-config", "tmr-project-impact"]`.
+- [x] `skills/` registry — create `skills/tmr-project-impact/SKILL.md` from `docs/skills/tmr-project-impact/SKILL.md`; overwrite `skills/tmr-inbox/SKILL.md` from `docs/skills/tmr-inbox/SKILL.md` (after the SKILL.md is updated above); overwrite `skills/tmr-myself-config/SKILL.md` from `docs/skills/tmr-myself-config/SKILL.md`; update `skills/index.json` to `["tmr-inbox", "tmr-myself-config", "tmr-project-impact"]`.
 
-- [ ] `src/types/member.types.ts` — add `contractor?: boolean` to `IAddMemberOptions`.
+- [x] `src/types/member.types.ts` — add `contractor?: boolean` to `IAddMemberOptions`.
 
-- [ ] `src/services/member.service.ts` — (a) in `addMember()`: add contractor branch that writes profile to `my-company/contractors/<email>/<email>.md` with `relationship: contractor`; create `my-company/contractors/<email>/1on1s/` directory. (b) in `findMemberGlobally()`: add `my-company/contractors/<email>/<email>.md` as a search candidate.
+- [x] `src/services/member.service.ts` — (a) in `addMember()`: add contractor branch that writes profile to `my-company/contractors/<email>/<email>.md` with `relationship: contractor`; create `my-company/contractors/<email>/1on1s/` directory. (b) in `findMemberGlobally()`: add `my-company/contractors/<email>/<email>.md` as a search candidate.
 
-- [ ] `src/commands/member.command.ts` — add `.option('--contractor', 'create profile in my-company/contractors/ for external/contractor members')` to the `add` subcommand; pass `contractor: opts.contractor` into `svc.addMember()`.
+- [x] `src/commands/member.command.ts` — add `.option('--contractor', 'create profile in my-company/contractors/ for external/contractor members')` to the `add` subcommand; pass `contractor: opts.contractor` into `svc.addMember()`.
 
 ### Acceptance Criteria (addendum)
 
@@ -217,6 +218,53 @@ The following corrections were identified post-implementation and applied as a s
 - Given `tmr init` completes, when `.claude/skills/` is inspected, then `tmr-inbox/`, `tmr-project-impact/`, and `tmr-myself-config/` all exist with non-empty `SKILL.md` files.
 - Given `tmr member add --contractor contractor@agency.com`, then `my-company/contractors/contractor@agency.com/contractor@agency.com.md` is created with `relationship: contractor` and `my-company/contractors/contractor@agency.com/1on1s/` exists.
 - Given a 1:1 inbox note whose sole attendee has a folder under `my-company/contractors/`, then tmr-inbox routes it to `my-company/contractors/[email]/1on1s/`.
+
+## Addendum — Skill Path Bug + Vault Org Config (2026-05-15)
+
+The following corrections were identified post-implementation and applied as a third pass. They extend the prior addendum without renegotiating frozen intent.
+
+### New Issues Fixed
+
+| # | Bug | Location |
+|---|-----|----------|
+| B1 | `_readBundledSkill()` resolves `pkgRoot` with `'../..'` — correct if compiled to `dist/services/`, but the build outputs a flat bundle at `dist/init.command-<hash>.js`; two levels up lands in the project's **parent** directory and `docs/skills/` is never found; all three skills silently return `null` and are skipped | `init.service.ts` `_readBundledSkill` |
+| B2 | Company domain collected at init is only stored in global `~/.config/tmr/config.json`; no vault-side file is written, so skills like `tmr-inbox` cannot discover or extend the org's internal domains | `init.service.ts`, `init.command.ts` |
+| B3 | `tmr-inbox` skill hardcodes `marlon.ferreira@example.com` as the vault owner and `@example.com` as the default email domain; `INTERNAL_DOMAINS` is referenced in relationship derivation but never defined, breaking any vault whose owner is not the original author | `docs/skills/tmr-inbox/SKILL.md` |
+
+### Constraints (addendum)
+
+**Always:**
+- `pkgRoot` in `_readBundledSkill` resolved with `new URL('..', import.meta.url)` — exactly one level up from the flat `dist/` bundle. (The prior addendum spec contained `'../../..'` — three levels — which is also incorrect; the right value is `'..'`.)
+- `config/organization.yaml` written using `fileSystemService.writeFile()` — no direct `fs` calls.
+- Org config write failure must be caught, printed via `printError()`, and abort init via early `return` — same pattern as all other write steps in `init.command.ts`.
+- `tmr-inbox` BOOTSTRAP reads `config/organization.yaml` if present; fallback to email domain extracted from the manager profile filename — no prompts, no hardcoded values.
+
+**Never:**
+- Do not change the `tmr-inbox` TRIAGE or SETUP logic — only add the BOOTSTRAP section and replace hardcoded literal strings with variable references.
+- Do not remove `configService.set('company_domain', answers.company)` — keep it for backward compatibility alongside the new vault file.
+
+### Tasks (addendum)
+
+- [x] `src/services/init.service.ts` — in `_readBundledSkill()`, change `new URL('../..', import.meta.url)` to `new URL('..', import.meta.url)`. Verification: `..` from `dist/init.command-<hash>.js` resolves to the project root; `../..` resolves to the project's parent directory (confirmed empirically).
+
+- [x] `src/services/init.service.ts` — add `async writeOrgConfig(vaultPath: string, managerEmail: string): Promise<void>` that extracts the domain as `managerEmail.split('@')[1] ?? managerEmail` and writes `config/organization.yaml` with content `internal_domains:\n  - <domain>\n`. The `config/` directory is guaranteed to exist after `scaffold()`.
+
+- [x] `src/commands/init.command.ts` — after `scaffoldSpinner.succeed('Workspace ready')`, add a new spinner block that calls `initService.writeOrgConfig(workspacePath, answers.email)`; on failure: `printError(...)`, `spinner.fail(...)`, early `return`. Keep the existing `configService.set('company_domain', answers.company)` line.
+
+- [x] `docs/skills/tmr-inbox/SKILL.md` — add a `## BOOTSTRAP` section at the top of the skill (before `## SETUP` and `## TRIAGE`) containing three steps: **BT1** run `git rev-parse --show-toplevel` and store as `VAULT_ROOT`; **BT2** list `.md` files in `my-career/` non-recursively, identify the one whose name contains `@`, store its filename stem as `MANAGER_EMAIL` (exit with message if none found); **BT3** read `config/organization.yaml` if it exists and extract `internal_domains` as `INTERNAL_DOMAINS`; fallback: `INTERNAL_DOMAINS = [domain portion of MANAGER_EMAIL]`. Update the `Usage` block to add: *"Before either command, BOOTSTRAP is always run first to resolve `MANAGER_EMAIL` and `INTERNAL_DOMAINS`."* Replace the hardcoded `marlon.ferreira@example.com` vault owner note (line 17) with `Vault owner: resolved dynamically in BOOTSTRAP — see Step BT2`. In T2, replace `Marlon's email is marlon.ferreira@example.com. Exclude him from attendee counts.` with `Exclude MANAGER_EMAIL from attendee counts.` In Step 2a, replace `default to @example.com` with `default to @<first domain in INTERNAL_DOMAINS>`. In Step 2c relationship derivation, replace the `INTERNAL_DOMAINS` reference with a note that this list is resolved in BOOTSTRAP Step BT3.
+
+- [x] `tests/services/init.service.test.ts` — add `writeOrgConfig` suite: (a) writes `config/organization.yaml` at the correct path; (b) YAML content contains the domain extracted from the email; (c) uses the full domain string after `@` as the domain; (d) re-throws when `writeFile` rejects.
+
+- [x] `tests/commands/init.command.test.ts` — in the happy-path suite, assert that `mockWriteFile` is called with a path ending in `config/organization.yaml`.
+
+### Acceptance Criteria (addendum)
+
+- Given `_readBundledSkill('tmr-inbox')` is called from the compiled bundle, then the resolved skill path points to `<project-root>/docs/skills/tmr-inbox/SKILL.md` and the file is read successfully.
+- Given `tmr init` completes, when `config/organization.yaml` is read, then `internal_domains` contains the domain portion of the email entered during init.
+- Given `config/organization.yaml` write fails during `tmr init`, then init aborts with a printed error (non-silent failure — org config is vault-critical context).
+- Given `/tmr-inbox` is invoked on any vault, then `MANAGER_EMAIL` is resolved from `my-career/` and no hardcoded email address is used at any point in the triage.
+- Given `config/organization.yaml` exists with multiple domains, then `INTERNAL_DOMAINS` contains all listed domains and is used for relationship classification in Step 2c.
+- Given `config/organization.yaml` does not exist, then `INTERNAL_DOMAINS` falls back to the single domain extracted from `MANAGER_EMAIL` and triage proceeds normally.
 
 ## Suggested Review Order
 

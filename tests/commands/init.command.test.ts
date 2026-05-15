@@ -91,6 +91,21 @@ jest.unstable_mockModule('../../src/services/skill-registry.service.js', () => (
   })),
 }));
 
+jest.unstable_mockModule('node:fs', () => ({
+  default: {
+    mkdirSync: jest.fn(),
+    readFileSync: jest.fn().mockReturnValue('# bundled skill content'),
+    writeFileSync: jest.fn(),
+    existsSync: jest.fn().mockReturnValue(false),
+    readdirSync: jest.fn().mockReturnValue([]),
+  },
+  mkdirSync: jest.fn(),
+  readFileSync: jest.fn().mockReturnValue('# bundled skill content'),
+  writeFileSync: jest.fn(),
+  existsSync: jest.fn().mockReturnValue(false),
+  readdirSync: jest.fn().mockReturnValue([]),
+}));
+
 // ── Dynamic import (after all mocks) ─────────────────────────────────────────
 
 const { InitCommand } = await import('../../src/commands/init.command.js');
@@ -236,6 +251,13 @@ describe('InitCommand', () => {
       const claudeCall = claudeWrites[claudeWrites.length - 1];
       expect(claudeCall).toBeDefined();
       expect(claudeCall[1]).toContain('example.com');
+    });
+
+    it('writes config/organization.yaml', async () => {
+      setupMinimalHappyPath();
+      await new InitCommand().run();
+      const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) => c[0]);
+      expect(writtenPaths.some((p) => p.endsWith('config/organization.yaml'))).toBe(true);
     });
 
     it('writes my-tasks/tasks.md', async () => {

@@ -130,6 +130,16 @@ export class InitCommand {
 
     scaffoldSpinner.succeed('Workspace ready');
 
+    const orgConfigSpinner = startSpinner('Writing org config', this.plain);
+    try {
+      await initService.writeOrgConfig(workspacePath, answers.email);
+    } catch (err) {
+      printError(`Failed to write org config: ${err instanceof Error ? err.message : String(err)}`);
+      orgConfigSpinner.fail('Org config write failed');
+      return;
+    }
+    orgConfigSpinner.succeed('Org config written');
+
     const profileSpinner = startSpinner('Creating your profile', this.plain);
     try {
       await initService.writeUserProfile(workspacePath, {

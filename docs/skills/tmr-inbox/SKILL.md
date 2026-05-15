@@ -14,7 +14,33 @@ Processes all `.md` files in `inbox/` using a two-pass batch approach.
 
 When invoked, check if the user passed the argument `setup`. If so, follow the SETUP section. Otherwise follow the TRIAGE section.
 
-Vault owner: `marlon.ferreira@example.com` — exclude this email when counting attendees.
+Before either command, BOOTSTRAP is always run first to resolve `MANAGER_EMAIL` and `INTERNAL_DOMAINS`.
+
+Vault owner: resolved dynamically in BOOTSTRAP — see Step BT2.
+
+---
+
+## BOOTSTRAP
+
+### Step BT1: Locate vault root
+
+```bash
+git rev-parse --show-toplevel
+```
+
+Store the result as `VAULT_ROOT`.
+
+### Step BT2: Resolve vault owner email
+
+List `.md` files in `my-career/` non-recursively. Identify the one whose name contains `@`. Store its filename stem (without `.md`) as `MANAGER_EMAIL`.
+
+If none is found, exit with: `tmr-inbox: could not resolve vault owner email from my-career/ — run \`tmr init\` to set up your vault.`
+
+### Step BT3: Resolve internal domains
+
+Read `config/organization.yaml` if it exists. Extract the `internal_domains` list as `INTERNAL_DOMAINS`.
+
+If the file does not exist or the `internal_domains` field is absent, set `INTERNAL_DOMAINS` to a single-element list containing the domain portion of `MANAGER_EMAIL` (the part after `@`).
 
 ---
 
@@ -168,12 +194,12 @@ Extract from each file:
 - `created` timestamp from YAML frontmatter (extract YYYY-MM-DD prefix as the meeting date)
 - First heading and first 5-10 bullet points from content
 
-**Marlon's email is `marlon.ferreira@example.com`. Exclude him from attendee counts.**
+**Exclude MANAGER_EMAIL from attendee counts.**
 
 Classify each file using these rules in order:
 
 **Rule 1 — 1:1 check:**
-After removing Marlon from attendees, is exactly 1 person left?
+After removing MANAGER_EMAIL from attendees, is exactly 1 person left?
 - Yes → determine their folder:
   - Check `my-teams/members/[email]/` exists → type: `1on1-team`
   - Else check `my-leadership/[email]/` exists → type: `1on1-leadership`
@@ -209,7 +235,7 @@ For each ambiguous file, display:
 --- Ambiguous file ---
 File:      [original filename]
 Title:     [title from frontmatter]
-Attendees: [list, Marlon excluded]
+Attendees: [list, MANAGER_EMAIL excluded]
 Reason:    [why it was flagged — e.g., "2 attendees but neither found in vault", "title unclear"]
 
 How should this be routed?
@@ -235,7 +261,7 @@ For each file in the `confident` list, perform steps 2a through 2h in sequence.
 
 #### Step 2a: Resolve attendee emails
 
-Build a `resolved_attendees` map for all entries in the `attendees` frontmatter array (excluding Marlon).
+Build a `resolved_attendees` map for all entries in the `attendees` frontmatter array (excluding MANAGER_EMAIL).
 
 For each attendee entry:
 
@@ -243,7 +269,7 @@ For each attendee entry:
 
 **If it is a full name only** → infer the email:
 
-1. **Determine the dominant domain**: collect all email-format attendees in this same meeting. Count unique domains. Use the most frequent domain. If there are no email-format attendees, default to `@example.com`.
+1. **Determine the dominant domain**: collect all email-format attendees in this same meeting. Count unique domains. Use the most frequent domain. If there are no email-format attendees, default to `@<first domain in INTERNAL_DOMAINS>`.
 
 2. **Check for an existing profile that matches the name**: scan folder names in `my-teams/members/`, `my-leadership/`, `my-company/contractors/`, and `my-company/members/`. For each folder whose name looks like `firstname.lastname@domain`, check if the `firstname` and `lastname` match the person's first given name and last surname (strip accents, lowercase, compare). Also check the `name` field in the profile's frontmatter if present. If a matching folder is found → use that email, `inferred: false` (it's a confirmed match).
 
@@ -378,6 +404,8 @@ Derive `relationship` from the routing context:
 - `1on1-contractor` → `contractor`
 - `1on1-member`, `project`, or `company` attendee with domain in `INTERNAL_DOMAINS` → `company`
 - `1on1-member`, `project`, or `company` attendee with domain **not** in `INTERNAL_DOMAINS` → `unknown`
+
+(`INTERNAL_DOMAINS` is resolved in BOOTSTRAP Step BT3.)
 
 For attendees whose email was **inferred** from their name:
 ```markdown

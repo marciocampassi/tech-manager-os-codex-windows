@@ -6,7 +6,7 @@ date: 2026-04-10
 created: 2026-04-10T14:00:00.000Z
 updated: 2026-04-10T15:05:22.430Z
 attendees:
-  - "[[alex.chen@acmecorp.com]]"
+  - "alex.chen@acmecorp.com"
 tags:
   - meeting
   - granola

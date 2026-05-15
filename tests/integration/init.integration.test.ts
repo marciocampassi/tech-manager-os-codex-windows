@@ -111,6 +111,21 @@ jest.unstable_mockModule('../../src/services/skill-registry.service.js', () => (
   })),
 }));
 
+jest.unstable_mockModule('node:fs', () => ({
+  default: {
+    mkdirSync: jest.fn(),
+    readFileSync: jest.fn().mockReturnValue('# bundled skill content'),
+    writeFileSync: jest.fn(),
+    existsSync: jest.fn().mockReturnValue(false),
+    readdirSync: jest.fn().mockReturnValue([]),
+  },
+  mkdirSync: jest.fn(),
+  readFileSync: jest.fn().mockReturnValue('# bundled skill content'),
+  writeFileSync: jest.fn(),
+  existsSync: jest.fn().mockReturnValue(false),
+  readdirSync: jest.fn().mockReturnValue([]),
+}));
+
 // ── Dynamic import (after all mocks) ─────────────────────────────────────────
 
 const { InitCommand } = await import('../../src/commands/init.command.js');

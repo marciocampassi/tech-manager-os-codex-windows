@@ -517,6 +517,37 @@ describe('InitService', () => {
     });
   });
 
+  // ── writeOrgConfig ────────────────────────────────────────────────────────
+
+  describe('writeOrgConfig', () => {
+    it('writes config/organization.yaml at the correct path', async () => {
+      await svc.writeOrgConfig(WS, 'alice@example.com');
+      const paths = (mockFS.writeFile.mock.calls as [string, string][]).map((c) => c[0]);
+      expect(paths.some((p) => p.endsWith(path.join('config', 'organization.yaml')))).toBe(true);
+    });
+
+    it('YAML content contains the domain extracted from the email', async () => {
+      await svc.writeOrgConfig(WS, 'alice@example.com');
+      const call = (mockFS.writeFile.mock.calls as [string, string][]).find(([p]) =>
+        p.endsWith('organization.yaml'),
+      );
+      expect(call?.[1]).toContain('example.com');
+    });
+
+    it('uses the full domain string after @ as the domain', async () => {
+      await svc.writeOrgConfig(WS, 'user@corp.internal.io');
+      const call = (mockFS.writeFile.mock.calls as [string, string][]).find(([p]) =>
+        p.endsWith('organization.yaml'),
+      );
+      expect(call?.[1]).toContain('corp.internal.io');
+    });
+
+    it('re-throws when writeFile rejects', async () => {
+      mockFS.writeFile.mockRejectedValueOnce(new Error('no space left'));
+      await expect(svc.writeOrgConfig(WS, 'alice@example.com')).rejects.toThrow('no space left');
+    });
+  });
+
   // ── writeReadme ───────────────────────────────────────────────────────────
 
   describe('writeReadme', () => {

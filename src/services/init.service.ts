@@ -264,18 +264,29 @@ export class InitService {
 
   /**
    * Reads a bundled skill SKILL.md from `docs/skills/<docsFolder>/SKILL.md` relative to
-   * the package root. Resolves the package root by going two levels up from the compiled
-   * file at `dist/services/init.service.js` (dist/services/ → dist/ → project root).
+   * the package root. Resolves the package root by going one level up from the compiled
+   * flat bundle at `dist/<bundle>.js` (dist/ → project root).
    * Returns null on any read error.
    */
   private _readBundledSkill(docsFolder: string): string | null {
     try {
-      const pkgRoot = fileURLToPath(new URL('../..', import.meta.url));
+      const pkgRoot = fileURLToPath(new URL('..', import.meta.url));
       const skillPath = path.join(pkgRoot, 'docs', 'skills', docsFolder, 'SKILL.md');
       return this._readSkillFile(skillPath);
     } catch {
       return null;
     }
+  }
+
+  /**
+   * Writes `config/organization.yaml` to the vault with the domain extracted from the
+   * manager's email address. The `config/` directory is guaranteed to exist after `scaffold()`.
+   * Throws on any file system failure — org config is vault-critical context.
+   */
+  async writeOrgConfig(vaultPath: string, managerEmail: string): Promise<void> {
+    const domain = managerEmail.split('@')[1] ?? managerEmail;
+    const content = `internal_domains:\n  - ${domain}\n`;
+    await this._fs.writeFile(path.join(vaultPath, 'config', 'organization.yaml'), content);
   }
 
   /**
