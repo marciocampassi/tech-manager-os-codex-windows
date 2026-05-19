@@ -405,4 +405,68 @@ describe('install + update integration (real fs, mocked https)', () => {
       expect(stderrOutput).toMatch(/malformed/i);
     });
   });
+
+  // ── SKILL-INT-006: tmr update resolves tmr-project-impact ─────────────────
+
+  describe('SKILL-INT-006: tmr update — tmr-project-impact updates from 0.0.0 to 1.0.0 without error', () => {
+    it('reports "updated" and does not error when registry returns version 1.0.0', async () => {
+      const skillsDir = path.join(tmpDir, '.claude', 'skills');
+      const skillDir = path.join(skillsDir, 'tmr-project-impact');
+
+      // Pre-install tmr-project-impact at v0.0.0 (simulates bundled init install)
+      await fs.mkdirp(skillDir);
+      await fs.writeFile(
+        path.join(skillDir, 'SKILL.md'),
+        '# tmr-project-impact\n\nOld bundled version.',
+      );
+      await fs.writeFile(
+        path.join(skillsDir, 'skill-manifest.json'),
+        JSON.stringify([
+          { name: 'tmr-project-impact', version: '0.0.0', installedAt: new Date().toISOString() },
+        ]),
+      );
+
+      stdoutSpy.mockClear();
+      let stderrOutput = '';
+      const stderrSpy = jest.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+        stderrOutput += String(chunk);
+        return true;
+      });
+
+      // Registry returns 200 with version 1.0.0 content
+      const registryContent =
+        '<!-- version: 1.0.0 -->\n# tmr-project-impact\n\nUpdated registry version.';
+      mockHttpsGetImpl = (_url, cb) => {
+        cb(makeSuccessResponse(registryContent));
+        return { on: jest.fn() } as unknown as MockRequest;
+      };
+
+      await runUpdate({ plain: true });
+
+      stderrSpy.mockRestore();
+
+      const output = (stdoutSpy.mock.calls as [string][]).map((c) => c[0]).join('');
+
+      // Must not error
+      expect(stderrOutput).not.toContain('could not reach registry');
+      expect(process.exitCode).toBeUndefined();
+
+      // Must report updated
+      expect(output).toContain('updated');
+      expect(output).toContain('tmr-project-impact');
+
+      // SKILL.md on disk must be updated to registry content
+      const writtenContent = await fs.readFile(path.join(skillDir, 'SKILL.md'), 'utf-8');
+      expect(writtenContent).toContain('1.0.0');
+
+      // Manifest must record the new version
+      const manifest = (await fs.readJson(path.join(skillsDir, 'skill-manifest.json'))) as {
+        name: string;
+        version: string;
+      }[];
+      const entry = manifest.find((e) => e.name === 'tmr-project-impact');
+      expect(entry).toBeDefined();
+      expect(entry!.version).toBe('1.0.0');
+    });
+  });
 });

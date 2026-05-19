@@ -2,6 +2,7 @@
 name: tmr-project-impact
 description: Detect changes in project source files and report which dependent documents are affected, with specific suggestions per document. No changes applied automatically.
 ---
+<!-- version: 1.0.0 -->
 
 # tmr-project-impact
 
