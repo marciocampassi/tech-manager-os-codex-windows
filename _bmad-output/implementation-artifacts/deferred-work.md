@@ -167,3 +167,8 @@ The following items were surfaced by the pre-launch AC audit (Epics 1–5) and a
 
 - `Promise.all` atomic rejection in `DoctorService.runChecks()` — if any single async check (`checkObsidian`, `checkGranola`, `checkGoogleDrive`) throws unexpectedly, `Promise.all` rejects and all results are discarded; the command-level catch shows a generic error rather than partial results with the failing check flagged. The outer try/catch in `runDoctor` handles this per AC8; per-check resilience is a UX improvement beyond spec scope. `src/services/doctor.service.ts:runChecks`.
 - ~~`checkTmr()` unguarded synchronous `require('../../package.json')`~~ — **RESOLVED 2026-05-11**: version now injected via `DoctorService` constructor; `require` removed from service layer entirely. `createDoctorCommand(pkg.version)` in `src/cli.ts` supplies the version using `cli.ts`'s already-correct `'../package.json'` resolution path.
+
+## Deferred from: code review of 8-1-wire-jest-md-transformer (2026-05-19)
+
+- Build vs test content can drift without failing tests — Jest transformer loads live `.md` files from `examples/inbox-samples/` at test time while `tsup` inlines them at build time. Tests assert only partial content (not byte-for-byte equality); a divergence between disk and `dist/` output would not be caught automatically. [`src/templates/onboarding.templates.ts`:3–4]
+- Wildcard `*.md` ambient declaration does not prove sample files exist — `src/types/md.d.ts` declares `declare module '*.md'`; `tsc` can pass while the actual `.md` files are absent or moved; failure only surfaces at Jest resolve/transform time, not at type-check time. [`src/types/md.d.ts`]
