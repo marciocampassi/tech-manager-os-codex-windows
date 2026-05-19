@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-27
-last_updated: 2026-05-11 (mvp integration sign-off)
+last_updated: 2026-05-19 (epic-8 added via UAT bug fix sprint change proposal)
 project: tech-manager-os
 project_key: NOKEY
 tracking_system: file-system
@@ -86,3 +86,12 @@ development_status:
   7-1-bootstrap-install-scripts: done
   7-2-tmr-doctor-environment-health-check: done
   epic-7-retrospective: optional
+
+  # ── Epic 8: UAT Bug Fixes ──
+  # Source: sprint-change-proposal-2026-05-19-uat-bug-fixes.md
+  epic-8: backlog
+  8-1-wire-jest-md-transformer: backlog
+  8-2-scaffold-deps-yaml-on-project-add: backlog
+  8-3-domain-check-contractor-routing: backlog
+  8-4-publish-tmr-project-impact-to-registry: backlog
+  epic-8-retrospective: optional
