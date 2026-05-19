@@ -60,6 +60,7 @@ describe('Project Integration', () => {
     expect(fs.existsSync(overviewPath)).toBe(true);
     expect(fs.existsSync(standupsDir)).toBe(true);
     expect(fs.existsSync(meetingsDir)).toBe(true);
+    expect(fs.existsSync(path.join(projectDir, 'deps.yaml'))).toBe(true);
     expect(fs.existsSync(path.join(projectDir, 'platform-project-composition.md'))).toBe(false);
     expect(fs.existsSync(path.join(projectDir, 'discussion'))).toBe(false);
     expect(fs.existsSync(path.join(projectDir, 'presentation'))).toBe(false);
@@ -79,6 +80,42 @@ describe('Project Integration', () => {
     await svc.addProject('platform', workspace);
     const second = await svc.addProject('platform', workspace);
     expect(second.created).toBe(false);
+  });
+
+  it('AC1b: deps.yaml is created with correct content', async () => {
+    await svc.addProject('platform', workspace);
+
+    const depsPath = path.join(
+      workspace,
+      'my-company',
+      'projects',
+      'platform-project',
+      'deps.yaml',
+    );
+    expect(fs.existsSync(depsPath)).toBe(true);
+
+    const content = fs.readFileSync(depsPath, 'utf8');
+    expect(content).toContain('sources: {}');
+    expect(content).toContain('tmr-project-impact');
+    expect(content).toContain('deps.yaml — project dependency manifest');
+    expect(content).toContain('Do not edit manually unless you understand the schema.');
+  });
+
+  it('AC1c: deps.yaml is not re-written on second addProject call', async () => {
+    await svc.addProject('platform', workspace);
+    const depsPath = path.join(
+      workspace,
+      'my-company',
+      'projects',
+      'platform-project',
+      'deps.yaml',
+    );
+
+    // Corrupt the file to prove it is not overwritten on second call
+    fs.writeFileSync(depsPath, 'mutated');
+    await svc.addProject('platform', workspace);
+
+    expect(fs.readFileSync(depsPath, 'utf8')).toBe('mutated');
   });
 
   // ── AC2: addStandup ────────────────────────────────────────────────────────────

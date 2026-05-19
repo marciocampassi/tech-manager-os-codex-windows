@@ -172,3 +172,10 @@ The following items were surfaced by the pre-launch AC audit (Epics 1–5) and a
 
 - Build vs test content can drift without failing tests — Jest transformer loads live `.md` files from `examples/inbox-samples/` at test time while `tsup` inlines them at build time. Tests assert only partial content (not byte-for-byte equality); a divergence between disk and `dist/` output would not be caught automatically. [`src/templates/onboarding.templates.ts`:3–4]
 - Wildcard `*.md` ambient declaration does not prove sample files exist — `src/types/md.d.ts` declares `declare module '*.md'`; `tsc` can pass while the actual `.md` files are absent or moved; failure only surfaces at Jest resolve/transform time, not at type-check time. [`src/types/md.d.ts`]
+
+## Deferred from: code review of 8-2-scaffold-deps-yaml-on-project-add (2026-05-19)
+
+- D1 — Idempotency is structurally tied to the overview-file existence guard, not a `deps.yaml`-specific guard — if `addProject` gains a `--force` or partial-repair path, `deps.yaml` will be silently overwritten without an independent guard. Spec-chosen design; real future evolution risk. [`src/services/project.service.ts:136`]
+- D2 — Stub comment `# Do not edit manually unless you understand the schema.` references a schema that does not exist anywhere in the repository — unactionable guidance. Product copy decision; address in a documentation story. [`src/services/project.service.ts:54`]
+- D3 — No commented-out example of a populated `sources` entry in the stub — reduces self-service value for users who bypass `/tmr-project-impact`. Product design decision; spec defines exact stub content. [`src/services/project.service.ts:54`]
+- D4 — No test or rollback for partial-creation failure: if `writeFile` for `deps.yaml` throws after directories are already created, `addProject` leaves the project in a half-initialized state. Pre-existing service design gap (same pattern as scaffolding dirs with no rollback). [`src/services/project.service.ts:136`]
