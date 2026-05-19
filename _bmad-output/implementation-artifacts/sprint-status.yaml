@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-27
-last_updated: 2026-05-19 (8-2 done after clean code review)
+last_updated: 2026-05-19 (8-3 done after code review)
 project: tech-manager-os
 project_key: NOKEY
 tracking_system: file-system
@@ -92,6 +92,6 @@ development_status:
   epic-8: in-progress
   8-1-wire-jest-md-transformer: done
   8-2-scaffold-deps-yaml-on-project-add: done
-  8-3-domain-check-contractor-routing: backlog
+  8-3-domain-check-contractor-routing: done
   8-4-publish-tmr-project-impact-to-registry: backlog
   epic-8-retrospective: optional

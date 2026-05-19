@@ -47,6 +47,44 @@ export async function runMemberAdd(
     ]);
 
     const ws = svc.getWorkspaceRoot();
+
+    // ── Domain check (FR41) ───────────────────────────────────────────────────
+    let isContractor = opts.contractor ?? false;
+    let companyName: string | undefined;
+
+    if (!isContractor) {
+      const domain = email.split('@')[1] ?? '';
+      let internalDomains: string[] = [];
+      try {
+        internalDomains = await svc.getInternalDomains(ws);
+      } catch {
+        // org.yaml unreadable — skip domain check, proceed without routing prompt
+      }
+      if (internalDomains.length > 0 && domain && !internalDomains.includes(domain)) {
+        const { routing } = await inquirer.prompt<{ routing: 'contractor' | 'member' }>([
+          {
+            type: 'list',
+            name: 'routing',
+            message: `${email} looks external (${domain}). Route to:`,
+            choices: [
+              { name: 'Contractors  (my-company/contractors/)', value: 'contractor' },
+              { name: 'Company members  (my-company/members/)', value: 'member' },
+            ],
+            default: 'contractor',
+          },
+        ]);
+        isContractor = routing === 'contractor';
+      }
+    }
+
+    if (isContractor) {
+      const { collected } = await inquirer.prompt<{ collected: string }>([
+        { type: 'input', name: 'collected', message: 'Company name (optional):' },
+      ]);
+      companyName = collected.trim() || undefined;
+    }
+
+    // ── Create member profile ─────────────────────────────────────────────────
     let result;
     try {
       result = await svc.addMember(
@@ -54,7 +92,8 @@ export async function runMemberAdd(
         {
           team: opts.team,
           location: opts.location,
-          contractor: opts.contractor,
+          contractor: isContractor,
+          company: companyName,
           name: name.trim() || undefined,
           gender: gender.trim() || undefined,
           role: role.trim() || undefined,

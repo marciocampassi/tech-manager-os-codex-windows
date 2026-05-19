@@ -377,6 +377,86 @@ describe('MemberService', () => {
         expect.any(String),
       );
     });
+
+    it('MEM-UNIT-012: contractor flag routes to my-company/contractors/ path', async () => {
+      await svc.addMember('ext@agency.com', { contractor: true }, WS);
+
+      expect(mockFS.writeFile).toHaveBeenCalledWith(
+        expect.stringContaining('my-company/contractors/ext@agency.com/ext@agency.com.md'),
+        expect.any(String),
+      );
+    });
+
+    it('MEM-UNIT-013: contractor profile includes relationship: contractor', async () => {
+      await svc.addMember('ext@agency.com', { contractor: true }, WS);
+
+      const written = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
+      expect(written).toContain('relationship: contractor');
+    });
+
+    it('FR42: contractor profile includes company field when opts.company provided', async () => {
+      await svc.addMember('ext@agency.com', { contractor: true, company: 'Agency Corp' }, WS);
+
+      const written = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
+      expect(written).toContain('relationship: contractor');
+      expect(written).toContain('company: Agency Corp');
+    });
+
+    it('FR42: contractor profile has no company field when opts.company is undefined', async () => {
+      await svc.addMember('ext@agency.com', { contractor: true }, WS);
+
+      const written = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
+      expect(written).not.toContain('company:');
+    });
+  });
+
+  // ── getInternalDomains ────────────────────────────────────────────────────────
+
+  describe('getInternalDomains', () => {
+    it('returns [] when organization.yaml does not exist', async () => {
+      mockFS.exists.mockResolvedValue(false);
+      const result = await svc.getInternalDomains(WS);
+      expect(result).toEqual([]);
+    });
+
+    it('parses single domain from organization.yaml', async () => {
+      mockFS.exists.mockResolvedValue(true);
+      mockFS.readFile.mockResolvedValue('internal_domains:\n  - gmail.com\n');
+      const result = await svc.getInternalDomains(WS);
+      expect(result).toEqual(['gmail.com']);
+    });
+
+    it('parses multiple domains from organization.yaml', async () => {
+      mockFS.exists.mockResolvedValue(true);
+      mockFS.readFile.mockResolvedValue(
+        'internal_domains:\n  - gmail.com\n  - techcorp.com\n  - partner.io\n',
+      );
+      const result = await svc.getInternalDomains(WS);
+      expect(result).toEqual(['gmail.com', 'techcorp.com', 'partner.io']);
+    });
+
+    it('returns [] when internal_domains list is empty', async () => {
+      mockFS.exists.mockResolvedValue(true);
+      mockFS.readFile.mockResolvedValue('internal_domains:\n');
+      const result = await svc.getInternalDomains(WS);
+      expect(result).toEqual([]);
+    });
+
+    it('stops parsing at next top-level key', async () => {
+      mockFS.exists.mockResolvedValue(true);
+      mockFS.readFile.mockResolvedValue(
+        'internal_domains:\n  - gmail.com\nother_key:\n  - shouldNotAppear.com\n',
+      );
+      const result = await svc.getInternalDomains(WS);
+      expect(result).toEqual(['gmail.com']);
+    });
+
+    it('normalizes domain entries to lowercase (RFC 5321)', async () => {
+      mockFS.exists.mockResolvedValue(true);
+      mockFS.readFile.mockResolvedValue('internal_domains:\n  - INTERNAL.COM\n  - Corp.IO\n');
+      const result = await svc.getInternalDomains(WS);
+      expect(result).toEqual(['internal.com', 'corp.io']);
+    });
   });
 
   // ── createMemberFile — global email resolver (Story 3.3) ──────────────────────

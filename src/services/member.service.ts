@@ -186,7 +186,9 @@ export class MemberService {
       gender: opts.gender ?? '',
       location: opts.location ?? '',
       date_added: todayIso(),
-      ...(opts.contractor ? { relationship: 'contractor' } : {}),
+      ...(opts.contractor
+        ? { relationship: 'contractor', ...(opts.company ? { company: opts.company } : {}) }
+        : {}),
       ...(opts.team ? { manager: managerLink } : {}),
     };
 
@@ -221,6 +223,35 @@ export class MemberService {
     const managerProfilePath = path.join(careerRoot, managerEmail, `${managerEmail}.md`);
     if (!(await this._fs.exists(managerProfilePath))) return '';
     return formatWikiLink(managerProfilePath, memberPath, managerEmail);
+  }
+
+  /**
+   * Reads `config/organization.yaml` and returns the `internal_domains` list.
+   * Returns an empty array if the file does not exist or contains no domains.
+   * Uses simple line-by-line parsing — no external YAML dependency required.
+   */
+  async getInternalDomains(workspaceRoot: string): Promise<string[]> {
+    const orgPath = path.join(workspaceRoot, 'config', 'organization.yaml');
+    if (!(await this._fs.exists(orgPath))) return [];
+    const content = await this._fs.readFile(orgPath);
+    const lines = content.split('\n');
+    let inDomains = false;
+    const domains: string[] = [];
+    for (const line of lines) {
+      if (line.trim().startsWith('internal_domains:')) {
+        inDomains = true;
+        continue;
+      }
+      if (inDomains) {
+        const match = line.match(/^\s+-\s+(.+)$/);
+        if (match?.[1]) {
+          domains.push(match[1].trim().toLowerCase());
+        } else if (line.trim() && !line.startsWith(' ') && !line.startsWith('\t')) {
+          inDomains = false;
+        }
+      }
+    }
+    return domains;
   }
 
   /**
