@@ -45,6 +45,8 @@ export interface AppConfig {
   google_client_id?: string;
   /** Google OAuth2 client secret from Google Cloud Console */
   google_client_secret?: string;
+  /** Company or domain name collected during init (e.g. acme.com) */
+  company_domain?: string;
 }
 
 export const CONFIG_KEYS: ReadonlyArray<keyof AppConfig> = [
@@ -59,6 +61,7 @@ export const CONFIG_KEYS: ReadonlyArray<keyof AppConfig> = [
   'google_oauth_token',
   'google_client_id',
   'google_client_secret',
+  'company_domain',
 ];
 
 /** Maps AppConfig keys to their TMR_* environment variable overrides */

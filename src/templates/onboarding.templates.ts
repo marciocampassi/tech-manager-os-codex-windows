@@ -1,5 +1,7 @@
 import type { OnboardingData, TeamMember } from '../types/onboarding.types.js';
 import type { TaskPeriod } from '../types/task.types.js';
+import INBOX_SAMPLE_1 from '../../examples/inbox-samples/2026-04-10-Marlon-Alex.md';
+import INBOX_SAMPLE_2 from '../../examples/inbox-samples/2026-04-15-Team-Sync.md';
 
 function today(): string {
   return new Date().toISOString().split('T')[0];
@@ -281,40 +283,10 @@ updated: ${date}
 `;
 }
 
-export function generateSampleMeetingNote(): string {
-  const date = today();
-  return `---
-type: meeting-note
-date: ${date}
-attendees: []
-tags: [inbox, sample]
----
-
-# Sample Meeting Note
-
-> This is a sample file placed in your \`inbox/\` by \`tmr init\`.
-> Drop your real meeting notes here and run \`tmr process\` to categorize them automatically.
-> Delete this file once you are ready to use your vault.
-
-## Agenda
-
-- [ ] Introductions
-- [ ] Review goals for this quarter
-- [ ] Align on next steps
-
-## Notes
-
-_Add your meeting notes here._
-
-## Action Items
-
-- [ ] Follow up with team — owner: _you_ — due: _next week_
-
-## Decisions Made
-
-_Record key decisions here so they are searchable later._
-`;
-}
+export const INBOX_SAMPLE_FILES: Array<{ filename: string; content: string }> = [
+  { filename: '2026-04-10-Marlon-Alex.md', content: INBOX_SAMPLE_1 },
+  { filename: '2026-04-15-Team-Sync.md', content: INBOX_SAMPLE_2 },
+];
 
 export function generateVaultReadme(): string {
   return `# Tech Manager OS — Vault README

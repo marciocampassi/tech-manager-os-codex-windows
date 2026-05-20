@@ -14,7 +14,33 @@ Processes all `.md` files in `inbox/` using a two-pass batch approach.
 
 When invoked, check if the user passed the argument `setup`. If so, follow the SETUP section. Otherwise follow the TRIAGE section.
 
-Vault owner: `marlon.ferreira@example.com` — exclude this email when counting attendees.
+Before either command, BOOTSTRAP is always run first to resolve `MANAGER_EMAIL` and `INTERNAL_DOMAINS`.
+
+Vault owner: resolved dynamically in BOOTSTRAP — see Step BT2.
+
+---
+
+## BOOTSTRAP
+
+### Step BT1: Locate vault root
+
+```bash
+git rev-parse --show-toplevel
+```
+
+Store the result as `VAULT_ROOT`.
+
+### Step BT2: Resolve vault owner email
+
+List `.md` files in `my-career/` non-recursively. Identify the one whose name contains `@`. Store its filename stem (without `.md`) as `MANAGER_EMAIL`.
+
+If none is found, exit with: `tmr-inbox: could not resolve vault owner email from my-career/ — run \`tmr init\` to set up your vault.`
+
+### Step BT3: Resolve internal domains
+
+Read `config/organization.yaml` if it exists. Extract the `internal_domains` list as `INTERNAL_DOMAINS`.
+
+If the file does not exist or the `internal_domains` field is absent, set `INTERNAL_DOMAINS` to a single-element list containing the domain portion of `MANAGER_EMAIL` (the part after `@`).
 
 ---
 
@@ -168,17 +194,18 @@ Extract from each file:
 - `created` timestamp from YAML frontmatter (extract YYYY-MM-DD prefix as the meeting date)
 - First heading and first 5-10 bullet points from content
 
-**Marlon's email is `marlon.ferreira@example.com`. Exclude him from attendee counts.**
+**Exclude MANAGER_EMAIL from attendee counts.**
 
 Classify each file using these rules in order:
 
 **Rule 1 — 1:1 check:**
-After removing Marlon from attendees, is exactly 1 person left?
+After removing MANAGER_EMAIL from attendees, is exactly 1 person left?
 - Yes → determine their folder:
   - Check `my-teams/members/[email]/` exists → type: `1on1-team`
   - Else check `my-leadership/[email]/` exists → type: `1on1-leadership`
+  - Else check `my-company/contractors/[email]/` exists → type: `1on1-contractor`
   - Else → type: `1on1-member`
-- Destination: `my-teams/members/[email]/1on1s/`, `my-leadership/[email]/1on1s/`, or `my-company/members/[email]/1on1s/`
+- Destination: `my-teams/members/[email]/1on1s/`, `my-leadership/[email]/1on1s/`, `my-company/contractors/[email]/1on1s/`, or `my-company/members/[email]/1on1s/`
 
 **Rule 2 — Project meeting check:**
 2+ other attendees remain. Does the title or content strongly suggest an existing project?
@@ -208,7 +235,7 @@ For each ambiguous file, display:
 --- Ambiguous file ---
 File:      [original filename]
 Title:     [title from frontmatter]
-Attendees: [list, Marlon excluded]
+Attendees: [list, MANAGER_EMAIL excluded]
 Reason:    [why it was flagged — e.g., "2 attendees but neither found in vault", "title unclear"]
 
 How should this be routed?
@@ -216,6 +243,7 @@ How should this be routed?
   b) Project meeting — enter project name: ___
   c) Company/general meeting → my-company/meetings/
   d) Skip this file
+  e) Contractor 1:1 with [first attendee email] → my-company/contractors/[email]/1on1s/
 ```
 
 Wait for the user's response. Apply:
@@ -223,6 +251,7 @@ Wait for the user's response. Apply:
 - `b` → add to confident as type `project` with the entered project name
 - `c` → add to confident as type `company`
 - `d` → remove from all queues (file stays in inbox); add to `skipped` list with reason 'user deferred'
+- `e` → add to confident as type `1on1-contractor` with that email
 
 After all ambiguous files are resolved, proceed to Pass 2.
 
@@ -232,7 +261,7 @@ For each file in the `confident` list, perform steps 2a through 2h in sequence.
 
 #### Step 2a: Resolve attendee emails
 
-Build a `resolved_attendees` map for all entries in the `attendees` frontmatter array (excluding Marlon).
+Build a `resolved_attendees` map for all entries in the `attendees` frontmatter array (excluding MANAGER_EMAIL).
 
 For each attendee entry:
 
@@ -240,9 +269,9 @@ For each attendee entry:
 
 **If it is a full name only** → infer the email:
 
-1. **Determine the dominant domain**: collect all email-format attendees in this same meeting. Count unique domains. Use the most frequent domain. If there are no email-format attendees, default to `@example.com`.
+1. **Determine the dominant domain**: collect all email-format attendees in this same meeting. Count unique domains. Use the most frequent domain. If there are no email-format attendees, default to `@<first domain in INTERNAL_DOMAINS>`.
 
-2. **Check for an existing profile that matches the name**: scan folder names in `my-teams/members/`, `my-leadership/`, and `my-company/members/`. For each folder whose name looks like `firstname.lastname@domain`, check if the `firstname` and `lastname` match the person's first given name and last surname (strip accents, lowercase, compare). Also check the `name` field in the profile's frontmatter if present. If a matching folder is found → use that email, `inferred: false` (it's a confirmed match).
+2. **Check for an existing profile that matches the name**: scan folder names in `my-teams/members/`, `my-leadership/`, `my-company/contractors/`, and `my-company/members/`. For each folder whose name looks like `firstname.lastname@domain`, check if the `firstname` and `lastname` match the person's first given name and last surname (strip accents, lowercase, compare). Also check the `name` field in the profile's frontmatter if present. If a matching folder is found → use that email, `inferred: false` (it's a confirmed match).
 
 3. **If no existing profile matches** → construct the inferred email:
    - Strip Portuguese accents from the full name: ã→a, á→a, à→a, â→a, é→e, ê→e, í→i, ó→o, ô→o, õ→o, ú→u, ç→c, ñ→n
@@ -260,12 +289,13 @@ Use this `resolved_attendees` map for all subsequent steps.
 
 #### Step 2b: Scaffold missing person profiles
 
-**For 1:1 types** (`1on1-team`, `1on1-leadership`, `1on1-member`):
+**For 1:1 types** (`1on1-team`, `1on1-leadership`, `1on1-contractor`, `1on1-member`):
 
 Check if the person's folder exists:
 
 **If type is `1on1-team`:** check `my-teams/members/[email]/`
 **If type is `1on1-leadership`:** check `my-leadership/[email]/`
+**If type is `1on1-contractor`:** check `my-company/contractors/[email]/`
 **If type is `1on1-member`:** check `my-company/members/[email]/`
 
 If the folder does NOT exist, create it:
@@ -281,6 +311,11 @@ mkdir -p "my-teams/members/[email]/performance-reviews"
 For `my-leadership/[email]/`:
 ```bash
 mkdir -p "my-leadership/[email]/1on1s"
+```
+
+For `my-company/contractors/[email]/`:
+```bash
+mkdir -p "my-company/contractors/[email]/1on1s"
 ```
 
 For `my-company/members/[email]/`:
@@ -366,8 +401,11 @@ First seen: [[new-filename-without-extension]]
 Derive `relationship` from the routing context:
 - `1on1-team` → `direct-report`
 - `1on1-leadership` → `leadership`
+- `1on1-contractor` → `contractor`
 - `1on1-member`, `project`, or `company` attendee with domain in `INTERNAL_DOMAINS` → `company`
 - `1on1-member`, `project`, or `company` attendee with domain **not** in `INTERNAL_DOMAINS` → `unknown`
+
+(`INTERNAL_DOMAINS` is resolved in BOOTSTRAP Step BT3.)
 
 For attendees whose email was **inferred** from their name:
 ```markdown
@@ -564,7 +602,8 @@ For each attendee in the `People:` line (except Marlon):
    To resolve `[their-folder]`, search in this order:
      1. `my-teams/members/[email]/` — if folder exists, use it
      2. `my-leadership/[email]/` — if folder exists, use it
-     3. `my-company/members/[email]/` — if folder exists, use it
+     3. `my-company/contractors/[email]/` — if folder exists, use it
+     4. `my-company/members/[email]/` — if folder exists, use it
 2. Check if a `## Meetings` section exists at the end
 3. If it does NOT exist, append it:
    ```markdown

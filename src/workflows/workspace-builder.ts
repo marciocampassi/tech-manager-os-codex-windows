@@ -35,8 +35,8 @@ const WORKSPACE_DIRS = [
   '.tmr-core/templates',
   '.tmr-core/packs',
   '.obsidian/plugins/obsidian-git',
-  '.obsidian/plugins/obsidian-granola-sync',
-  '.obsidian/plugins/obsidian-terminal',
+  '.obsidian/plugins/granola-sync',
+  '.obsidian/plugins/terminal',
   '.obsidian/plugins/dataview',
 ];
 

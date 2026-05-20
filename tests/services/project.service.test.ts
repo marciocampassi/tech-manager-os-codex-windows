@@ -154,6 +154,20 @@ describe('ProjectService', () => {
       const allPaths = (mockFS.writeFile.mock.calls as [string, string][]).map(([p]) => p);
       expect(allPaths.some((p) => p.includes('platform-project-project'))).toBe(false);
     });
+
+    it('PROJ-UNIT-001: writes deps.yaml to correct path with full header and sources block', async () => {
+      mockFS.exists.mockResolvedValue(false);
+      await svc.addProject(NAME, WS);
+
+      const allWriteCalls = mockFS.writeFile.mock.calls as [string, string][];
+      const depsCall = allWriteCalls.find(([p]) => p.endsWith('deps.yaml'));
+      expect(depsCall).toBeDefined();
+      expect(depsCall?.[0]).toContain(`my-company/projects/${NORMALIZED}/deps.yaml`);
+      expect(depsCall?.[1]).toContain('sources: {}');
+      expect(depsCall?.[1]).toContain('tmr-project-impact');
+      expect(depsCall?.[1]).toContain('deps.yaml — project dependency manifest');
+      expect(depsCall?.[1]).toContain('Do not edit manually unless you understand the schema.');
+    });
   });
 
   // ── addStandup ────────────────────────────────────────────────────────────────

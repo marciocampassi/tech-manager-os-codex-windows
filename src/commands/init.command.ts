@@ -97,6 +97,7 @@ export class InitCommand {
     // ── Write phase ───────────────────────────────────────────────────────────
     configService.initialize();
     configService.setWorkspacePath(workspacePath);
+    configService.set('company_domain', answers.company);
 
     const scaffoldSpinner = startSpinner('Creating workspace', this.plain);
     try {
@@ -129,12 +130,23 @@ export class InitCommand {
 
     scaffoldSpinner.succeed('Workspace ready');
 
+    const orgConfigSpinner = startSpinner('Writing org config', this.plain);
+    try {
+      await initService.writeOrgConfig(workspacePath, answers.email);
+    } catch (err) {
+      printError(`Failed to write org config: ${err instanceof Error ? err.message : String(err)}`);
+      orgConfigSpinner.fail('Org config write failed');
+      return;
+    }
+    orgConfigSpinner.succeed('Org config written');
+
     const profileSpinner = startSpinner('Creating your profile', this.plain);
     try {
       await initService.writeUserProfile(workspacePath, {
         name: answers.name,
         email: answers.email,
         role: answers.role,
+        leaderEmail: leader.email,
       });
     } catch (err) {
       printError(
@@ -204,13 +216,13 @@ export class InitCommand {
     }
     sampleSpinner.succeed('Sample files ready');
 
-    const skillSpinner = startSpinner('Installing tmr-inbox skill', this.plain);
+    const skillSpinner = startSpinner('Installing default skills', this.plain);
     try {
       await initService.installDefaultSkill(workspacePath);
     } catch {
       // installDefaultSkill never throws — safety net only
     }
-    skillSpinner.succeed('tmr-inbox skill ready');
+    skillSpinner.succeed('Default skills installed');
 
     const readmeSpinner = startSpinner('Writing README', this.plain);
     try {

@@ -30,7 +30,7 @@ export async function runMemberAdd(
   svc: MemberService,
   typeArg: string,
   emailArg: string | undefined,
-  opts: { date?: string; team?: string; location?: string },
+  opts: { date?: string; team?: string; location?: string; contractor?: boolean },
 ): Promise<void> {
   // Routing: if first arg is a valid email → member-creation mode
   if (isEmail(typeArg)) {
@@ -47,6 +47,44 @@ export async function runMemberAdd(
     ]);
 
     const ws = svc.getWorkspaceRoot();
+
+    // ── Domain check (FR41) ───────────────────────────────────────────────────
+    let isContractor = opts.contractor ?? false;
+    let companyName: string | undefined;
+
+    if (!isContractor) {
+      const domain = email.split('@')[1] ?? '';
+      let internalDomains: string[] = [];
+      try {
+        internalDomains = await svc.getInternalDomains(ws);
+      } catch {
+        // org.yaml unreadable — skip domain check, proceed without routing prompt
+      }
+      if (internalDomains.length > 0 && domain && !internalDomains.includes(domain)) {
+        const { routing } = await inquirer.prompt<{ routing: 'contractor' | 'member' }>([
+          {
+            type: 'list',
+            name: 'routing',
+            message: `${email} looks external (${domain}). Route to:`,
+            choices: [
+              { name: 'Contractors  (my-company/contractors/)', value: 'contractor' },
+              { name: 'Company members  (my-company/members/)', value: 'member' },
+            ],
+            default: 'contractor',
+          },
+        ]);
+        isContractor = routing === 'contractor';
+      }
+    }
+
+    if (isContractor) {
+      const { collected } = await inquirer.prompt<{ collected: string }>([
+        { type: 'input', name: 'collected', message: 'Company name (optional):' },
+      ]);
+      companyName = collected.trim() || undefined;
+    }
+
+    // ── Create member profile ─────────────────────────────────────────────────
     let result;
     try {
       result = await svc.addMember(
@@ -54,6 +92,8 @@ export async function runMemberAdd(
         {
           team: opts.team,
           location: opts.location,
+          contractor: isContractor,
+          company: companyName,
           name: name.trim() || undefined,
           gender: gender.trim() || undefined,
           role: role.trim() || undefined,
@@ -144,11 +184,15 @@ export function createMemberCommand(): Command {
     .option('--date <date>', 'date for the file (YYYY-MM-DD), defaults to today')
     .option('--team <name>', 'scope the member profile to a team (routes to my-teams/members/)')
     .option('--location <location>', 'location field for the member profile')
+    .option(
+      '--contractor',
+      'create profile in my-company/contractors/ for external/contractor members',
+    )
     .action(
       async (
         typeOrEmail: string,
         email: string | undefined,
-        opts: { date?: string; team?: string; location?: string },
+        opts: { date?: string; team?: string; location?: string; contractor?: boolean },
       ) => {
         await runMemberAdd(svc, typeOrEmail, email, opts);
       },

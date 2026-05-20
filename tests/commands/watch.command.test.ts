@@ -151,4 +151,28 @@ describe('createWatchCommand', () => {
     process.exitCode = 0;
     stderrSpy.mockRestore();
   });
+
+  it('propagates --verbose=true to WatchService.start', async () => {
+    const { Command } = await import('commander');
+    const program = new Command();
+    program.exitOverride();
+    program.option('--verbose');
+    program.addCommand(createWatchCommand());
+
+    await program.parseAsync(['node', 'tmr', '--verbose', 'watch']);
+
+    expect(mockStart).toHaveBeenCalledWith('/fake/ws', expect.objectContaining({ verbose: true }));
+  });
+
+  it('propagates --plain=true to WatchService.start', async () => {
+    const { Command } = await import('commander');
+    const program = new Command();
+    program.exitOverride();
+    program.option('--plain');
+    program.addCommand(createWatchCommand());
+
+    await program.parseAsync(['node', 'tmr', '--plain', 'watch']);
+
+    expect(mockStart).toHaveBeenCalledWith('/fake/ws', expect.objectContaining({ plain: true }));
+  });
 });

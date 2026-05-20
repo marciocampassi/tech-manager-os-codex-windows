@@ -1,4 +1,7 @@
-<!-- version: 1.2.0 -->
+---
+name: tmr-myself-config
+description: Adaptive setup conversation that enriches your manager profile, personalizes AI context in CLAUDE.md, scaffolds projects, and maps your team and collaborators across the vault. Run once after init, then /tmr-myself-config update whenever your context changes.
+---
 
 # tmr-myself-config
 

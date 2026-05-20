@@ -156,9 +156,9 @@ describe('InitService', () => {
       expect(dirs).not.toContain(path.join(WS, 'my-teams', 'feedback-templates'));
     });
 
-    it('creates exactly 12 directories — no extra ones', async () => {
+    it('creates exactly 14 directories — no extra ones', async () => {
       await svc.scaffold(WS);
-      expect(mockFS.createDirectory).toHaveBeenCalledTimes(12);
+      expect(mockFS.createDirectory).toHaveBeenCalledTimes(14);
     });
 
     // ── INIT-UNIT-007 ──────────────────────────────────────────────────────────
@@ -251,6 +251,23 @@ describe('InitService', () => {
       await svc.writeUserProfile(WS, { email: 'User@Example.COM', name: 'U', role: 'R' });
       const paths = (mockFS.writeFile.mock.calls as [string, string][]).map((c) => c[0]);
       expect(paths.some((p) => p.includes('user@example.com'))).toBe(true);
+    });
+
+    it('includes ## Leadership section with wiki-link when leaderEmail is provided', async () => {
+      await svc.writeUserProfile(WS, { ...opts, leaderEmail: 'boss@example.com' });
+      const call = (mockFS.writeFile.mock.calls as [string, string][]).find(([p]) =>
+        p.endsWith('user@example.com.md'),
+      );
+      expect(call![1]).toContain('## Leadership');
+      expect(call![1]).toContain('boss@example.com');
+    });
+
+    it('does NOT include ## Leadership section when leaderEmail is absent', async () => {
+      await svc.writeUserProfile(WS, opts);
+      const call = (mockFS.writeFile.mock.calls as [string, string][]).find(([p]) =>
+        p.endsWith('user@example.com.md'),
+      );
+      expect(call![1]).not.toContain('## Leadership');
     });
 
     it('re-throws when writeFile rejects', async () => {
@@ -389,10 +406,24 @@ describe('InitService', () => {
   // ── copySampleInboxFiles ──────────────────────────────────────────────────
 
   describe('copySampleInboxFiles', () => {
-    it('INIT-UNIT-003: writes sample-meeting-note.md to inbox/', async () => {
+    it('INIT-UNIT-003: writes 2026-04-10-Marlon-Alex.md to inbox/', async () => {
       await svc.copySampleInboxFiles(WS);
       const paths = (mockFS.writeFile.mock.calls as [string, string][]).map((c) => c[0]);
-      expect(paths).toContain(path.join(WS, 'inbox', 'sample-meeting-note.md'));
+      expect(paths).toContain(path.join(WS, 'inbox', '2026-04-10-Marlon-Alex.md'));
+    });
+
+    it('INIT-UNIT-003: writes 2026-04-15-Team-Sync.md to inbox/', async () => {
+      await svc.copySampleInboxFiles(WS);
+      const paths = (mockFS.writeFile.mock.calls as [string, string][]).map((c) => c[0]);
+      expect(paths).toContain(path.join(WS, 'inbox', '2026-04-15-Team-Sync.md'));
+    });
+
+    it('INIT-UNIT-003: sample files contain Granola frontmatter', async () => {
+      await svc.copySampleInboxFiles(WS);
+      const calls = mockFS.writeFile.mock.calls as [string, string][];
+      const marlonAlex = calls.find(([p]) => p.endsWith('2026-04-10-Marlon-Alex.md'));
+      expect(marlonAlex).toBeDefined();
+      expect(marlonAlex![1]).toContain('granola_id:');
     });
 
     it('re-throws when writeFile rejects', async () => {
@@ -405,58 +436,115 @@ describe('InitService', () => {
 
   describe('installDefaultSkill', () => {
     let mockRegistry: MockSkillRegistry;
+    let mockReadSkillFile: jest.MockedFunction<(p: string) => string>;
     let svcWithRegistry: InitService;
 
     beforeEach(() => {
       mockRegistry = createMockSkillRegistry();
+      mockReadSkillFile = jest.fn<(p: string) => string>().mockReturnValue('# skill content');
       svcWithRegistry = new InitService(
         mockFS as unknown as FileSystemService,
         mockLeadership as unknown as LeadershipService,
         mockTeam as unknown as TeamService,
         () => mockRegistry as unknown as SkillRegistryService,
+        mockReadSkillFile,
       );
     });
 
-    it('calls fetchSkillContent with "tmr-inbox"', async () => {
+    it('reads bundled SKILL.md for all three default skills', async () => {
       await svcWithRegistry.installDefaultSkill(WS);
-      expect(mockRegistry.fetchSkillContent).toHaveBeenCalledWith('tmr-inbox');
+      expect(mockReadSkillFile).toHaveBeenCalledTimes(3);
+      expect(mockReadSkillFile).toHaveBeenCalledWith(expect.stringContaining('tmr-inbox'));
+      expect(mockReadSkillFile).toHaveBeenCalledWith(expect.stringContaining('tmr-project-impact'));
+      expect(mockReadSkillFile).toHaveBeenCalledWith(expect.stringContaining('tmr-myself-config'));
     });
 
-    it('calls installSkill on successful fetch', async () => {
+    it('calls installSkill for each skill when bundled file is readable', async () => {
       await svcWithRegistry.installDefaultSkill(WS);
-      expect(mockRegistry.installSkill).toHaveBeenCalledWith('tmr-inbox', '# skill', '1.0.0');
+      expect(mockRegistry.installSkill).toHaveBeenCalledWith(
+        'tmr-inbox',
+        '# skill content',
+        '0.0.0',
+      );
+      expect(mockRegistry.installSkill).toHaveBeenCalledWith(
+        'tmr-project-impact',
+        '# skill content',
+        '0.0.0',
+      );
+      expect(mockRegistry.installSkill).toHaveBeenCalledWith(
+        'tmr-myself-config',
+        '# skill content',
+        '0.0.0',
+      );
     });
 
-    it('calls logger.warn and does NOT throw when fetchSkillContent throws', async () => {
-      const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => logger);
-      mockRegistry.fetchSkillContent.mockRejectedValueOnce(new Error('network error'));
+    it('parses version comment when present', async () => {
+      mockReadSkillFile.mockReturnValue('<!-- version: 2.1.0 -->\n# skill');
+      await svcWithRegistry.installDefaultSkill(WS);
+      expect(mockRegistry.installSkill).toHaveBeenCalledWith(
+        'tmr-inbox',
+        expect.any(String),
+        '2.1.0',
+      );
+    });
+
+    it('installs remaining skills even when one file read throws', async () => {
+      mockReadSkillFile
+        .mockImplementationOnce(() => {
+          throw new Error('ENOENT');
+        })
+        .mockReturnValue('# skill content');
       await expect(svcWithRegistry.installDefaultSkill(WS)).resolves.toBeUndefined();
-      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('network error'));
-      warnSpy.mockRestore();
+      expect(mockRegistry.installSkill).toHaveBeenCalledTimes(2);
     });
 
-    it('calls logger.warn and does NOT throw when fetchSkillContent resolves with success=false', async () => {
+    it('calls logger.warn and does NOT throw when a file read throws', async () => {
       const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => logger);
-      mockRegistry.fetchSkillContent.mockResolvedValueOnce({
-        success: false,
-        error: 'skill not found',
-      } as unknown as Awaited<ReturnType<SkillRegistryService['fetchSkillContent']>>);
-      await expect(svcWithRegistry.installDefaultSkill(WS)).resolves.toBeUndefined();
-      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('skill not found'));
-      expect(mockRegistry.installSkill).not.toHaveBeenCalled();
-      warnSpy.mockRestore();
-    });
-
-    it('calls logger.warn and does NOT call installSkill when registry returns empty content', async () => {
-      const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => logger);
-      mockRegistry.fetchSkillContent.mockResolvedValueOnce({
-        success: true,
-        data: { content: '   ', version: '1.0.0' },
+      mockReadSkillFile.mockImplementationOnce(() => {
+        throw new Error('ENOENT: no such file');
       });
       await expect(svcWithRegistry.installDefaultSkill(WS)).resolves.toBeUndefined();
-      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('empty content'));
-      expect(mockRegistry.installSkill).not.toHaveBeenCalled();
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('bundled file not found'));
       warnSpy.mockRestore();
+    });
+
+    it('calls logger.warn and does NOT call installSkill when bundled file is empty', async () => {
+      const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => logger);
+      mockReadSkillFile.mockReturnValueOnce('   ');
+      await expect(svcWithRegistry.installDefaultSkill(WS)).resolves.toBeUndefined();
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('empty'));
+      warnSpy.mockRestore();
+    });
+  });
+
+  // ── writeOrgConfig ────────────────────────────────────────────────────────
+
+  describe('writeOrgConfig', () => {
+    it('writes config/organization.yaml at the correct path', async () => {
+      await svc.writeOrgConfig(WS, 'alice@example.com');
+      const paths = (mockFS.writeFile.mock.calls as [string, string][]).map((c) => c[0]);
+      expect(paths.some((p) => p.endsWith(path.join('config', 'organization.yaml')))).toBe(true);
+    });
+
+    it('YAML content contains the domain extracted from the email', async () => {
+      await svc.writeOrgConfig(WS, 'alice@example.com');
+      const call = (mockFS.writeFile.mock.calls as [string, string][]).find(([p]) =>
+        p.endsWith('organization.yaml'),
+      );
+      expect(call?.[1]).toContain('example.com');
+    });
+
+    it('uses the full domain string after @ as the domain', async () => {
+      await svc.writeOrgConfig(WS, 'user@corp.internal.io');
+      const call = (mockFS.writeFile.mock.calls as [string, string][]).find(([p]) =>
+        p.endsWith('organization.yaml'),
+      );
+      expect(call?.[1]).toContain('corp.internal.io');
+    });
+
+    it('re-throws when writeFile rejects', async () => {
+      mockFS.writeFile.mockRejectedValueOnce(new Error('no space left'));
+      await expect(svc.writeOrgConfig(WS, 'alice@example.com')).rejects.toThrow('no space left');
     });
   });
 
