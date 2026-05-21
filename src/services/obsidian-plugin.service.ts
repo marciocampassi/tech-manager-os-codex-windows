@@ -4,8 +4,8 @@ import { logger } from '../utils/logger.js';
 
 const OBSIDIAN_PLUGINS = [
   { id: 'obsidian-git', owner: 'Vinzent03', repo: 'obsidian-git' },
-  { id: 'obsidian-granola-sync', owner: 'tomelliot', repo: 'obsidian-granola-sync' },
-  { id: 'obsidian-terminal', owner: 'polyipseity', repo: 'obsidian-terminal' },
+  { id: 'granola-sync', owner: 'tomelliot', repo: 'obsidian-granola-sync' },
+  { id: 'terminal', owner: 'polyipseity', repo: 'obsidian-terminal' },
   { id: 'dataview', owner: 'blacksmithgu', repo: 'obsidian-dataview' },
 ] as const;
 
@@ -65,6 +65,31 @@ export class ObsidianPluginService {
     if (!(await fileSystemService.exists(appJsonPath))) {
       await fileSystemService.writeFile(appJsonPath, '{}');
     }
+
+    try {
+      await this.writeGranolaConfig(obsidianDir);
+    } catch (err) {
+      logger.warn(
+        `Granola Sync config write failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  private async writeGranolaConfig(obsidianDir: string): Promise<void> {
+    const config = {
+      syncNotes: true,
+      includePrivateNotes: true,
+      saveAsIndividualFiles: true,
+      baseFolderType: 'custom',
+      customBaseFolder: 'inbox',
+      filenamePattern: '{date}-{title}',
+      isSyncEnabled: true,
+      syncInterval: 1800,
+    };
+    await fileSystemService.writeFile(
+      join(obsidianDir, 'plugins', 'granola-sync', 'data.json'),
+      JSON.stringify(config, null, 2),
+    );
   }
 }
 

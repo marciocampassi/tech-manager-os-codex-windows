@@ -38,3 +38,81 @@ jobs:
 
       - name: Coverage threshold check
         run: npm run test:coverage
+
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    timeout-minutes: 10 # P6: cap runner time; hung publish would otherwise block for 6 h
+    permissions:
+      contents: read # P5: least-privilege — publish job needs no write access to the repo
+    concurrency:
+      group: npm-publish
+      cancel-in-progress: false # P1: queue concurrent runs, never cancel an in-flight publish
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20.17.0
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.17.0'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Validate NPM_TOKEN # P4: fail fast with a clear message if the secret is missing
+        run: |
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "::error::NPM_TOKEN secret is not set. Configure it in repository Settings → Secrets → Actions."
+            exit 1
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Check if version is already published
+        id: version_check
+        run: |
+          set -euo pipefail # P7: abort on any silent failure; unset variables become errors
+          PKG_NAME=$(node -p "require('./package.json').name")
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          echo "version=${PKG_VERSION}" >> "$GITHUB_OUTPUT"
+
+          # P2: capture stdout/stderr separately so we can distinguish "not found" from network errors
+          # P3: treat only E404 as "not published"; surface any other failure explicitly
+          NPM_VIEW_EXIT=0
+          npm view "${PKG_NAME}@${PKG_VERSION}" version \
+            >/tmp/npm_view_out 2>/tmp/npm_view_err || NPM_VIEW_EXIT=$?
+
+          if [ "$NPM_VIEW_EXIT" -eq 0 ] && grep -qFx "${PKG_VERSION}" /tmp/npm_view_out; then
+            # P2: -F (fixed string) + -x (exact line) prevents substring and regex false positives
+            echo "already_published=true" >> "$GITHUB_OUTPUT"
+          elif [ "$NPM_VIEW_EXIT" -ne 0 ] && grep -qi "E404" /tmp/npm_view_err; then
+            echo "already_published=false" >> "$GITHUB_OUTPUT"
+          elif [ "$NPM_VIEW_EXIT" -ne 0 ]; then
+            # P3: non-404 failure = registry unreachable or auth error — do not silently skip
+            echo "::error::npm registry check failed — possible network or auth issue:" >&2
+            cat /tmp/npm_view_err >&2
+            exit 1
+          else
+            echo "already_published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish to npm
+        if: steps.version_check.outputs.already_published == 'false'
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Skip (version already published)
+        if: steps.version_check.outputs.already_published == 'true'
+        run: |
+          echo "Version ${{ steps.version_check.outputs.version }} already on npm — skipping publish."
+          echo "Bump the version in package.json to trigger a new release."

@@ -20,12 +20,15 @@ const mockFindMember = jest
   .fn<() => Promise<string | null>>()
   .mockResolvedValue('/fake/ws/my-teams/members/john@co.com/john@co.com.md');
 
+const mockGetInternalDomains = jest.fn<() => Promise<string[]>>().mockResolvedValue([]);
+
 const mockMemberServiceInstance = {
   getWorkspaceRoot: mockGetWorkspaceRoot,
   createMemberFile: mockCreateMemberFile,
   createMember: mockCreateMember,
   addMember: mockAddMember,
   findMember: mockFindMember,
+  getInternalDomains: mockGetInternalDomains,
 };
 
 jest.unstable_mockModule('../../src/services/member.service.js', () => ({
@@ -70,6 +73,7 @@ describe('member command', () => {
     });
     mockCreateMember.mockResolvedValue({ created: true });
     mockAddMember.mockResolvedValue({ created: true });
+    mockGetInternalDomains.mockResolvedValue([]);
     mockPrompt.mockResolvedValue({});
   });
 
@@ -211,6 +215,121 @@ describe('member command', () => {
 
       const output = stdoutSpy.mock.calls.map((c: unknown[]) => c[0]).join('');
       expect(output).toContain('already exists');
+    });
+  });
+
+  // ── Domain-check + contractor routing (FR41 / FR42) ──────────────────────────
+
+  describe('domain-check and contractor routing', () => {
+    it('FR41: does not prompt when internal_domains list is empty', async () => {
+      mockGetInternalDomains.mockResolvedValue([]);
+      mockPrompt.mockResolvedValue({ name: '', gender: '', role: '' });
+
+      await runMemberAdd(mockMemberServiceInstance as never, 'ext@partner.com', undefined, {});
+
+      // Only the name/gender/role prompt should have been called — no routing prompt
+      expect(mockAddMember).toHaveBeenCalledWith(
+        'ext@partner.com',
+        expect.objectContaining({ contractor: false }),
+        '/fake/ws',
+      );
+    });
+
+    it('FR41: does not prompt when email domain matches internal list', async () => {
+      mockGetInternalDomains.mockResolvedValue(['internal.com']);
+      mockPrompt.mockResolvedValue({ name: '', gender: '', role: '' });
+
+      await runMemberAdd(mockMemberServiceInstance as never, 'user@internal.com', undefined, {});
+
+      expect(mockAddMember).toHaveBeenCalledWith(
+        'user@internal.com',
+        expect.objectContaining({ contractor: false }),
+        '/fake/ws',
+      );
+    });
+
+    it('FR41: prompts routing when email domain is external and internal_domains is configured', async () => {
+      mockGetInternalDomains.mockResolvedValue(['internal.com']);
+      // Prompt order in runMemberAdd: (1) name/gender/role, (2) routing, (3) company
+      mockPrompt
+        .mockResolvedValueOnce({ name: '', gender: '', role: '' } as Record<string, string>)
+        .mockResolvedValueOnce({ routing: 'contractor' } as Record<string, string>)
+        .mockResolvedValueOnce({ collected: 'Agency Corp' } as Record<string, string>);
+
+      await runMemberAdd(mockMemberServiceInstance as never, 'ext@partner.com', undefined, {});
+
+      expect(mockAddMember).toHaveBeenCalledWith(
+        'ext@partner.com',
+        expect.objectContaining({ contractor: true, company: 'Agency Corp' }),
+        '/fake/ws',
+      );
+    });
+
+    it('FR41: routes to member (not contractor) when user picks member in prompt', async () => {
+      mockGetInternalDomains.mockResolvedValue(['internal.com']);
+      // Prompt order: (1) name/gender/role, (2) routing → member (no company prompt)
+      mockPrompt
+        .mockResolvedValueOnce({ name: '', gender: '', role: '' } as Record<string, string>)
+        .mockResolvedValueOnce({ routing: 'member' } as Record<string, string>);
+
+      await runMemberAdd(mockMemberServiceInstance as never, 'ext@partner.com', undefined, {});
+
+      expect(mockAddMember).toHaveBeenCalledWith(
+        'ext@partner.com',
+        expect.objectContaining({ contractor: false }),
+        '/fake/ws',
+      );
+    });
+
+    it('FR41: --contractor flag bypasses routing prompt entirely', async () => {
+      mockGetInternalDomains.mockResolvedValue(['internal.com']);
+      // Prompt order: (1) name/gender/role, (2) company (routing skipped because already contractor)
+      mockPrompt
+        .mockResolvedValueOnce({ name: '', gender: '', role: '' } as Record<string, string>)
+        .mockResolvedValueOnce({ collected: '' } as Record<string, string>);
+
+      await runMemberAdd(mockMemberServiceInstance as never, 'ext@partner.com', undefined, {
+        contractor: true,
+      });
+
+      // only name/gender/role (1) and company (2) prompts should fire — no routing prompt
+      expect(mockPrompt).toHaveBeenCalledTimes(2);
+      expect(mockAddMember).toHaveBeenCalledWith(
+        'ext@partner.com',
+        expect.objectContaining({ contractor: true }),
+        '/fake/ws',
+      );
+    });
+
+    it('P2: gracefully skips domain check when getInternalDomains throws (I/O error)', async () => {
+      mockGetInternalDomains.mockRejectedValueOnce(new Error('EACCES: permission denied'));
+      mockPrompt.mockResolvedValue({ name: '', gender: '', role: '' });
+
+      await runMemberAdd(mockMemberServiceInstance as never, 'ext@partner.com', undefined, {});
+
+      // should still create the member — no crash, no routing prompt
+      expect(mockAddMember).toHaveBeenCalledWith(
+        'ext@partner.com',
+        expect.objectContaining({ contractor: false }),
+        '/fake/ws',
+      );
+    });
+
+    it('FR42: company name is undefined when contractor prompt left blank', async () => {
+      mockGetInternalDomains.mockResolvedValue(['internal.com']);
+      // Prompt order: (1) name/gender/role, (2) routing → contractor, (3) company (blank)
+      mockPrompt
+        .mockResolvedValueOnce({ name: '', gender: '', role: '' } as Record<string, string>)
+        .mockResolvedValueOnce({ routing: 'contractor' } as Record<string, string>)
+        .mockResolvedValueOnce({ collected: '   ' } as Record<string, string>);
+
+      await runMemberAdd(mockMemberServiceInstance as never, 'ext@partner.com', undefined, {});
+
+      expect(mockAddMember).toHaveBeenCalledWith(
+        'ext@partner.com',
+        expect.objectContaining({ contractor: true, company: undefined }),
+        '/fake/ws',
+      );
     });
   });
 

@@ -2,8 +2,8 @@ import { describe, it, expect } from '@jest/globals';
 import {
   generateActionItemsTemplate,
   generateTeamMemberProfile,
-  generateSampleMeetingNote,
   generateVaultReadme,
+  INBOX_SAMPLE_FILES,
 } from '../../src/templates/onboarding.templates.js';
 import type { TeamMember } from '../../src/types/onboarding.types.js';
 
@@ -125,15 +125,29 @@ describe('generateTeamMemberProfile', () => {
   });
 });
 
-describe('generateSampleMeetingNote', () => {
-  it('contains a top-level markdown heading', () => {
-    const result = generateSampleMeetingNote();
-    expect(result).toMatch(/^# /m);
+describe('INBOX_SAMPLE_FILES', () => {
+  it('exports exactly two sample files', () => {
+    expect(INBOX_SAMPLE_FILES).toHaveLength(2);
   });
 
-  it('contains meeting-related content (agenda or action items)', () => {
-    const result = generateSampleMeetingNote();
-    expect(result.toLowerCase()).toMatch(/agenda|action items|meeting/);
+  it('first file is 2026-04-10-Marlon-Alex.md', () => {
+    expect(INBOX_SAMPLE_FILES[0]?.filename).toBe('2026-04-10-Marlon-Alex.md');
+  });
+
+  it('second file is 2026-04-15-Team-Sync.md', () => {
+    expect(INBOX_SAMPLE_FILES[1]?.filename).toBe('2026-04-15-Team-Sync.md');
+  });
+
+  it('each file contains Granola frontmatter', () => {
+    for (const { content } of INBOX_SAMPLE_FILES) {
+      expect(content).toContain('granola_id:');
+    }
+  });
+
+  it('each file contains a top-level markdown heading', () => {
+    for (const { content } of INBOX_SAMPLE_FILES) {
+      expect(content).toMatch(/^# /m);
+    }
   });
 });
 

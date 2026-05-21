@@ -120,4 +120,88 @@ describe('runUpdate', () => {
     expect(errOutput).toContain('tmr-inbox');
     expect(mockInstallSkill).toHaveBeenCalledWith('tmr-other', expect.any(String), '2.1.0');
   });
+
+  it('Test E: --plain — stdout contains no ANSI escape codes', async () => {
+    const ANSI_RE = /\x1b\[[0-9;]*m/;
+    mockListInstalledSkills.mockReturnValue([entry('tmr-inbox', '1.0.0')]);
+    mockFetchSkillContent.mockResolvedValue(ok('1.1.0'));
+
+    await runUpdate({ plain: true });
+
+    const output = (stdoutSpy.mock.calls as unknown[][]).map((c) => String(c[0])).join('');
+    expect(ANSI_RE.test(output)).toBe(false);
+  });
+
+  it('Test F: --json — no-skills response is valid JSON with empty arrays', async () => {
+    mockListInstalledSkills.mockReturnValue([]);
+
+    await runUpdate({ plain: true, json: true });
+
+    const output = (stdoutSpy.mock.calls as unknown[][]).map((c) => String(c[0])).join('');
+    const parsed = JSON.parse(output) as {
+      updated: unknown[];
+      upToDate: unknown[];
+      errors: unknown[];
+      message: string;
+    };
+    expect(Array.isArray(parsed.updated)).toBe(true);
+    expect(parsed.updated).toHaveLength(0);
+    expect(Array.isArray(parsed.upToDate)).toBe(true);
+    expect(Array.isArray(parsed.errors)).toBe(true);
+    expect(typeof parsed.message).toBe('string');
+  });
+
+  it('Test G: --json — updated/upToDate/errors keys reflect mixed run results', async () => {
+    mockListInstalledSkills.mockReturnValue([
+      entry('tmr-inbox', '1.0.0'),
+      entry('tmr-project', '2.0.0'),
+      entry('tmr-broken', '3.0.0'),
+    ]);
+    mockFetchSkillContent
+      .mockResolvedValueOnce(ok('1.1.0'))
+      .mockResolvedValueOnce(ok('2.0.0'))
+      .mockResolvedValueOnce(fail('connection refused'));
+
+    await runUpdate({ plain: true, json: true });
+
+    // startSpinner in plain mode writes spinner lines to stdout before the JSON block;
+    // spinner text never contains '{', so the first '{' marks the start of the JSON object.
+    const rawOutput = (stdoutSpy.mock.calls as unknown[][]).map((c) => String(c[0])).join('');
+    const jsonStart = rawOutput.indexOf('{');
+    const parsed = JSON.parse(rawOutput.slice(jsonStart)) as {
+      updated: Array<{ skill: string; from: string; to: string }>;
+      upToDate: Array<{ skill: string; version: string }>;
+      errors: Array<{ skill: string; message: string }>;
+    };
+    expect(parsed.updated).toHaveLength(1);
+    expect(parsed.updated[0].skill).toBe('tmr-inbox');
+    expect(parsed.updated[0].from).toBe('1.0.0');
+    expect(parsed.updated[0].to).toBe('1.1.0');
+    expect(parsed.upToDate).toHaveLength(1);
+    expect(parsed.upToDate[0].skill).toBe('tmr-project');
+    expect(parsed.errors).toHaveLength(1);
+    expect(parsed.errors[0].skill).toBe('tmr-broken');
+    expect(parsed.errors[0].message).toContain('connection refused');
+  });
+
+  it('Test H: mixed run — updated + up-to-date + error all reported in human output', async () => {
+    mockListInstalledSkills.mockReturnValue([
+      entry('tmr-inbox', '1.0.0'),
+      entry('tmr-project', '2.0.0'),
+      entry('tmr-broken', '3.0.0'),
+    ]);
+    mockFetchSkillContent
+      .mockResolvedValueOnce(ok('1.1.0'))
+      .mockResolvedValueOnce(ok('2.0.0'))
+      .mockResolvedValueOnce(fail('network error'));
+
+    await runUpdate({ plain: true });
+
+    const stdout = (stdoutSpy.mock.calls as unknown[][]).map((c) => String(c[0])).join('');
+    const stderr = (stderrSpy.mock.calls as unknown[][]).map((c) => String(c[0])).join('');
+    expect(stdout).toContain('updated');
+    expect(stdout).toContain('already up to date');
+    expect(stderr).toContain('could not reach registry');
+    expect(mockInstallSkill).toHaveBeenCalledTimes(1);
+  });
 });

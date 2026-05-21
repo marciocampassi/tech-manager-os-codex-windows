@@ -1,5 +1,7 @@
+import * as fs from 'node:fs';
 import path from 'node:path';
 import { homedir } from 'node:os';
+import { fileURLToPath } from 'node:url';
 import matter from 'gray-matter';
 import { FileSystemService, fileSystemService } from './file-system.service.js';
 import { LeadershipService, leadershipService } from './leadership.service.js';
@@ -7,10 +9,8 @@ import { TeamService, teamService } from './team.service.js';
 import { SkillRegistryService } from './skill-registry.service.js';
 import { logger } from '../utils/logger.js';
 import { printSuccess, printInfo } from '../utils/display.js';
-import {
-  generateSampleMeetingNote,
-  generateVaultReadme,
-} from '../templates/onboarding.templates.js';
+import { INBOX_SAMPLE_FILES, generateVaultReadme } from '../templates/onboarding.templates.js';
+import { formatWikiLink } from '../utils/wiki-link.js';
 
 // ── Vault directory list ──────────────────────────────────────────────────────
 
@@ -21,10 +21,12 @@ const VAULT_DIRS = [
   'my-teams/members',
   'my-teams/teams',
   'my-company/members',
+  'my-company/contractors',
   'my-company/projects',
   'my-leadership',
   'my-career',
   'knowledge-base',
+  'config',
   '.claude/skills',
   '.cursor/rules/tmr',
 ] as const;
@@ -71,6 +73,11 @@ function buildClaudeMdStub(): string {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+function parseBundledVersion(content: string): string {
+  const match = /<!--\s*version:\s*(\S+)\s*-->/.exec(content);
+  return match?.[1] ?? '0.0.0';
+}
+
 function todayIso(): string {
   return new Date().toISOString().split('T')[0] as string;
 }
@@ -85,6 +92,8 @@ export class InitService {
     private readonly _skillRegistryFactory: (workspaceRoot: string) => SkillRegistryService = (
       wr,
     ) => new SkillRegistryService(wr),
+    private readonly _readSkillFile: (filePath: string) => string = (p) =>
+      fs.readFileSync(p, 'utf8'),
   ) {}
 
   /**
@@ -103,7 +112,7 @@ export class InitService {
 
   /**
    * Creates the standard vault directory structure and writes a CLAUDE.md stub.
-   * Exactly 12 directories are created — no more, no less.
+   * Exactly 14 directories are created — no more, no less.
    * Throws on any file system failure; the caller is responsible for surfacing
    * the error to the user.
    *
@@ -121,13 +130,23 @@ export class InitService {
    */
   async writeUserProfile(
     vaultPath: string,
-    opts: { email: string; name: string; role: string },
+    opts: { email: string; name: string; role: string; leaderEmail?: string },
   ): Promise<void> {
     const email = opts.email.trim().toLowerCase();
     const dir = path.join(vaultPath, 'my-career', email);
     const filePath = path.join(dir, `${email}.md`);
     const fm = { email, name: opts.name, role: opts.role, date_added: todayIso() };
-    const content = matter.stringify('\n# Career Profile\n\n## Notes\n\n## Goals\n', fm);
+
+    let body = '\n# Career Profile\n\n## Notes\n\n## Goals\n';
+
+    if (opts.leaderEmail?.trim()) {
+      const leaderEmail = opts.leaderEmail.trim().toLowerCase();
+      const leaderFile = path.join(vaultPath, 'my-leadership', leaderEmail, `${leaderEmail}.md`);
+      const leaderLink = formatWikiLink(leaderFile, filePath, leaderEmail);
+      body += `\n## Leadership\n\n- ${leaderLink}\n`;
+    }
+
+    const content = matter.stringify(body, fm);
     await this._fs.createDirectory(dir);
     await this._fs.writeFile(filePath, content);
   }
@@ -198,38 +217,76 @@ export class InitService {
   }
 
   /**
-   * Copies bundled sample inbox files to the vault's `inbox/` directory.
-   * Writes a sample meeting note to help new users understand the inbox workflow.
+   * Copies bundled Granola-formatted sample meeting notes to the vault's `inbox/` directory.
+   * These real examples demonstrate the `/tmr-inbox` workflow immediately after init.
    * Throws on any file system failure.
    */
   async copySampleInboxFiles(vaultPath: string): Promise<void> {
-    const filePath = path.join(vaultPath, 'inbox', 'sample-meeting-note.md');
-    await this._fs.writeFile(filePath, generateSampleMeetingNote());
+    for (const { filename, content } of INBOX_SAMPLE_FILES) {
+      await this._fs.writeFile(path.join(vaultPath, 'inbox', filename), content);
+    }
   }
 
   /**
-   * Fetches and installs the `tmr-inbox` skill from the registry.
-   * Errors (network failure, 404, or any thrown exception) are logged via
-   * `logger.warn()` and swallowed — a skill install failure MUST NOT abort init.
+   * Installs default skills (tmr-inbox, tmr-project-impact, tmr-myself-config) by reading
+   * their SKILL.md files directly from the bundled `docs/skills/` directory — no network
+   * required. Each skill is installed independently; a failure for one does not prevent
+   * the others from being attempted. Errors are logged via `logger.warn()` and swallowed —
+   * skill install failures MUST NOT abort init.
    */
   async installDefaultSkill(vaultPath: string): Promise<void> {
-    try {
-      const registry = this._skillRegistryFactory(vaultPath);
-      const result = await registry.fetchSkillContent('tmr-inbox');
-      if (result.success) {
-        if (result.data.content.trim()) {
-          registry.installSkill('tmr-inbox', result.data.content, result.data.version);
-        } else {
-          logger.warn('tmr-inbox skill install skipped: registry returned empty content');
+    const registry = this._skillRegistryFactory(vaultPath);
+    const BUNDLED_SKILLS = [
+      { docsFolder: 'tmr-inbox', skillName: 'tmr-inbox' },
+      { docsFolder: 'tmr-project-impact', skillName: 'tmr-project-impact' },
+      { docsFolder: 'tmr-myself-config', skillName: 'tmr-myself-config' },
+    ] as const;
+
+    for (const { docsFolder, skillName } of BUNDLED_SKILLS) {
+      try {
+        const content = this._readBundledSkill(docsFolder);
+        if (content === null) {
+          logger.warn(`${skillName} skill install skipped: bundled file not found`);
+          continue;
         }
-      } else {
-        logger.warn(`tmr-inbox skill install skipped: ${result.error}`);
+        if (!content.trim()) {
+          logger.warn(`${skillName} skill install skipped: bundled file is empty`);
+          continue;
+        }
+        registry.installSkill(skillName, content, parseBundledVersion(content));
+      } catch (err) {
+        logger.warn(
+          `${skillName} skill install failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
       }
-    } catch (err) {
-      logger.warn(
-        `tmr-inbox skill install failed: ${err instanceof Error ? err.message : String(err)}`,
-      );
     }
+  }
+
+  /**
+   * Reads a bundled skill SKILL.md from `docs/skills/<docsFolder>/SKILL.md` relative to
+   * the package root. Resolves the package root by going one level up from the compiled
+   * flat bundle at `dist/<bundle>.js` (dist/ → project root).
+   * Returns null on any read error.
+   */
+  private _readBundledSkill(docsFolder: string): string | null {
+    try {
+      const pkgRoot = fileURLToPath(new URL('..', import.meta.url));
+      const skillPath = path.join(pkgRoot, 'docs', 'skills', docsFolder, 'SKILL.md');
+      return this._readSkillFile(skillPath);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Writes `config/organization.yaml` to the vault with the domain extracted from the
+   * manager's email address. The `config/` directory is guaranteed to exist after `scaffold()`.
+   * Throws on any file system failure — org config is vault-critical context.
+   */
+  async writeOrgConfig(vaultPath: string, managerEmail: string): Promise<void> {
+    const domain = managerEmail.split('@')[1] ?? managerEmail;
+    const content = `internal_domains:\n  - ${domain}\n`;
+    await this._fs.writeFile(path.join(vaultPath, 'config', 'organization.yaml'), content);
   }
 
   /**
@@ -254,8 +311,15 @@ export class InitService {
         '  1. Run `tmr config` to set your AI API key',
         '  2. Run `tmr project add` to add your first project',
         `  3. Open ${vaultPath} in Obsidian — plugins are ready`,
-        '  4. Type /tmr-inbox in Claude Code to process your inbox',
-        '  5. Run `tmr --help` to explore all commands',
+        '  4. Run /tmr-myself-config in Claude Code to personalize your AI context (do this first)',
+        '  5. Run /tmr-inbox in Claude Code to process your inbox meeting notes',
+        '  6. Run /tmr-project-impact after changes to any project file to check impact',
+        '  7. Run `tmr --help` to explore all commands',
+        '',
+        'Skills installed:',
+        '  /tmr-myself-config      — personalize AI context across your vault',
+        '  /tmr-inbox              — process inbox meeting notes into structured entries',
+        '  /tmr-project-impact     — detect which docs are affected when a project changes',
         '',
         'Obsidian plugins installed: obsidian-git, granola-sync, terminal, dataview',
       ].join('\n'),

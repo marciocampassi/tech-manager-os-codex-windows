@@ -15,6 +15,7 @@ const config: Config = {
         tsconfig: './tsconfig.test.json',
       },
     ],
+    '\\.md$': '<rootDir>/jest-md-transformer.cjs',
   },
   testMatch: ['**/tests/**/*.test.ts'],
   testTimeout: 30000,

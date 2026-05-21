@@ -51,6 +51,16 @@ function todayIso(): string {
   return new Date().toISOString().split('T')[0] as string;
 }
 
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const DEPS_YAML_STUB = `# deps.yaml — project dependency manifest
+# Populated automatically by /tmr-project-impact <project-path> deps
+# Run that command to set up structured dependency tracking for this project.
+# Do not edit manually unless you understand the schema.
+
+sources: {}
+`;
+
 // ── ProjectService ────────────────────────────────────────────────────────────
 
 export class ProjectService {
@@ -125,6 +135,8 @@ export class ProjectService {
 
     await this._fs.createDirectory(projectStandupsDir(ws, name));
     await this._fs.createDirectory(projectMeetingsDir(ws, name));
+
+    await this._fs.writeFile(path.join(projectBaseDir(ws, name), 'deps.yaml'), DEPS_YAML_STUB);
 
     return { created: true };
   }

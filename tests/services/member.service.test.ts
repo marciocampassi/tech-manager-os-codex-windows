@@ -82,8 +82,18 @@ describe('MemberService', () => {
       expect(result).toContain('my-company/members/john@co.com.md');
     });
 
-    it('returns nested legacy path when first two candidates absent', async () => {
+    it('returns contractor path when team-flat and company-flat absent', async () => {
       mockFS.exists
+        .mockResolvedValueOnce(false) // team-flat absent
+        .mockResolvedValueOnce(false) // company-flat absent
+        .mockResolvedValueOnce(true); // contractor present
+      const result = await svc.findMemberGlobally('john@co.com', WS);
+      expect(result).toContain('my-company/contractors/john@co.com/john@co.com.md');
+    });
+
+    it('returns nested legacy path when first three candidates absent', async () => {
+      mockFS.exists
+        .mockResolvedValueOnce(false)
         .mockResolvedValueOnce(false)
         .mockResolvedValueOnce(false)
         .mockResolvedValueOnce(true);
@@ -91,7 +101,7 @@ describe('MemberService', () => {
       expect(result).toContain('my-teams/members/john@co.com/john@co.com.md');
     });
 
-    it('returns null when all three candidates absent', async () => {
+    it('returns null when all four candidates absent', async () => {
       mockFS.exists.mockResolvedValue(false);
       const result = await svc.findMemberGlobally('john@co.com', WS);
       expect(result).toBeNull();
@@ -130,11 +140,12 @@ describe('MemberService', () => {
 
   describe('createMemberFile', () => {
     beforeEach(() => {
-      // findMemberGlobally makes exactly 3 exists() calls in order:
+      // findMemberGlobally makes exactly 4 exists() calls in order:
       //   call 1 → team-flat (my-teams/members/<email>.md)
       //   call 2 → company-flat (my-company/members/<email>.md)
-      //   call 3 → nested legacy (my-teams/members/<email>/<email>.md)  ← PROFILE_PATH
-      // Returning false/false/true routes all pre-existing tests through the nested-legacy
+      //   call 3 → contractor (my-company/contractors/<email>/<email>.md)
+      //   call 4 → nested legacy (my-teams/members/<email>/<email>.md)  ← PROFILE_PATH
+      // Returning false/false/false/true routes all pre-existing tests through the nested-legacy
       // profile (PROFILE_PATH = '.../my-teams/members/john@co.com/john@co.com.md').
       // memberSubDirFromProfile uses path.dirname(PROFILE_PATH) = '.../my-teams/members/john@co.com'
       // because path.basename(dirname) === email → the nested branch.
@@ -142,6 +153,7 @@ describe('MemberService', () => {
       mockFS.exists
         .mockResolvedValueOnce(false) // team-flat not found
         .mockResolvedValueOnce(false) // company-flat not found
+        .mockResolvedValueOnce(false) // contractor not found
         .mockResolvedValue(true); // nested found + any further calls (e.g. createDirectory guards)
     });
 
@@ -364,6 +376,86 @@ describe('MemberService', () => {
         expect.stringContaining('joao@company.com'),
         expect.any(String),
       );
+    });
+
+    it('MEM-UNIT-012: contractor flag routes to my-company/contractors/ path', async () => {
+      await svc.addMember('ext@agency.com', { contractor: true }, WS);
+
+      expect(mockFS.writeFile).toHaveBeenCalledWith(
+        expect.stringContaining('my-company/contractors/ext@agency.com/ext@agency.com.md'),
+        expect.any(String),
+      );
+    });
+
+    it('MEM-UNIT-013: contractor profile includes relationship: contractor', async () => {
+      await svc.addMember('ext@agency.com', { contractor: true }, WS);
+
+      const written = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
+      expect(written).toContain('relationship: contractor');
+    });
+
+    it('FR42: contractor profile includes company field when opts.company provided', async () => {
+      await svc.addMember('ext@agency.com', { contractor: true, company: 'Agency Corp' }, WS);
+
+      const written = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
+      expect(written).toContain('relationship: contractor');
+      expect(written).toContain('company: Agency Corp');
+    });
+
+    it('FR42: contractor profile has no company field when opts.company is undefined', async () => {
+      await svc.addMember('ext@agency.com', { contractor: true }, WS);
+
+      const written = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
+      expect(written).not.toContain('company:');
+    });
+  });
+
+  // ── getInternalDomains ────────────────────────────────────────────────────────
+
+  describe('getInternalDomains', () => {
+    it('returns [] when organization.yaml does not exist', async () => {
+      mockFS.exists.mockResolvedValue(false);
+      const result = await svc.getInternalDomains(WS);
+      expect(result).toEqual([]);
+    });
+
+    it('parses single domain from organization.yaml', async () => {
+      mockFS.exists.mockResolvedValue(true);
+      mockFS.readFile.mockResolvedValue('internal_domains:\n  - gmail.com\n');
+      const result = await svc.getInternalDomains(WS);
+      expect(result).toEqual(['gmail.com']);
+    });
+
+    it('parses multiple domains from organization.yaml', async () => {
+      mockFS.exists.mockResolvedValue(true);
+      mockFS.readFile.mockResolvedValue(
+        'internal_domains:\n  - gmail.com\n  - techcorp.com\n  - partner.io\n',
+      );
+      const result = await svc.getInternalDomains(WS);
+      expect(result).toEqual(['gmail.com', 'techcorp.com', 'partner.io']);
+    });
+
+    it('returns [] when internal_domains list is empty', async () => {
+      mockFS.exists.mockResolvedValue(true);
+      mockFS.readFile.mockResolvedValue('internal_domains:\n');
+      const result = await svc.getInternalDomains(WS);
+      expect(result).toEqual([]);
+    });
+
+    it('stops parsing at next top-level key', async () => {
+      mockFS.exists.mockResolvedValue(true);
+      mockFS.readFile.mockResolvedValue(
+        'internal_domains:\n  - gmail.com\nother_key:\n  - shouldNotAppear.com\n',
+      );
+      const result = await svc.getInternalDomains(WS);
+      expect(result).toEqual(['gmail.com']);
+    });
+
+    it('normalizes domain entries to lowercase (RFC 5321)', async () => {
+      mockFS.exists.mockResolvedValue(true);
+      mockFS.readFile.mockResolvedValue('internal_domains:\n  - INTERNAL.COM\n  - Corp.IO\n');
+      const result = await svc.getInternalDomains(WS);
+      expect(result).toEqual(['internal.com', 'corp.io']);
     });
   });
 

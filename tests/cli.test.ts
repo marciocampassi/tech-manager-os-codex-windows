@@ -26,21 +26,21 @@ describe('CLI — program identity', () => {
 describe('CLI — global flags', () => {
   it('parses --verbose flag', async () => {
     const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
-    await program.parseAsync(['node', 'tmr', '--verbose', 'process']);
+    await expect(program.parseAsync(['node', 'tmr', '--verbose'])).rejects.toThrow();
     expect(program.opts<GlobalOptions>().verbose).toBe(true);
     stdoutSpy.mockRestore();
   });
 
   it('parses --plain flag', async () => {
     const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
-    await program.parseAsync(['node', 'tmr', '--plain', 'process']);
+    await expect(program.parseAsync(['node', 'tmr', '--plain'])).rejects.toThrow();
     expect(program.opts<GlobalOptions>().plain).toBe(true);
     stdoutSpy.mockRestore();
   });
 
   it('parses --json flag', async () => {
     const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
-    await program.parseAsync(['node', 'tmr', '--json', 'process']);
+    await expect(program.parseAsync(['node', 'tmr', '--json'])).rejects.toThrow();
     expect(program.opts<GlobalOptions>().json).toBe(true);
     stdoutSpy.mockRestore();
   });

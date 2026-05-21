@@ -118,10 +118,11 @@ export class MemberService {
   }
 
   /**
-   * Searches all three member scopes in priority order:
-   *   1. my-teams/members/<email>.md   (flat team-scoped, Story 3.2)
-   *   2. my-company/members/<email>.md (flat company-scoped, Story 3.2)
-   *   3. my-teams/members/<email>/<email>.md (nested legacy, TeamService)
+   * Searches all member scopes in priority order:
+   *   1. my-teams/members/<email>.md                           (flat team-scoped)
+   *   2. my-company/members/<email>.md                         (flat company-scoped)
+   *   3. my-company/contractors/<email>/<email>.md             (contractor-scoped)
+   *   4. my-teams/members/<email>/<email>.md                   (nested legacy, TeamService)
    * Returns the first matching path, or null if the member is not found in any scope.
    */
   async findMemberGlobally(email: string, workspaceRoot: string): Promise<string | null> {
@@ -129,6 +130,13 @@ export class MemberService {
     const candidates = [
       path.join(workspaceRoot, 'my-teams', 'members', `${normalizedEmail}.md`),
       path.join(workspaceRoot, 'my-company', 'members', `${normalizedEmail}.md`),
+      path.join(
+        workspaceRoot,
+        'my-company',
+        'contractors',
+        normalizedEmail,
+        `${normalizedEmail}.md`,
+      ),
       memberProfilePath(workspaceRoot, normalizedEmail),
     ];
     for (const p of candidates) {
@@ -139,8 +147,10 @@ export class MemberService {
 
   /**
    * Routes a new member profile to the correct scope:
-   * - Company scope (no team): my-company/members/<email>.md
+   * - Contractor scope (contractor: true): my-company/contractors/<email>/<email>.md
+   *   Also creates my-company/contractors/<email>/1on1s/ for future meeting notes.
    * - Team scope (team provided): my-teams/members/<email>.md with manager wiki-link
+   * - Company scope (default): my-company/members/<email>.md
    * Idempotent — returns { created: false } if profile already exists.
    */
   async addMember(
@@ -151,9 +161,17 @@ export class MemberService {
     validateEmail(email);
     const normalizedEmail = email.toLowerCase();
 
-    const profilePath = opts.team
-      ? path.join(workspaceRoot, 'my-teams', 'members', `${normalizedEmail}.md`)
-      : path.join(workspaceRoot, 'my-company', 'members', `${normalizedEmail}.md`);
+    const profilePath = opts.contractor
+      ? path.join(
+          workspaceRoot,
+          'my-company',
+          'contractors',
+          normalizedEmail,
+          `${normalizedEmail}.md`,
+        )
+      : opts.team
+        ? path.join(workspaceRoot, 'my-teams', 'members', `${normalizedEmail}.md`)
+        : path.join(workspaceRoot, 'my-company', 'members', `${normalizedEmail}.md`);
 
     if (await this._fs.exists(profilePath)) {
       return { created: false };
@@ -168,6 +186,9 @@ export class MemberService {
       gender: opts.gender ?? '',
       location: opts.location ?? '',
       date_added: todayIso(),
+      ...(opts.contractor
+        ? { relationship: 'contractor', ...(opts.company ? { company: opts.company } : {}) }
+        : {}),
       ...(opts.team ? { manager: managerLink } : {}),
     };
 
@@ -175,6 +196,9 @@ export class MemberService {
     const profileMd = matter.stringify(body, fm);
 
     await this._fs.createDirectory(path.dirname(profilePath));
+    if (opts.contractor) {
+      await this._fs.createDirectory(path.join(path.dirname(profilePath), '1on1s'));
+    }
     await this._fs.writeFile(profilePath, profileMd);
 
     return { created: true };
@@ -199,6 +223,35 @@ export class MemberService {
     const managerProfilePath = path.join(careerRoot, managerEmail, `${managerEmail}.md`);
     if (!(await this._fs.exists(managerProfilePath))) return '';
     return formatWikiLink(managerProfilePath, memberPath, managerEmail);
+  }
+
+  /**
+   * Reads `config/organization.yaml` and returns the `internal_domains` list.
+   * Returns an empty array if the file does not exist or contains no domains.
+   * Uses simple line-by-line parsing — no external YAML dependency required.
+   */
+  async getInternalDomains(workspaceRoot: string): Promise<string[]> {
+    const orgPath = path.join(workspaceRoot, 'config', 'organization.yaml');
+    if (!(await this._fs.exists(orgPath))) return [];
+    const content = await this._fs.readFile(orgPath);
+    const lines = content.split('\n');
+    let inDomains = false;
+    const domains: string[] = [];
+    for (const line of lines) {
+      if (line.trim().startsWith('internal_domains:')) {
+        inDomains = true;
+        continue;
+      }
+      if (inDomains) {
+        const match = line.match(/^\s+-\s+(.+)$/);
+        if (match?.[1]) {
+          domains.push(match[1].trim().toLowerCase());
+        } else if (line.trim() && !line.startsWith(' ') && !line.startsWith('\t')) {
+          inDomains = false;
+        }
+      }
+    }
+    return domains;
   }
 
   /**

@@ -139,8 +139,8 @@ describe('ObsidianPluginService', () => {
       expect(communityPluginsCall).toBeDefined();
       expect(JSON.parse(communityPluginsCall![1])).toEqual([
         'obsidian-git',
-        'obsidian-granola-sync',
-        'obsidian-terminal',
+        'granola-sync',
+        'terminal',
         'dataview',
       ]);
     });
@@ -206,6 +206,62 @@ describe('ObsidianPluginService', () => {
 
       expect(maxConcurrent).toBeGreaterThan(1);
       expect(concurrentMock).toHaveBeenCalledTimes(12);
+    });
+
+    it('writes granola-sync data.json with required fields after plugin downloads', async () => {
+      globalThis.fetch = mockFetchOk();
+
+      await service.installPlugins(WORKSPACE);
+
+      const granolaConfigPath = join(
+        WORKSPACE,
+        '.obsidian',
+        'plugins',
+        'granola-sync',
+        'data.json',
+      );
+      const call = mockWriteFile.mock.calls.find(([p]) => p === granolaConfigPath) as
+        | [string, string]
+        | undefined;
+      expect(call).toBeDefined();
+      const parsed = JSON.parse(call![1]) as Record<string, unknown>;
+      expect(parsed['customBaseFolder']).toBe('inbox');
+      expect(parsed['isSyncEnabled']).toBe(true);
+      expect(parsed['includePrivateNotes']).toBe(true);
+      expect(parsed['saveAsIndividualFiles']).toBe(true);
+      expect(parsed['filenamePattern']).toBe('{date}-{title}');
+    });
+
+    it('writes granola-sync data.json even when all plugin downloads fail', async () => {
+      globalThis.fetch = mockFetchThrows();
+
+      await service.installPlugins(WORKSPACE);
+
+      const granolaConfigPath = join(
+        WORKSPACE,
+        '.obsidian',
+        'plugins',
+        'granola-sync',
+        'data.json',
+      );
+      const writtenPaths = mockWriteFile.mock.calls.map(([p]) => p);
+      expect(writtenPaths).toContain(granolaConfigPath);
+    });
+
+    it('resolves without throwing when granola-sync data.json write fails', async () => {
+      globalThis.fetch = mockFetchOk();
+      const granolaConfigPath = join(
+        WORKSPACE,
+        '.obsidian',
+        'plugins',
+        'granola-sync',
+        'data.json',
+      );
+      mockWriteFile.mockImplementation(async (p) => {
+        if (p === granolaConfigPath) throw new Error('EACCES: permission denied');
+      });
+
+      await expect(service.installPlugins(WORKSPACE)).resolves.toBeUndefined();
     });
   });
 });

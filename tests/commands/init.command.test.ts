@@ -72,10 +72,13 @@ jest.unstable_mockModule('../../src/services/obsidian-plugin.service.js', () => 
 const mockConfigInitialize = jest.fn<() => void>();
 const mockSetWorkspacePath = jest.fn<(p: string) => void>();
 
+const mockConfigSet = jest.fn<(key: string, value: unknown) => void>();
+
 jest.unstable_mockModule('../../src/services/config.service.js', () => ({
   configService: {
     initialize: mockConfigInitialize,
     setWorkspacePath: mockSetWorkspacePath,
+    set: mockConfigSet,
   },
 }));
 
@@ -86,6 +89,21 @@ jest.unstable_mockModule('../../src/services/skill-registry.service.js', () => (
       .mockResolvedValue({ success: true, data: { content: '# skill', version: '1.0.0' } }),
     installSkill: jest.fn<() => void>(),
   })),
+}));
+
+jest.unstable_mockModule('node:fs', () => ({
+  default: {
+    mkdirSync: jest.fn(),
+    readFileSync: jest.fn().mockReturnValue('# bundled skill content'),
+    writeFileSync: jest.fn(),
+    existsSync: jest.fn().mockReturnValue(false),
+    readdirSync: jest.fn().mockReturnValue([]),
+  },
+  mkdirSync: jest.fn(),
+  readFileSync: jest.fn().mockReturnValue('# bundled skill content'),
+  writeFileSync: jest.fn(),
+  existsSync: jest.fn().mockReturnValue(false),
+  readdirSync: jest.fn().mockReturnValue([]),
 }));
 
 // ── Dynamic import (after all mocks) ─────────────────────────────────────────
@@ -235,6 +253,13 @@ describe('InitCommand', () => {
       expect(claudeCall[1]).toContain('example.com');
     });
 
+    it('writes config/organization.yaml', async () => {
+      setupMinimalHappyPath();
+      await new InitCommand().run();
+      const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) => c[0]);
+      expect(writtenPaths.some((p) => p.endsWith('config/organization.yaml'))).toBe(true);
+    });
+
     it('writes my-tasks/tasks.md', async () => {
       setupMinimalHappyPath();
       await new InitCommand().run();
@@ -274,6 +299,20 @@ describe('InitCommand', () => {
       await new InitCommand().run();
       const allOutput = (stdoutSpy.mock.calls as [string][]).map((c) => c[0]).join('');
       expect(allOutput).toContain('/tmr-inbox');
+    });
+
+    it('stdout contains /tmr-project-impact in next steps', async () => {
+      setupMinimalHappyPath();
+      await new InitCommand().run();
+      const allOutput = (stdoutSpy.mock.calls as [string][]).map((c) => c[0]).join('');
+      expect(allOutput).toContain('/tmr-project-impact');
+    });
+
+    it('stdout contains /tmr-myself-config in next steps', async () => {
+      setupMinimalHappyPath();
+      await new InitCommand().run();
+      const allOutput = (stdoutSpy.mock.calls as [string][]).map((c) => c[0]).join('');
+      expect(allOutput).toContain('/tmr-myself-config');
     });
 
     it('stdout contains workspace path in next steps', async () => {
@@ -335,6 +374,57 @@ describe('InitCommand', () => {
       const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) => c[0]);
       expect(writtenPaths.some((p) => p.includes('my-teams/members/member@example.com'))).toBe(
         true,
+      );
+    });
+  });
+
+  describe('sample inbox files written', () => {
+    it('writes inbox/2026-04-10-Marlon-Alex.md', async () => {
+      setupMinimalHappyPath();
+      await new InitCommand().run();
+      const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) => c[0]);
+      expect(writtenPaths.some((p) => p.includes('inbox/2026-04-10-Marlon-Alex.md'))).toBe(true);
+    });
+
+    it('writes inbox/2026-04-15-Team-Sync.md', async () => {
+      setupMinimalHappyPath();
+      await new InitCommand().run();
+      const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) => c[0]);
+      expect(writtenPaths.some((p) => p.includes('inbox/2026-04-15-Team-Sync.md'))).toBe(true);
+    });
+  });
+
+  describe('skill installs', () => {
+    it('installSkill is called for all three default skills', async () => {
+      const mockInstallSkill = jest.fn<() => void>();
+      const { SkillRegistryService } = await import('../../src/services/skill-registry.service.js');
+      jest.mocked(SkillRegistryService).mockImplementation(
+        () =>
+          ({
+            fetchSkillContent: jest
+              .fn<() => Promise<{ success: true; data: { content: string; version: string } }>>()
+              .mockResolvedValue({ success: true, data: { content: '# skill', version: '1.0.0' } }),
+            installSkill: mockInstallSkill,
+          }) as never,
+      );
+
+      setupMinimalHappyPath();
+      await new InitCommand().run();
+
+      expect(mockInstallSkill).toHaveBeenCalledWith(
+        'tmr-inbox',
+        expect.any(String),
+        expect.any(String),
+      );
+      expect(mockInstallSkill).toHaveBeenCalledWith(
+        'tmr-project-impact',
+        expect.any(String),
+        expect.any(String),
+      );
+      expect(mockInstallSkill).toHaveBeenCalledWith(
+        'tmr-myself-config',
+        expect.any(String),
+        expect.any(String),
       );
     });
   });

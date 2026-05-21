@@ -7,6 +7,7 @@ export default defineConfig({
   dts: true,
   clean: true,
   sourcemap: true,
+  loader: { '.md': 'text' },
   target: 'node18',
   outDir: 'dist',
   banner: {
