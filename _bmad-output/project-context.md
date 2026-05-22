@@ -251,6 +251,77 @@ they drop below.
 
 ---
 
+## ⚠ CRITICAL: Canonical Entity Resolution & Vault Structure
+
+### Single Resolution Method — Non-Negotiable
+
+- **`EmailResolutionService.resolve(email, ws)`** (`src/services/email-resolution.service.ts`) is the **single authoritative method** for locating any entity (self, team member, leader, company member, contractor) by email in the workspace.
+- **ALL** commands and services that look up a person by email MUST call `EmailResolutionService.resolve()` — never build entity paths inline.
+- **`MemberService.findMemberGlobally()` has been deleted.** It was a divergent parallel lookup that caused resolution inconsistencies. There is no replacement — use `EmailResolutionService.resolve()`.
+- **`MemberService.createMember()` has been deleted.** It was a duplicate of `addMember()` with `--team`. Use `MemberService.addMember(email, { team: '...' }, ws)` instead.
+- If you see either of these method names anywhere in the codebase, that code is stale and must be updated immediately.
+
+### Vault Folder Structure — Single Pattern
+
+Every member entity type uses the **nested folder pattern**: `<scope>/<email>/<email>.md` with typed subdirectories alongside the profile:
+
+| Scope | Profile path | Subdirs created alongside profile |
+|---|---|---|
+| Self | `my-career/<email>.md` | *(flat, no subdir — single profile, no subdirs)* |
+| Direct report | `my-teams/members/<email>/<email>.md` | `1on1s/`, `feedbacks/`, `assessments/`, `performance-reviews/`, `<email>-shared/` |
+| Leadership | `my-leadership/<email>/<email>.md` | `1on1s/` |
+| Company member | `my-company/members/<email>/<email>.md` | `1on1s/`, `feedbacks/`, `assessments/`, `performance-reviews/` |
+| Contractor | `my-company/contractors/<email>/<email>.md` | `1on1s/`, `feedbacks/`, `assessments/`, `performance-reviews/` |
+
+All scopes (except Self and Leadership) get the full set of four subdirs. Contractors are treated identically to Company members for subdir scaffolding — no exceptions.
+
+- **`my-career/` is flat** — `my-career/<email>.md` only, no subfolder. This is the only exception.
+- NEVER write a profile as a flat `<email>.md` alongside other profiles in the same scope folder. The nested pattern is the enforced standard.
+
+### Required Frontmatter Field: `relationship`
+
+Every entity profile MUST include a `relationship` frontmatter field with the appropriate value:
+
+| Entity | `relationship` value |
+|---|---|
+| Self | `self` |
+| Direct report (team-scoped) | `direct-report` |
+| Leadership | `leadership` |
+| Company member | `company-member` |
+| Contractor | `contractor` |
+
+### Domain Routing — `config/domains.md`
+
+- Internal email domains are stored in `<vault>/config/domains.md` (plain Markdown list).
+- `tmr member add <email>` checks the email domain against `config/domains.md`:
+  - Domain found → route to `my-company/members/<email>/<email>.md`
+  - Domain not found → route to `my-company/contractors/<email>/<email>.md` (with confirmation)
+  - `--contractor` flag → always routes to contractor scope, no prompt
+- NEVER read `config/organization.yaml` for domain checks in new code — that file is deprecated for domain storage.
+
+### Dated File Naming Convention
+
+**1on1 files use the full date** (`YYYY-MM-DD`) because they occur frequently (weekly) and multiple files in the same month must be distinguishable.
+
+**All other dated files use year-month only** (`YYYY-MM`) — feedback, assessment, and performance-review happen at most once per month, so the day is not needed.
+
+Extraction helpers:
+- Full date: use the ISO date string as-is (`"2026-05-22"`)
+- Year-month: `date.slice(0, 7)` → `"2026-05"`
+
+| Command | Prefix | Output filename example |
+|---|---|---|
+| `tmr member add 1on1 <email>` | `YYYY-MM-DD` | `2026-05-22-1on1-user@co.com.md` |
+| `tmr member add feedback <email>` | `YYYY-MM` | `2026-05-feedback-manager@co.com-user@co.com.md` |
+| `tmr member add feedback <email> --from <f>` | `YYYY-MM` | `2026-05-feedback-<f>-user@co.com.md` |
+| `tmr member add assessment <email>` | `YYYY-MM` | `2026-05-assessment-user@co.com.md` |
+| `tmr member add performance-review <email>` | `YYYY-MM` | `2026-05-performance-review-user@co.com.md` |
+| `tmr leadership add 1on1 <email>` | `YYYY-MM-DD` | `2026-05-22-1on1-leader@co.com.md` |
+
+The `--from` flag on `tmr member add feedback` is optional. When omitted, the reviewer defaults to the application user's own email resolved from `my-career/<email>.md`. `--from` is used when recording feedback given by someone other than the manager (e.g. peer feedback).
+
+---
+
 ## Shared Utilities — Brownfield State & Rules
 
 ### Email Validation
@@ -299,4 +370,4 @@ they drop below.
 - Update when the technology stack, architecture, or conventions change.
 - Review quarterly for outdated rules.
 
-_Last Updated: 2026-04-27 (added Shared Utilities — Brownfield State & Rules section)_
+_Last Updated: 2026-05-22 (added ⚠ CRITICAL: Canonical Entity Resolution & Vault Structure section — high-priority rules for entity resolution, folder structure, relationship frontmatter, domain routing, and dated file naming)_
