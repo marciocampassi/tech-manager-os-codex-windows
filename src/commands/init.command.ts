@@ -52,6 +52,17 @@ export class InitCommand {
   }
 
   async run(): Promise<void> {
+    const existingVault = initService.findExistingVault(process.cwd());
+    if (existingVault) {
+      printError(
+        `A tmr vault already exists at: ${existingVault}`,
+        'Use the existing vault or choose a different directory.',
+        this.plain,
+      );
+      process.exitCode = 1;
+      return;
+    }
+
     this.displayWelcomeBanner();
 
     // ── Prompt phase — collect all user input before any file writes ──────────

@@ -91,18 +91,20 @@ jest.unstable_mockModule('../../src/services/skill-registry.service.js', () => (
   })),
 }));
 
+const mockFsExistsSync = jest.fn<(p: string) => boolean>().mockReturnValue(false);
+
 jest.unstable_mockModule('node:fs', () => ({
   default: {
     mkdirSync: jest.fn(),
     readFileSync: jest.fn().mockReturnValue('# bundled skill content'),
     writeFileSync: jest.fn(),
-    existsSync: jest.fn().mockReturnValue(false),
+    existsSync: mockFsExistsSync,
     readdirSync: jest.fn().mockReturnValue([]),
   },
   mkdirSync: jest.fn(),
   readFileSync: jest.fn().mockReturnValue('# bundled skill content'),
   writeFileSync: jest.fn(),
-  existsSync: jest.fn().mockReturnValue(false),
+  existsSync: mockFsExistsSync,
   readdirSync: jest.fn().mockReturnValue([]),
 }));
 
@@ -471,6 +473,54 @@ describe('InitCommand', () => {
 
       await expect(new InitCommand().run()).resolves.not.toThrow();
       jest.restoreAllMocks();
+    });
+  });
+
+  // ── re-init guard ─────────────────────────────────────────────────────────
+
+  describe('re-init guard (AC4)', () => {
+    let stderrSpy: ReturnType<typeof jest.spyOn>;
+    let originalExitCode: number | undefined;
+
+    beforeEach(() => {
+      stderrSpy = jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
+      originalExitCode = process.exitCode as number | undefined;
+      process.exitCode = 0;
+    });
+
+    afterEach(() => {
+      stderrSpy.mockRestore();
+      process.exitCode = originalExitCode;
+      mockFsExistsSync.mockReturnValue(false);
+    });
+
+    it('INIT-UNIT-013: prints error and exits without prompting when vault already exists', async () => {
+      // Simulate .tmr found in cwd
+      mockFsExistsSync.mockReturnValue(true);
+
+      await new InitCommand().run();
+
+      const stderrOutput = (stderrSpy.mock.calls as [string][]).map((c) => c[0]).join('');
+      expect(stderrOutput).toContain('tmr vault already exists');
+      expect(process.exitCode).toBe(1);
+    });
+
+    it('INIT-UNIT-013: does not start prompts when vault already exists', async () => {
+      mockFsExistsSync.mockReturnValue(true);
+
+      await new InitCommand().run();
+
+      expect(mockPrompt).not.toHaveBeenCalled();
+    });
+
+    it('INIT-UNIT-013-NEG: proceeds normally when no existing vault found', async () => {
+      mockFsExistsSync.mockReturnValue(false);
+      setupMinimalHappyPath();
+
+      await new InitCommand().run();
+
+      // Banner was shown — stdout had output
+      expect(stdoutSpy).toHaveBeenCalled();
     });
   });
 });

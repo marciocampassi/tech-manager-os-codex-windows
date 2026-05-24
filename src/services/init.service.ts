@@ -121,6 +121,33 @@ export class InitService {
   async scaffold(vaultPath: string): Promise<void> {
     await Promise.all(VAULT_DIRS.map((dir) => this._fs.createDirectory(path.join(vaultPath, dir))));
     await this._fs.writeFile(path.join(vaultPath, 'CLAUDE.md'), buildClaudeMdStub());
+    await this.writeSentinel(vaultPath);
+  }
+
+  /**
+   * Writes the .tmr sentinel file at the vault root.
+   * Makes the vault self-identifying — `getWorkspaceRoot()` walks up from cwd
+   * until it finds this file.
+   */
+  async writeSentinel(vaultPath: string): Promise<void> {
+    const content = JSON.stringify({ version: '1.0.0', created: todayIso() }, null, 2);
+    await this._fs.writeFile(path.join(vaultPath, '.tmr'), content);
+  }
+
+  /**
+   * Walks up the directory tree from `fromDir` looking for a `.tmr` sentinel file.
+   * Returns the vault root path if found, null otherwise.
+   * Synchronous — mirrors `getWorkspaceRoot()` walk-up logic.
+   */
+  findExistingVault(fromDir: string): string | null {
+    let dir = fromDir;
+    while (true) {
+      if (fs.existsSync(path.join(dir, '.tmr'))) return dir;
+      const parent = path.dirname(dir);
+      if (parent === dir) break; // reached filesystem root
+      dir = parent;
+    }
+    return null;
   }
 
   /**

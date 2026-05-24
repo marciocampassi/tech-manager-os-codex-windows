@@ -1,8 +1,7 @@
-import { describe, it, expect, jest, beforeEach } from '@jest/globals';
+import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
+import path from 'node:path';
 
 // ── Mock declarations (must precede dynamic imports) ─────────────────────────
-// Mirror the same conf + dotenv stubs used in config.service.test.ts so that
-// ConfigService can construct without touching the real filesystem or conf package.
 
 jest.unstable_mockModule('conf', () => ({
   default: jest.fn().mockImplementation(() => {
@@ -24,24 +23,94 @@ jest.unstable_mockModule('dotenv', () => ({
   default: { config: jest.fn() },
 }));
 
-// Top-level await — both modules share the same singleton after mocks are in place.
+// Mock node:fs so we can control existsSync without touching the real filesystem
+const mockExistsSync = jest.fn<(p: string) => boolean>().mockReturnValue(false);
+jest.unstable_mockModule('node:fs', () => ({
+  existsSync: mockExistsSync,
+}));
+
+// Mock display helpers to capture printError calls and suppress stderr
+const mockPrintError = jest.fn<(msg: string, hint?: string) => void>();
+jest.unstable_mockModule('../../src/utils/display.js', () => ({
+  printError: mockPrintError,
+  printSuccess: jest.fn(),
+  printInfo: jest.fn(),
+  printWarning: jest.fn(),
+  printJson: jest.fn(),
+  startSpinner: jest.fn().mockReturnValue({ succeed: jest.fn(), fail: jest.fn(), stop: jest.fn() }),
+}));
+
+// Top-level await — all modules share the same singleton after mocks are in place.
 const { getWorkspaceRoot } = await import('../../src/utils/workspace.js');
 const { configService } = await import('../../src/services/config.service.js');
 
 // ── Tests ────────────────────────────────────────────────────────────────────
 
 describe('getWorkspaceRoot', () => {
+  let originalExitCode: number | undefined;
+
   beforeEach(() => {
     jest.restoreAllMocks();
+    mockExistsSync.mockReturnValue(false);
+    mockPrintError.mockClear();
+    originalExitCode = process.exitCode as number | undefined;
+    process.exitCode = 0;
   });
 
-  it('returns the configured workspace path when set', () => {
+  afterEach(() => {
+    process.exitCode = originalExitCode;
+  });
+
+  // ── Sentinel walk-up ──────────────────────────────────────────────────────
+
+  it('WS-001: returns cwd when .tmr sentinel exists in cwd', () => {
+    const cwd = process.cwd();
+    mockExistsSync.mockImplementation((p: string) => p === path.join(cwd, '.tmr'));
+
+    expect(getWorkspaceRoot()).toBe(cwd);
+    expect(mockPrintError).not.toHaveBeenCalled();
+  });
+
+  it('WS-002: returns the parent dir when .tmr exists one level up', () => {
+    const cwd = process.cwd();
+    const parent = path.dirname(cwd);
+    mockExistsSync.mockImplementation((p: string) => p === path.join(parent, '.tmr'));
+
+    expect(getWorkspaceRoot()).toBe(parent);
+    expect(mockPrintError).not.toHaveBeenCalled();
+  });
+
+  it('WS-003: sentinel takes priority over config-stored path', () => {
+    const cwd = process.cwd();
     jest.spyOn(configService, 'getWorkspacePath').mockReturnValue('/configured/workspace');
-    expect(getWorkspaceRoot()).toBe('/configured/workspace');
+    mockExistsSync.mockImplementation((p: string) => p === path.join(cwd, '.tmr'));
+
+    expect(getWorkspaceRoot()).toBe(cwd);
   });
 
-  it('falls back to process.cwd() when workspace path is not configured', () => {
+  // ── Config fallback ───────────────────────────────────────────────────────
+
+  it('WS-004: returns configured path when no sentinel found but config is set', () => {
+    mockExistsSync.mockReturnValue(false);
+    jest.spyOn(configService, 'getWorkspacePath').mockReturnValue('/configured/workspace');
+
+    expect(getWorkspaceRoot()).toBe('/configured/workspace');
+    expect(mockPrintError).not.toHaveBeenCalled();
+  });
+
+  // ── No vault found ────────────────────────────────────────────────────────
+
+  it('WS-005: prints error and returns cwd when no sentinel and no config', () => {
+    mockExistsSync.mockReturnValue(false);
     jest.spyOn(configService, 'getWorkspacePath').mockReturnValue(undefined);
-    expect(getWorkspaceRoot()).toBe(process.cwd());
+
+    const result = getWorkspaceRoot();
+
+    expect(result).toBe(process.cwd());
+    expect(mockPrintError).toHaveBeenCalledWith(
+      'No tmr vault found in this directory or any parent.',
+      "Run 'tmr init' to create one.",
+    );
+    expect(process.exitCode).toBe(1);
   });
 });
