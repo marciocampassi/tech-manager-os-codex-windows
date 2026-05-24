@@ -246,6 +246,14 @@ describe('InitService', () => {
       expect(call![1]).toContain('Manager');
     });
 
+    it('9.5: profile frontmatter contains relationship: self', async () => {
+      await svc.writeUserProfile(WS, opts);
+      const call = (mockFS.writeFile.mock.calls as [string, string][]).find(([p]) =>
+        p.endsWith('user@example.com.md'),
+      );
+      expect(call![1]).toContain('relationship: self');
+    });
+
     it('lowercases the email before writing', async () => {
       await svc.writeUserProfile(WS, { email: 'User@Example.COM', name: 'U', role: 'R' });
       const paths = (mockFS.writeFile.mock.calls as [string, string][]).map((c) => c[0]);

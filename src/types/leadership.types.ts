@@ -14,6 +14,7 @@ export interface ILeadershipFrontmatter {
   role: string;
   gender?: string;
   areas_of_responsibility: string;
+  relationship: 'leadership';
   date_added: string;
 }
 

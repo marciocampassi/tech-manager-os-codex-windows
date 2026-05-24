@@ -172,6 +172,16 @@ describe('EmailResolutionService', () => {
       );
     });
 
+    it('9.5: auto-created profile writes relationship: company-member (not relationship_type)', async () => {
+      mockFS.exists.mockResolvedValue(false);
+
+      await svc.resolve('new@co.com', WS);
+
+      const [, content] = mockFS.writeFile.mock.calls[0] as [string, string];
+      expect(content).toContain('relationship: "company-member"');
+      expect(content).not.toContain('relationship_type');
+    });
+
     it('throws Error with message matching /Invalid email/ for invalid email', async () => {
       await expect(svc.resolve('not-an-email', WS)).rejects.toThrow(/Invalid email/i);
     });

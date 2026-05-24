@@ -156,6 +156,15 @@ describe('LeadershipService', () => {
       expect(writtenContent).toContain('## Notes');
     });
 
+    it('9.5: profile frontmatter contains relationship: leadership', async () => {
+      mockFS.exists.mockResolvedValue(false);
+
+      await svc.addLeadership(EMAIL, {}, WS);
+
+      const writtenContent = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
+      expect(writtenContent).toContain('relationship: leadership');
+    });
+
     it('places profile in my-leadership/{email}/ directory', async () => {
       mockFS.exists.mockResolvedValue(false);
 

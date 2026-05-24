@@ -50,7 +50,6 @@ export async function runMemberAdd(
 
     // ── Domain check (FR41) ───────────────────────────────────────────────────
     let isContractor = opts.contractor ?? false;
-    let companyName: string | undefined;
     let externalDomainForRemember = '';
 
     if (!isContractor) {
@@ -79,13 +78,6 @@ export async function runMemberAdd(
       }
     }
 
-    if (isContractor) {
-      const { collected } = await inquirer.prompt<{ collected: string }>([
-        { type: 'input', name: 'collected', message: 'Company name (optional):' },
-      ]);
-      companyName = collected.trim() || undefined;
-    }
-
     // ── Create member profile ─────────────────────────────────────────────────
     let result;
     try {
@@ -95,7 +87,6 @@ export async function runMemberAdd(
           team: opts.team,
           location: opts.location,
           contractor: isContractor,
-          company: companyName,
           name: name.trim() || undefined,
           gender: gender.trim() || undefined,
           role: role.trim() || undefined,

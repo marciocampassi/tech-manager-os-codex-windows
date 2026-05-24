@@ -161,7 +161,13 @@ export class InitService {
   ): Promise<void> {
     const email = opts.email.trim().toLowerCase();
     const filePath = path.join(vaultPath, 'my-career', `${email}.md`);
-    const fm = { email, name: opts.name, role: opts.role, date_added: todayIso() };
+    const fm = {
+      email,
+      name: opts.name,
+      role: opts.role,
+      relationship: 'self',
+      date_added: todayIso(),
+    };
 
     let body = '\n# Career Profile\n\n## Notes\n\n## Goals\n';
 

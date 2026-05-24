@@ -233,3 +233,11 @@ The following items were surfaced by the pre-launch AC audit (Epics 1–5) and a
 - D2 (Low) — `isValidDomain` checks `!trimmed.includes(' ')` but does not guard against tab or other whitespace characters — `"exam\tple.com"` passes validation. Replace space check with a broader `!/\s/.test(trimmed)`. Extremely unlikely in real usage. [`src/utils/validation.ts:isValidDomain`]
 - D3 (Low) — Concurrent `appendInternalDomain` calls share a read-modify-write pattern with no locking — second write overwrites first, silently losing a domain. Inherent file-system architecture constraint; CLI commands are not typically concurrent. [`src/services/member.service.ts:appendInternalDomain`]
 - D4 (Low) — `team.command.ts` remember-domain prompt fires unconditionally after a successful `addMember` call, even if the member already existed (no `result.created` guard) — pre-existing command-layer behavior; `printSuccess` also fires unconditionally. [`src/commands/team.command.ts:runAdd`]
+
+## Deferred from: code review of 9-5-relationship-frontmatter-all-profiles (2026-05-24)
+
+- W1 (Low) — `department: ""` orphan field in `EmailResolutionService` auto-create shim — pre-existing, no other profile type writes `department`; Dataview queries may pick it up as meaningful structure. [`src/services/email-resolution.service.ts:123`]
+- W2 (Low) — Auto-create shim hardcodes `relationship: "company-member"` for all auto-created profiles regardless of caller context — pre-existing design limitation; any contractor or leadership email resolved through this path gets the wrong relationship type. [`src/services/email-resolution.service.ts:126`]
+- W3 (Low) — Auto-create shim uses raw inline string instead of `gray-matter` — pre-existing technical debt already tracked by TODO(Story 3.2). [`src/services/email-resolution.service.ts`]
+- W4 (Low) — Quoting inconsistency: shim writes `relationship: "company-member"` (YAML-quoted) while `matter.stringify` profiles write unquoted values — harmless (both are valid YAML), depends on W3 shim refactor. [`src/services/email-resolution.service.ts:126`]
+- W5 (Low) — No typed frontmatter interface for member `relationship` field — `MemberService` builds frontmatter as `Record<string, unknown>` with no compile-time enforcement; a mis-spelled value reaches the vault silently. [`src/services/member.service.ts:111`]

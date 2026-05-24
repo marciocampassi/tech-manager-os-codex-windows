@@ -349,19 +349,27 @@ describe('MemberService', () => {
       expect(written).toContain('relationship: contractor');
     });
 
-    it('FR42: contractor profile includes company field when opts.company provided', async () => {
-      await svc.addMember('ext@agency.com', { contractor: true, company: 'Agency Corp' }, WS);
-
-      const written = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
-      expect(written).toContain('relationship: contractor');
-      expect(written).toContain('company: Agency Corp');
-    });
-
-    it('FR42: contractor profile has no company field when opts.company is undefined', async () => {
+    it('9.5: contractor profile has no company field (removed in Story 9.5)', async () => {
       await svc.addMember('ext@agency.com', { contractor: true }, WS);
 
       const written = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
       expect(written).not.toContain('company:');
+      expect(written).not.toContain('contractor: true');
+    });
+
+    it('9.5: team scope writes relationship: direct-report', async () => {
+      mockFS.exists.mockResolvedValueOnce(false).mockResolvedValueOnce(false);
+      await svc.addMember('joao@company.com', { team: 'backend' }, WS);
+
+      const written = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
+      expect(written).toContain('relationship: direct-report');
+    });
+
+    it('9.5: company scope writes relationship: company-member', async () => {
+      await svc.addMember('joao@company.com', {}, WS);
+
+      const written = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
+      expect(written).toContain('relationship: company-member');
     });
 
     it('MEM-UNIT-014: company scope — creates four subdirs', async () => {

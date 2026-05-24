@@ -39,6 +39,7 @@ function buildLeadershipProfileMd(email: string, opts: IAddLeadershipOptions): s
     role: opts.role ?? '',
     ...(opts.gender ? { gender: opts.gender } : {}),
     areas_of_responsibility: opts.areas_of_responsibility ?? '',
+    relationship: 'leadership',
     date_added: date,
   };
   return matter.stringify(`\n# Leadership — ${email}\n\n## Notes\n\n## 1on1s\n`, frontmatter);

@@ -120,7 +120,7 @@ export class EmailResolutionService {
     }
     await this._fs.writeFile(
       relProfile,
-      `---\nemail: "${safeEmail}"\nname: ""\nrole: ""\ndepartment: ""\nrelationship_type: ""\ndate_added: "${today}"\n---\n\n# Relationship — ${safeEmail}\n\n## Notes\n\n## 1on1s\n`,
+      `---\nemail: "${safeEmail}"\nname: ""\nrole: ""\ndepartment: ""\nrelationship: "company-member"\ndate_added: "${today}"\n---\n\n# Relationship — ${safeEmail}\n\n## Notes\n\n## 1on1s\n`,
     );
     return { type: 'relationship', absolutePath: relProfile, created: true };
   }

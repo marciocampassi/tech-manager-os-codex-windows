@@ -245,17 +245,16 @@ describe('member command', () => {
 
     it('FR41: prompts routing when email domain is external and internal_domains is configured', async () => {
       mockGetInternalDomains.mockResolvedValue(['internal.com']);
-      // Prompt order in runMemberAdd: (1) name/gender/role, (2) routing, (3) company
+      // Prompt order in runMemberAdd: (1) name/gender/role, (2) routing (no company prompt)
       mockPrompt
         .mockResolvedValueOnce({ name: '', gender: '', role: '' } as Record<string, string>)
-        .mockResolvedValueOnce({ routing: 'contractor' } as Record<string, string>)
-        .mockResolvedValueOnce({ collected: 'Agency Corp' } as Record<string, string>);
+        .mockResolvedValueOnce({ routing: 'contractor' } as Record<string, string>);
 
       await runMemberAdd(mockMemberServiceInstance as never, 'ext@partner.com', undefined, {});
 
       expect(mockAddMember).toHaveBeenCalledWith(
         'ext@partner.com',
-        expect.objectContaining({ contractor: true, company: 'Agency Corp' }),
+        expect.objectContaining({ contractor: true }),
         '/fake/ws',
       );
     });
@@ -278,17 +277,18 @@ describe('member command', () => {
 
     it('FR41: --contractor flag bypasses routing prompt entirely', async () => {
       mockGetInternalDomains.mockResolvedValue(['internal.com']);
-      // Prompt order: (1) name/gender/role, (2) company (routing skipped because already contractor)
-      mockPrompt
-        .mockResolvedValueOnce({ name: '', gender: '', role: '' } as Record<string, string>)
-        .mockResolvedValueOnce({ collected: '' } as Record<string, string>);
+      // Prompt order: (1) name/gender/role only (routing skipped, no company prompt)
+      mockPrompt.mockResolvedValueOnce({ name: '', gender: '', role: '' } as Record<
+        string,
+        string
+      >);
 
       await runMemberAdd(mockMemberServiceInstance as never, 'ext@partner.com', undefined, {
         contractor: true,
       });
 
-      // only name/gender/role (1) and company (2) prompts should fire — no routing prompt
-      expect(mockPrompt).toHaveBeenCalledTimes(2);
+      // only name/gender/role (1) should fire — no routing prompt, no company prompt
+      expect(mockPrompt).toHaveBeenCalledTimes(1);
       expect(mockAddMember).toHaveBeenCalledWith(
         'ext@partner.com',
         expect.objectContaining({ contractor: true }),
@@ -310,19 +310,19 @@ describe('member command', () => {
       );
     });
 
-    it('FR42: company name is undefined when contractor prompt left blank', async () => {
+    it('9.5: contractor routing — no company-name prompt fires (company field removed)', async () => {
       mockGetInternalDomains.mockResolvedValue(['internal.com']);
-      // Prompt order: (1) name/gender/role, (2) routing → contractor, (3) company (blank)
+      // Prompt order: (1) name/gender/role, (2) routing → contractor (no third prompt)
       mockPrompt
         .mockResolvedValueOnce({ name: '', gender: '', role: '' } as Record<string, string>)
-        .mockResolvedValueOnce({ routing: 'contractor' } as Record<string, string>)
-        .mockResolvedValueOnce({ collected: '   ' } as Record<string, string>);
+        .mockResolvedValueOnce({ routing: 'contractor' } as Record<string, string>);
 
       await runMemberAdd(mockMemberServiceInstance as never, 'ext@partner.com', undefined, {});
 
+      expect(mockPrompt).toHaveBeenCalledTimes(2);
       expect(mockAddMember).toHaveBeenCalledWith(
         'ext@partner.com',
-        expect.objectContaining({ contractor: true, company: undefined }),
+        expect.not.objectContaining({ company: expect.anything() }),
         '/fake/ws',
       );
     });

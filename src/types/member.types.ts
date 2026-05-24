@@ -51,8 +51,6 @@ export interface IAddMemberOptions {
   gender?: string;
   /** When true, routes the profile to my-company/contractors/<email>/<email>.md */
   contractor?: boolean;
-  /** Company name written to frontmatter when contractor is true (FR42) */
-  company?: string;
 }
 
 /** Result returned by MemberService.createMemberFile(). */

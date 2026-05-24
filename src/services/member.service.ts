@@ -114,11 +114,9 @@ export class MemberService {
       role: opts.role ?? '',
       gender: opts.gender ?? '',
       location: opts.location ?? '',
+      relationship: opts.contractor ? 'contractor' : opts.team ? 'direct-report' : 'company-member',
       date_added: todayIso(),
-      ...(opts.contractor
-        ? { relationship: 'contractor', ...(opts.company ? { company: opts.company } : {}) }
-        : {}),
-      ...(opts.team ? { manager: managerLink } : {}),
+      ...(opts.team && !opts.contractor ? { manager: managerLink } : {}),
     };
 
     const body = '\n## Performance Reviews\n\n## Feedbacks\n';
