@@ -118,7 +118,7 @@ describe('EmailResolutionService', () => {
       const result = await svc.resolve('me@co.com', WS);
 
       expect(result.type).toBe('self');
-      expect(result.absolutePath).toContain('my-career/me@co.com/me@co.com.md');
+      expect(result.absolutePath).toContain('my-career/me@co.com.md');
       expect(result.created).toBe(false);
     });
 

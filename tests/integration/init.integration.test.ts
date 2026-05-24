@@ -316,26 +316,26 @@ describe('InitCommand integration (Story 2.3 — member collection loop)', () =>
   });
 
   describe('user profile (AC: 1 — INIT-UNIT-004)', () => {
-    it('writes my-career/<email>/<email>.md', () => {
+    it('writes my-career/<email>.md (flat — no subdirectory)', () => {
       const paths = Array.from(writtenFiles.keys());
-      expect(paths.some((p) => p.includes(`my-career/${USER_EMAIL}/${USER_EMAIL}.md`))).toBe(true);
+      expect(paths.some((p) => p.endsWith(`my-career/${USER_EMAIL}.md`))).toBe(true);
     });
 
     it('user profile contains the user email in frontmatter', () => {
-      const profilePath = `${WORKSPACE}/my-career/${USER_EMAIL}/${USER_EMAIL}.md`;
+      const profilePath = `${WORKSPACE}/my-career/${USER_EMAIL}.md`;
       const content = writtenFiles.get(profilePath);
       expect(content).toBeDefined();
       expect(content).toContain(USER_EMAIL);
     });
 
     it('user profile contains the user name', () => {
-      const profilePath = `${WORKSPACE}/my-career/${USER_EMAIL}/${USER_EMAIL}.md`;
+      const profilePath = `${WORKSPACE}/my-career/${USER_EMAIL}.md`;
       const content = writtenFiles.get(profilePath);
       expect(content).toContain(USER_NAME);
     });
 
     it('user profile contains the user role', () => {
-      const profilePath = `${WORKSPACE}/my-career/${USER_EMAIL}/${USER_EMAIL}.md`;
+      const profilePath = `${WORKSPACE}/my-career/${USER_EMAIL}.md`;
       const content = writtenFiles.get(profilePath);
       expect(content).toContain(USER_ROLE);
     });
@@ -511,7 +511,7 @@ describe('InitCommand integration (Story 2.3 — member collection loop)', () =>
     });
 
     it('career profile contains leadership wiki-link', () => {
-      const careerPath = `${WORKSPACE}/my-career/${USER_EMAIL}/${USER_EMAIL}.md`;
+      const careerPath = `${WORKSPACE}/my-career/${USER_EMAIL}.md`;
       const content = writtenFiles.get(careerPath);
       expect(content).toBeDefined();
       expect(content).toContain(LEADER_EMAIL);

@@ -238,7 +238,6 @@ describe('MemberService', () => {
     beforeEach(() => {
       // Default: profile does not exist yet; careerRoot does not exist
       mockFS.exists.mockResolvedValue(false);
-      mockFS.listDirectories.mockResolvedValue([]);
     });
 
     it('MEM-UNIT-001: company scope — writes to my-company/members/<email>/<email>.md', async () => {
@@ -263,12 +262,10 @@ describe('MemberService', () => {
       // Sequence of exists() calls:
       // 1. profilePath (does not exist yet) → false
       // 2. careerRoot → true
-      // 3. managerProfilePath → true
       mockFS.exists
         .mockResolvedValueOnce(false) // profile not yet created
-        .mockResolvedValueOnce(true) // careerRoot exists
-        .mockResolvedValueOnce(true); // managerProfilePath exists
-      mockFS.listDirectories.mockResolvedValueOnce(['boss@co.com']);
+        .mockResolvedValueOnce(true); // careerRoot exists
+      mockFS.listFiles.mockResolvedValueOnce([`${WS}/my-career/boss@co.com.md`]);
 
       await svc.addMember('joao@company.com', { team: 'backend' }, WS);
 
@@ -298,11 +295,8 @@ describe('MemberService', () => {
     });
 
     it('MEM-UNIT-010: team-scoped manager value uses wiki-link format, not plain email string', async () => {
-      mockFS.exists
-        .mockResolvedValueOnce(false)
-        .mockResolvedValueOnce(true)
-        .mockResolvedValueOnce(true);
-      mockFS.listDirectories.mockResolvedValueOnce(['boss@co.com']);
+      mockFS.exists.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+      mockFS.listFiles.mockResolvedValueOnce([`${WS}/my-career/boss@co.com.md`]);
 
       await svc.addMember('joao@company.com', { team: 'backend' }, WS);
 

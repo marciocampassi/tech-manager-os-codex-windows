@@ -106,7 +106,6 @@ export class MemberService {
       return { created: false };
     }
 
-    // TODO(Story 9.3): update _resolveManagerLink to read flat my-career/<email>.md after Story 9.3 lands
     const managerLink = opts.team ? await this._resolveManagerLink(profilePath, workspaceRoot) : '';
 
     const fm: Record<string, unknown> = {
@@ -209,22 +208,24 @@ export class MemberService {
 
   /**
    * Resolves the manager's wiki-link from the `my-career/` directory.
-   * Assumes a single career profile subdirectory (the current user's own career folder).
-   * If multiple subdirectories are found, the first alphabetically is used and a warning is logged.
+   * Scans for `.md` files directly (flat structure — one profile per vault).
+   * If multiple files are found, the first alphabetically is used and a warning is logged.
    */
   private async _resolveManagerLink(memberPath: string, workspaceRoot: string): Promise<string> {
     const careerRoot = path.join(workspaceRoot, 'my-career');
     if (!(await this._fs.exists(careerRoot))) return '';
-    const subdirs = await this._fs.listDirectories(careerRoot);
-    if (subdirs.length === 0) return '';
-    if (subdirs.length > 1) {
+
+    const mdFiles = await this._fs.listFiles(careerRoot, '.md');
+    if (mdFiles.length === 0) return '';
+
+    const managerProfilePath = mdFiles[0] as string;
+    const managerEmail = path.basename(managerProfilePath, '.md');
+    if (mdFiles.length > 1) {
       logger.warn(
-        `_resolveManagerLink: found ${subdirs.length} entries in my-career/ — expected 1. Using "${subdirs[0]}" as manager.`,
+        `_resolveManagerLink: found ${mdFiles.length} .md files in my-career/ — expected 1. Using "${managerEmail}" as manager.`,
       );
     }
-    const managerEmail = subdirs[0] as string;
-    const managerProfilePath = path.join(careerRoot, managerEmail, `${managerEmail}.md`);
-    if (!(await this._fs.exists(managerProfilePath))) return '';
+
     return formatWikiLink(managerProfilePath, memberPath, managerEmail);
   }
 }

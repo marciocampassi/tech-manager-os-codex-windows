@@ -4,7 +4,7 @@
  * EmailResolutionService searches the workspace in order:
  *   1. my-teams/members/{email}/           → type: 'team'
  *   2. my-leadership/{email}/              → type: 'leadership'
- *   2.5. my-career/{email}/{email}.md      → type: 'self'
+ *   2.5. my-career/{email}.md             → type: 'self'
  *   3. my-company/members/{email}/         → type: 'relationship'
  *   3.5. my-company/contractors/{email}/   → type: 'contractor'
  *   4. Not found → auto-creates as relationship, created: true

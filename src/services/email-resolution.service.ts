@@ -93,8 +93,7 @@ export class EmailResolutionService {
     }
 
     // 2.5. Self (system user's own career profile — prevents auto-creating a relationship for self)
-    // TODO(Story 9.3): update self-profile path from my-career/<email>/<email>.md to my-career/<email>.md
-    const selfProfile = path.join(ws, 'my-career', email, `${email}.md`);
+    const selfProfile = path.join(ws, 'my-career', `${email}.md`);
     if (await this._fs.exists(selfProfile)) {
       return { type: 'self', absolutePath: selfProfile, created: false };
     }

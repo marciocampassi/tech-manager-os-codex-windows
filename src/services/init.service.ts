@@ -151,8 +151,8 @@ export class InitService {
   }
 
   /**
-   * Writes the user's own career profile to `my-career/<email>/<email>.md`.
-   * Creates the parent directory if it does not yet exist.
+   * Writes the user's own career profile to `my-career/<email>.md` (flat — no subdirectory).
+   * `my-career/` is guaranteed to exist after `scaffold()`, so no directory creation is needed.
    * Throws on any file system failure.
    */
   async writeUserProfile(
@@ -160,8 +160,7 @@ export class InitService {
     opts: { email: string; name: string; role: string; leaderEmail?: string },
   ): Promise<void> {
     const email = opts.email.trim().toLowerCase();
-    const dir = path.join(vaultPath, 'my-career', email);
-    const filePath = path.join(dir, `${email}.md`);
+    const filePath = path.join(vaultPath, 'my-career', `${email}.md`);
     const fm = { email, name: opts.name, role: opts.role, date_added: todayIso() };
 
     let body = '\n# Career Profile\n\n## Notes\n\n## Goals\n';
@@ -174,7 +173,6 @@ export class InitService {
     }
 
     const content = matter.stringify(body, fm);
-    await this._fs.createDirectory(dir);
     await this._fs.writeFile(filePath, content);
   }
 

@@ -210,18 +210,15 @@ describe('InitService', () => {
   describe('writeUserProfile', () => {
     const opts = { email: 'user@example.com', name: 'Test User', role: 'Manager' };
 
-    it('INIT-UNIT-004: creates the my-career/<email>/ directory', async () => {
+    it('INIT-UNIT-004: does NOT call createDirectory (my-career/ pre-exists from scaffold)', async () => {
       await svc.writeUserProfile(WS, opts);
-      const dirs = (mockFS.createDirectory.mock.calls as [string][]).map((c) => c[0]);
-      expect(dirs).toContain(path.join(WS, 'my-career', 'user@example.com'));
+      expect(mockFS.createDirectory).not.toHaveBeenCalled();
     });
 
-    it('INIT-UNIT-004: writes my-career/<email>/<email>.md', async () => {
+    it('INIT-UNIT-004: writes my-career/<email>.md (flat — no subdirectory)', async () => {
       await svc.writeUserProfile(WS, opts);
       const paths = (mockFS.writeFile.mock.calls as [string, string][]).map((c) => c[0]);
-      expect(paths).toContain(
-        path.join(WS, 'my-career', 'user@example.com', 'user@example.com.md'),
-      );
+      expect(paths).toContain(path.join(WS, 'my-career', 'user@example.com.md'));
     });
 
     it('INIT-UNIT-004: profile frontmatter contains email', async () => {

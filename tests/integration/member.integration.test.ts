@@ -220,8 +220,8 @@ describe('Member Integration', () => {
     });
 
     it('MEM-INT-002: addMember with --team writes nested profile to my-teams/members/<email>/<email>.md with manager wiki-link', async () => {
-      // Seed career profile so _resolveManagerLink resolves
-      const careerDir = path.join(workspace, 'my-career', 'boss@co.com');
+      // Seed flat career profile so _resolveManagerLink resolves
+      const careerDir = path.join(workspace, 'my-career');
       fs.mkdirSync(careerDir, { recursive: true });
       fs.writeFileSync(path.join(careerDir, 'boss@co.com.md'), '---\nemail: boss@co.com\n---\n');
 

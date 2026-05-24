@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-27
-last_updated: 2026-05-24 (story 9-2 done)
+last_updated: 2026-05-24 (story 9-3 done)
 project: tech-manager-os
 project_key: NOKEY
 tracking_system: file-system
@@ -101,7 +101,7 @@ development_status:
   epic-9: in-progress
   9-1-unify-entity-resolution-and-folder-structure: done
   9-2-workspace-anchoring-tmr-sentinel: done
-  9-3-my-career-flat-structure: ready-for-dev
+  9-3-my-career-flat-structure: done
   9-4-organization-yaml-domain-inference-and-obsidian-config: ready-for-dev
   9-5-relationship-frontmatter-all-profiles: ready-for-dev
   9-6-leadership-location-and-1on1-subcommand: ready-for-dev
