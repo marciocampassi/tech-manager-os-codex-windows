@@ -178,3 +178,68 @@ Add:
 - Circular dependency risk: `MemberService` importing `EmailResolutionService` and vice versa. Verify no circular import exists before merging. If one exists, pass the resolver via method parameter instead of constructor.
 - `member.command.ts` uses `chalk` directly (`chalk.dim`, `chalk.green`) — this is a pre-existing lint warning. Do NOT fix it in this story to keep the diff minimal; file a separate cleanup note.
 - Run `npm run validate` (lint + typecheck + test + build) before marking done.
+
+---
+
+## File List
+
+- `src/services/member.service.ts` — MODIFIED
+- `src/services/email-resolution.service.ts` — MODIFIED
+- `src/types/email-resolution.types.ts` — MODIFIED
+- `src/types/member.types.ts` — MODIFIED
+- `tests/services/member.service.test.ts` — MODIFIED
+- `tests/services/email-resolution.service.test.ts` — MODIFIED
+- `tests/integration/member.integration.test.ts` — MODIFIED
+- `tests/commands/member.command.test.ts` — MODIFIED
+
+---
+
+## Change Log
+
+- 2026-05-24: Implemented story 9.1 — unified entity resolution and enforced nested folder pattern across all member scopes
+
+---
+
+## Dev Agent Record
+
+### Completion Notes
+
+All ACs satisfied. `npm run validate` passed: 1098 tests, 0 failures, build success.
+
+- `MemberService.addMember()` now writes nested paths for company (`my-company/members/<e>/<e>.md`) and team (`my-teams/members/<e>/<e>.md`) scopes; contractor scope was already correct.
+- All three scopes scaffold `1on1s/`, `feedbacks/`, `assessments/`, `performance-reviews/` subdirs on creation; team scope additionally creates `<email>-shared/`.
+- `MemberService.createMemberFile()` now delegates profile lookup to injected `EmailResolutionService` (constructor arg with singleton default) — eliminates `findMemberGlobally()`.
+- `MemberService.findMemberGlobally()` deleted entirely.
+- `MemberService.createMember()` deleted entirely.
+- `ICreateMemberOptions` removed from `member.types.ts`.
+- `EmailResolutionService._doResolve()` gained step 3.5 for contractor scope; TODO(Story 9.3) comment added to step 2.5.
+- `IEntityLocation.type` extended with `'contractor'`; JSDoc updated to document all 5 resolution steps.
+- No circular import: `MemberService` → `EmailResolutionService` is one-directional. Verified.
+- Unit tests rewritten with mock `EmailResolutionService`; 3 new subdir-creation tests added (MEM-UNIT-014/015/016); `findMemberGlobally` and `createMember` test blocks removed.
+- Integration tests updated from flat-path to nested-path assertions.
+- Command test cleaned of `createMember` mock.
+
+---
+
+## Review Findings
+
+- [x] [Review][Patch] `_doResolve()` step 4 missing 3 subdirs — auto-create scaffolds only `1on1s/`, missing `feedbacks/`, `assessments/`, `performance-reviews/` [src/services/email-resolution.service.ts:118] ✓ fixed
+- [x] [Review][Defer] Legacy flat profiles invisible to resolution [src/services/email-resolution.service.ts:_doResolve()] — deferred, pre-existing migration gap
+- [x] [Review][Defer] Legacy flat team profile auto-creates as company relationship [src/services/email-resolution.service.ts:_doResolve() step 4] — deferred, pre-existing migration gap
+- [x] [Review][Defer] `feedbacks/` scaffold vs `feedback/` write path mismatch [src/services/member.service.ts:addMember()] — deferred, explicit design decision (spec uses `feedbacks/` for scaffold; `FILE_TYPE_CONFIG` uses `feedback/` for file writes; different vault purposes)
+- [x] [Review][Defer] Stale resolution cache after filesystem changes [src/services/email-resolution.service.ts:resolve()] — deferred, pre-existing design
+- [x] [Review][Defer] `addMember()` only checks target scope, cross-scope duplicate risk [src/services/member.service.ts:addMember()] — deferred, pre-existing (logged story 3.2)
+- [x] [Review][Defer] Relationship profile shadows contractor at same email [src/services/email-resolution.service.ts:_doResolve() steps 3/3.5] — deferred, data-error edge case requiring dual-existence
+- [x] [Review][Defer] Concurrent `addMember()` silent overwrite [src/services/member.service.ts:addMember()] — deferred, pre-existing TOCTOU (logged story 3.2)
+- [x] [Review][Defer] Leading/trailing whitespace in email not trimmed at service layer [src/services/member.service.ts:addMember()] — deferred, pre-existing (logged story 3.2)
+- [x] [Review][Defer] Concurrent `resolve()` auto-create races [src/services/email-resolution.service.ts:_doResolve() step 4] — deferred, pre-existing TOCTOU
+- [x] [Review][Defer] `memberSubDirFromProfile` flat-path branch unreachable via new resolution [src/services/member.service.ts:memberSubDirFromProfile()] — deferred, dead code, no functional impact
+- [x] [Review][Defer] `findMember` team-only scope silently misses company/contractor members [src/services/member.service.ts:findMember()] — deferred, unchanged behavior from pre-9.1
+- [x] [Review][Defer] `findMember` constructs path without input validation [src/services/member.service.ts:findMember()] — deferred, pre-existing caller-validates pattern
+- [x] [Review][Defer] MEM-INT-004 does not assert subdir creation [tests/integration/member.integration.test.ts:284–309] — deferred, test gap
+
+---
+
+## Status
+
+done

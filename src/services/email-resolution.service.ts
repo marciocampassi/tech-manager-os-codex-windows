@@ -93,6 +93,7 @@ export class EmailResolutionService {
     }
 
     // 2.5. Self (system user's own career profile — prevents auto-creating a relationship for self)
+    // TODO(Story 9.3): update self-profile path from my-career/<email>/<email>.md to my-career/<email>.md
     const selfProfile = path.join(ws, 'my-career', email, `${email}.md`);
     if (await this._fs.exists(selfProfile)) {
       return { type: 'self', absolutePath: selfProfile, created: false };
@@ -104,11 +105,20 @@ export class EmailResolutionService {
       return { type: 'relationship', absolutePath: relProfile, created: false };
     }
 
+    // 3.5. Contractor
+    const contractorProfile = path.join(ws, 'my-company', 'contractors', email, `${email}.md`);
+    if (await this._fs.exists(contractorProfile)) {
+      return { type: 'contractor', absolutePath: contractorProfile, created: false };
+    }
+
     // 4. Not found — auto-create as company-scoped member profile (ISSUE-m1 shim).
     // TODO(Story 3.2): replace with MemberService.addMember(email) — do NOT make this inline logic permanent.
     const today = new Date().toISOString().split('T')[0] as string;
     const safeEmail = email.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-    await this._fs.createDirectory(path.join(ws, 'my-company', 'members', email, '1on1s'));
+    const entityDir = path.join(ws, 'my-company', 'members', email);
+    for (const subDir of ['1on1s', 'feedbacks', 'assessments', 'performance-reviews']) {
+      await this._fs.createDirectory(path.join(entityDir, subDir));
+    }
     await this._fs.writeFile(
       relProfile,
       `---\nemail: "${safeEmail}"\nname: ""\nrole: ""\ndepartment: ""\nrelationship_type: ""\ndate_added: "${today}"\n---\n\n# Relationship — ${safeEmail}\n\n## Notes\n\n## 1on1s\n`,

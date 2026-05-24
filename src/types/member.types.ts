@@ -42,13 +42,6 @@ export interface ICreateFileOptions {
   noEdit?: boolean;
 }
 
-/** Options accepted by MemberService.createMember(). */
-export interface ICreateMemberOptions {
-  name?: string;
-  gender?: string;
-  role?: string;
-}
-
 /** Options accepted by MemberService.addMember(). */
 export interface IAddMemberOptions {
   team?: string;

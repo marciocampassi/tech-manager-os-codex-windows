@@ -137,6 +137,22 @@ describe('EmailResolutionService', () => {
       expect(result.created).toBe(false);
     });
 
+    it('resolves to contractor when contractor profile exists (no team/leadership/self/relationship)', async () => {
+      mockFS.exists.mockImplementation(async (p: string) => {
+        if (p.includes('my-teams/members')) return false;
+        if (p.includes('my-leadership')) return false;
+        if (p.includes('my-career')) return false;
+        if (p.includes('my-company/members')) return false;
+        return p.includes('my-company/contractors');
+      });
+
+      const result = await svc.resolve('user@x.com', WS);
+
+      expect(result.type).toBe('contractor');
+      expect(result.absolutePath).toContain('my-company/contractors/user@x.com/user@x.com.md');
+      expect(result.created).toBe(false);
+    });
+
     it('auto-creates relationship and returns created: true when email not found anywhere', async () => {
       mockFS.exists.mockResolvedValue(false);
 

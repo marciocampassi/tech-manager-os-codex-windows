@@ -10,9 +10,6 @@ const mockCreateMemberFile = jest
     profilePath: '/fake/ws/my-teams/members/john@co.com/john@co.com.md',
     wikiLink: '- [[1on1s/2026-03-07-john@co.com-1on1.md]]',
   });
-const mockCreateMember = jest
-  .fn<() => Promise<{ created: boolean }>>()
-  .mockResolvedValue({ created: true });
 const mockAddMember = jest
   .fn<() => Promise<{ created: boolean }>>()
   .mockResolvedValue({ created: true });
@@ -25,7 +22,6 @@ const mockGetInternalDomains = jest.fn<() => Promise<string[]>>().mockResolvedVa
 const mockMemberServiceInstance = {
   getWorkspaceRoot: mockGetWorkspaceRoot,
   createMemberFile: mockCreateMemberFile,
-  createMember: mockCreateMember,
   addMember: mockAddMember,
   findMember: mockFindMember,
   getInternalDomains: mockGetInternalDomains,
@@ -71,7 +67,6 @@ describe('member command', () => {
       profilePath: '/fake/ws/my-teams/members/john@co.com/john@co.com.md',
       wikiLink: '- [[1on1s/2026-03-07-john@co.com-1on1.md]]',
     });
-    mockCreateMember.mockResolvedValue({ created: true });
     mockAddMember.mockResolvedValue({ created: true });
     mockGetInternalDomains.mockResolvedValue([]);
     mockPrompt.mockResolvedValue({});

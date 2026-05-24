@@ -144,10 +144,12 @@ describe('Member Integration', () => {
       workspace,
     );
 
-    // Profile auto-created at company scope
-    expect(fs.existsSync(path.join(workspace, 'my-company', 'members', 'ghost@co.com.md'))).toBe(
-      true,
-    );
+    // Profile auto-created at company scope (nested)
+    expect(
+      fs.existsSync(
+        path.join(workspace, 'my-company', 'members', 'ghost@co.com', 'ghost@co.com.md'),
+      ),
+    ).toBe(true);
     // Dated feedback file created
     expect(fs.existsSync(result.filePath)).toBe(true);
     // Wiki-link appended to auto-created profile
@@ -207,15 +209,17 @@ describe('Member Integration', () => {
   // ── Global Email Resolver & Auto-create (Story 3.3) ──────────────────────────
 
   describe('Global Email Resolver & Auto-create (Story 3.3)', () => {
-    it('MEM-INT-001: addMember without --team writes profile to my-company/members/', async () => {
+    it('MEM-INT-001: addMember without --team writes nested profile to my-company/members/<email>/<email>.md', async () => {
       await memberSvc.addMember('joao@company.com', {}, workspace);
 
       expect(
-        fs.existsSync(path.join(workspace, 'my-company', 'members', 'joao@company.com.md')),
+        fs.existsSync(
+          path.join(workspace, 'my-company', 'members', 'joao@company.com', 'joao@company.com.md'),
+        ),
       ).toBe(true);
     });
 
-    it('MEM-INT-002: addMember with --team writes flat profile to my-teams/members/ with manager wiki-link', async () => {
+    it('MEM-INT-002: addMember with --team writes nested profile to my-teams/members/<email>/<email>.md with manager wiki-link', async () => {
       // Seed career profile so _resolveManagerLink resolves
       const careerDir = path.join(workspace, 'my-career', 'boss@co.com');
       fs.mkdirSync(careerDir, { recursive: true });
@@ -223,7 +227,13 @@ describe('Member Integration', () => {
 
       await memberSvc.addMember('joao@company.com', { team: 'backend' }, workspace);
 
-      const profilePath = path.join(workspace, 'my-teams', 'members', 'joao@company.com.md');
+      const profilePath = path.join(
+        workspace,
+        'my-teams',
+        'members',
+        'joao@company.com',
+        'joao@company.com.md',
+      );
       expect(fs.existsSync(profilePath)).toBe(true);
       const content = fs.readFileSync(profilePath, 'utf8');
       expect(content).toContain('manager:');
@@ -231,8 +241,8 @@ describe('Member Integration', () => {
       expect(content).toContain('boss@co.com');
     });
 
-    it('MEM-INT-003b: createMemberFile routes feedback to existing flat team-scoped profile (AC1)', async () => {
-      // Seed a flat team-scoped profile (addMember with --team, no career profile needed)
+    it('MEM-INT-003b: createMemberFile routes feedback to existing nested team-scoped profile', async () => {
+      // Seed a nested team-scoped profile (addMember with --team)
       await memberSvc.addMember('joao@company.com', { team: 'backend' }, workspace);
 
       const result = await memberSvc.createMemberFile(
@@ -243,14 +253,14 @@ describe('Member Integration', () => {
       );
 
       expect(fs.existsSync(result.filePath)).toBe(true);
-      // Routed to the team-flat profile, not company-flat
-      expect(result.profilePath).toContain('my-teams/members/joao@company.com.md');
+      // Routed to the nested team profile
+      expect(result.profilePath).toContain('my-teams/members/joao@company.com/joao@company.com.md');
       const profileContent = fs.readFileSync(result.profilePath, 'utf8');
       expect(profileContent).toContain('[[feedback/');
     });
 
-    it('MEM-INT-003: createMemberFile routes feedback to existing flat company-scoped profile', async () => {
-      // Seed a flat company-scoped profile
+    it('MEM-INT-003: createMemberFile routes feedback to existing nested company-scoped profile', async () => {
+      // Seed a nested company-scoped profile
       await memberSvc.addMember('joao@company.com', {}, workspace);
 
       const result = await memberSvc.createMemberFile(
@@ -264,10 +274,12 @@ describe('Member Integration', () => {
       const profileContent = fs.readFileSync(result.profilePath, 'utf8');
       expect(profileContent).toContain('## Feedbacks');
       expect(profileContent).toContain('[[feedback/');
-      expect(result.profilePath).toContain('my-company/members/joao@company.com.md');
+      expect(result.profilePath).toContain(
+        'my-company/members/joao@company.com/joao@company.com.md',
+      );
     });
 
-    it('MEM-INT-004: createMemberFile auto-creates company profile for unknown email', async () => {
+    it('MEM-INT-004: createMemberFile auto-creates nested company profile for unknown email', async () => {
       const result = await memberSvc.createMemberFile(
         'unknown@company.com',
         'feedback',
@@ -275,9 +287,17 @@ describe('Member Integration', () => {
         workspace,
       );
 
-      // Profile auto-created
+      // Profile auto-created at nested path
       expect(
-        fs.existsSync(path.join(workspace, 'my-company', 'members', 'unknown@company.com.md')),
+        fs.existsSync(
+          path.join(
+            workspace,
+            'my-company',
+            'members',
+            'unknown@company.com',
+            'unknown@company.com.md',
+          ),
+        ),
       ).toBe(true);
       // Dated feedback file created
       expect(fs.existsSync(result.filePath)).toBe(true);
@@ -286,8 +306,8 @@ describe('Member Integration', () => {
       expect(profileContent).toContain('[[feedback/');
     });
 
-    it('MEM-INT-005: case-insensitive lookup resolves to existing lowercase profile without duplicate', async () => {
-      // Seed a flat company-scoped profile with lowercase email
+    it('MEM-INT-005: case-insensitive lookup resolves to existing nested profile without duplicate', async () => {
+      // Seed a nested company-scoped profile with lowercase email
       await memberSvc.addMember('joao@company.com', {}, workspace);
 
       const result = await memberSvc.createMemberFile(
@@ -297,13 +317,13 @@ describe('Member Integration', () => {
         workspace,
       );
 
-      // No duplicate created — directory listing shows only the lowercase-stored filename
+      // No duplicate created — the nested directory exists only for the lowercase email
       const membersDir = path.join(workspace, 'my-company', 'members');
-      const files = fs.readdirSync(membersDir);
-      expect(files).toContain('joao@company.com.md');
-      expect(files).not.toContain('JOAO@COMPANY.COM.md');
-      // Feedback appended to the correct profile
-      expect(result.profilePath).toContain('joao@company.com.md');
+      const entries = fs.readdirSync(membersDir);
+      expect(entries).toContain('joao@company.com');
+      expect(entries).not.toContain('JOAO@COMPANY.COM');
+      // Feedback appended to the correct nested profile
+      expect(result.profilePath).toContain('joao@company.com/joao@company.com.md');
       const profileContent = fs.readFileSync(result.profilePath, 'utf8');
       expect(profileContent).toContain('[[feedback/');
     });
