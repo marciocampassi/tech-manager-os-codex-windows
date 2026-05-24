@@ -304,13 +304,29 @@ export class InitService {
   }
 
   /**
-   * Writes `config/organization.yaml` to the vault with the domain extracted from the
-   * manager's email address. The `config/` directory is guaranteed to exist after `scaffold()`.
+   * Writes `config/organization.yaml` to the vault with the domain inferred from the
+   * manager's email address, plus any additional validated domains collected at init.
+   * The `config/` directory is guaranteed to exist after `scaffold()`.
    * Throws on any file system failure — org config is vault-critical context.
    */
-  async writeOrgConfig(vaultPath: string, managerEmail: string): Promise<void> {
-    const domain = managerEmail.split('@')[1] ?? managerEmail;
-    const content = `internal_domains:\n  - ${domain}\n`;
+  async writeOrgConfig(
+    vaultPath: string,
+    managerEmail: string,
+    additionalDomains: string[] = [],
+  ): Promise<void> {
+    const inferred = (managerEmail.split('@')[1] ?? managerEmail).toLowerCase();
+    const uniqueDomains = [
+      inferred,
+      ...additionalDomains.map((d) => d.toLowerCase()).filter((d) => d !== inferred),
+    ];
+    const seen = new Set<string>();
+    const deduped = uniqueDomains.filter((d) => {
+      if (seen.has(d)) return false;
+      seen.add(d);
+      return true;
+    });
+    const lines = deduped.map((d) => `  - ${d}`).join('\n');
+    const content = `internal_domains:\n${lines}\n`;
     await this._fs.writeFile(path.join(vaultPath, 'config', 'organization.yaml'), content);
   }
 

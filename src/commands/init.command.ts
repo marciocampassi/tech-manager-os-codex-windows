@@ -6,7 +6,9 @@ import { fileSystemService } from '../services/file-system.service.js';
 import { initService } from '../services/init.service.js';
 import {
   promptWorkspacePath,
-  promptMinimalOnboarding,
+  promptNameAndEmail,
+  promptAdditionalDomains,
+  promptRoleAndCompany,
   promptLeaderDetails,
   promptTeamCount,
   promptTeamName,
@@ -68,7 +70,14 @@ export class InitCommand {
     // ── Prompt phase — collect all user input before any file writes ──────────
     const rawPath = await promptWorkspacePath();
     const workspacePath = initService.resolveVaultPath(rawPath);
-    const answers = await promptMinimalOnboarding();
+    const nameEmail = await promptNameAndEmail();
+    const inferredDomain = nameEmail.email.split('@')[1] ?? '';
+    const additionalDomains = inferredDomain ? await promptAdditionalDomains(inferredDomain) : [];
+    const roleCompany = await promptRoleAndCompany();
+    const answers: { name: string; email: string; role: string; company: string } = {
+      ...nameEmail,
+      ...roleCompany,
+    };
     const leader = await promptLeaderDetails();
     const teamCount = await promptTeamCount();
     const teamNames: string[] = [];
@@ -143,7 +152,7 @@ export class InitCommand {
 
     const orgConfigSpinner = startSpinner('Writing org config', this.plain);
     try {
-      await initService.writeOrgConfig(workspacePath, answers.email);
+      await initService.writeOrgConfig(workspacePath, answers.email, additionalDomains);
     } catch (err) {
       printError(`Failed to write org config: ${err instanceof Error ? err.message : String(err)}`);
       orgConfigSpinner.fail('Org config write failed');

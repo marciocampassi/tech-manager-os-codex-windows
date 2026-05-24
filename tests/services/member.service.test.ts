@@ -1,4 +1,5 @@
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
+import path from 'node:path';
 import { MemberService } from '../../src/services/member.service.js';
 import { InvalidEmailError } from '../../src/errors/tmr-error.js';
 import type { FileSystemService } from '../../src/services/file-system.service.js';
@@ -441,6 +442,52 @@ describe('MemberService', () => {
       mockFS.readFile.mockResolvedValue('internal_domains:\n  - INTERNAL.COM\n  - Corp.IO\n');
       const result = await svc.getInternalDomains(WS);
       expect(result).toEqual(['internal.com', 'corp.io']);
+    });
+  });
+
+  // ── appendInternalDomain ─────────────────────────────────────────────────────
+
+  describe('appendInternalDomain', () => {
+    it('creates organization.yaml with the domain when file does not exist', async () => {
+      mockFS.exists.mockResolvedValue(false);
+      await svc.appendInternalDomain('newdomain.com', WS);
+      expect(mockFS.writeFile).toHaveBeenCalledWith(
+        expect.stringContaining(path.join('config', 'organization.yaml')),
+        expect.stringContaining('  - newdomain.com'),
+      );
+    });
+
+    it('appends domain to existing file that has internal_domains key', async () => {
+      mockFS.exists.mockResolvedValue(true);
+      mockFS.readFile.mockResolvedValue('internal_domains:\n  - company.com\n');
+      await svc.appendInternalDomain('partner.io', WS);
+      const written = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
+      expect(written).toContain('company.com');
+      expect(written).toContain('partner.io');
+    });
+
+    it('is idempotent — does not write when domain already present', async () => {
+      mockFS.exists.mockResolvedValue(true);
+      mockFS.readFile.mockResolvedValue('internal_domains:\n  - company.com\n');
+      await svc.appendInternalDomain('company.com', WS);
+      expect(mockFS.writeFile).not.toHaveBeenCalled();
+    });
+
+    it('normalizes domain to lowercase before comparing and writing', async () => {
+      mockFS.exists.mockResolvedValue(true);
+      mockFS.readFile.mockResolvedValue('internal_domains:\n  - company.com\n');
+      await svc.appendInternalDomain('NEW-PARTNER.IO', WS);
+      const written = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
+      expect(written).toContain('new-partner.io');
+    });
+
+    it('adds internal_domains key when file exists but key is absent', async () => {
+      mockFS.exists.mockResolvedValue(true);
+      mockFS.readFile.mockResolvedValue('other_key:\n  - value\n');
+      await svc.appendInternalDomain('newdomain.com', WS);
+      const written = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
+      expect(written).toContain('internal_domains:');
+      expect(written).toContain('  - newdomain.com');
     });
   });
 

@@ -2,7 +2,8 @@ import { Command } from 'commander';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { teamService, TeamService } from '../services/team.service.js';
-import { printError, printSuccess } from '../utils/display.js';
+import { memberService } from '../services/member.service.js';
+import { printError, printSuccess, printInfo } from '../utils/display.js';
 import { InvalidEmailError } from '../errors/tmr-error.js';
 
 // ── Formatting helpers ────────────────────────────────────────────────────────
@@ -130,6 +131,31 @@ async function runAdd(
     throw err;
   }
   printSuccess(`Member "${email}" added to team "${teamName}"`);
+
+  // "Remember domain" offer — fires when the domain is external (not in org config)
+  const domain = email.split('@')[1]?.toLowerCase() ?? '';
+  if (domain) {
+    let internalDomains: string[] = [];
+    try {
+      internalDomains = await memberService.getInternalDomains(ws);
+    } catch {
+      // org.yaml unreadable — skip
+    }
+    if (internalDomains.length > 0 && !internalDomains.includes(domain)) {
+      const { remember } = await inquirer.prompt<{ remember: boolean }>([
+        {
+          type: 'confirm',
+          name: 'remember',
+          message: `Remember "${domain}" as an internal domain for future members?`,
+          default: false,
+        },
+      ]);
+      if (remember) {
+        await memberService.appendInternalDomain(domain, ws);
+        printInfo(`Domain "${domain}" added to config/organization.yaml`);
+      }
+    }
+  }
 }
 
 async function runList(svc: TeamService, teamNameArg: string | undefined): Promise<void> {

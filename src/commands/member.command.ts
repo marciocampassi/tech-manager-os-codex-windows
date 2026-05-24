@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { memberService, MemberService } from '../services/member.service.js';
-import { printError, printSuccess } from '../utils/display.js';
+import { printError, printSuccess, printInfo } from '../utils/display.js';
 import { InvalidEmailError } from '../errors/tmr-error.js';
 import { validateEmail } from '../utils/validation.js';
 import type { FileType } from '../types/member.types.js';
@@ -51,6 +51,7 @@ export async function runMemberAdd(
     // ── Domain check (FR41) ───────────────────────────────────────────────────
     let isContractor = opts.contractor ?? false;
     let companyName: string | undefined;
+    let externalDomainForRemember = '';
 
     if (!isContractor) {
       const domain = email.split('@')[1] ?? '';
@@ -74,6 +75,7 @@ export async function runMemberAdd(
           },
         ]);
         isContractor = routing === 'contractor';
+        if (!isContractor) externalDomainForRemember = domain;
       }
     }
 
@@ -111,6 +113,20 @@ export async function runMemberAdd(
 
     if (result.created) {
       printSuccess(`Member profile created for "${email}"`);
+      if (externalDomainForRemember) {
+        const { remember } = await inquirer.prompt<{ remember: boolean }>([
+          {
+            type: 'confirm',
+            name: 'remember',
+            message: `Remember "${externalDomainForRemember}" as an internal domain for future members?`,
+            default: false,
+          },
+        ]);
+        if (remember) {
+          await svc.appendInternalDomain(externalDomainForRemember, ws);
+          printInfo(`Domain "${externalDomainForRemember}" added to config/organization.yaml`);
+        }
+      }
     } else {
       process.stdout.write(`${chalk.dim('ℹ')} Member profile for "${email}" already exists\n`);
     }

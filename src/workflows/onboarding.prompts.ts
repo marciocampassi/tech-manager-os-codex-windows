@@ -2,7 +2,7 @@ import inquirer from 'inquirer';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { LeadershipContext, ManagerProfile, TeamMember } from '../types/onboarding.types.js';
-import { validateEmail } from '../utils/validation.js';
+import { validateEmail, isValidDomain } from '../utils/validation.js';
 import { InvalidEmailError } from '../errors/tmr-error.js';
 
 export interface MinimalOnboardingAnswers {
@@ -223,6 +223,120 @@ export async function promptTeamMembers(): Promise<TeamMember[]> {
   }
 
   return members;
+}
+
+/**
+ * Shown immediately after the user's email is collected during `tmr init`.
+ * Displays the inferred domain and asks for any additional internal email domains.
+ * Entries are comma-separated; each is validated with `isValidDomain()`.
+ * Invalid entries cause a re-prompt with a clear error message.
+ * Returns a (possibly empty) array of validated additional domains (not including the inferred one).
+ */
+export async function promptAdditionalDomains(inferredDomain: string): Promise<string[]> {
+  process.stdout.write(`\nYour company email domain is: ${inferredDomain}\n`);
+
+  while (true) {
+    const { raw } = await inquirer.prompt<{ raw: string }>([
+      {
+        type: 'input',
+        name: 'raw',
+        message:
+          'Does your company use other internal email domains?\nEnter them as a comma-separated list, or press Enter to skip:',
+        default: '',
+      },
+    ]);
+
+    const trimmed = raw.trim();
+    if (!trimmed) return [];
+
+    const entries = trimmed
+      .split(',')
+      .map((e) => e.trim())
+      .filter((e) => e.length > 0);
+
+    if (entries.length === 0) {
+      process.stdout.write('No valid domains found. Press Enter to skip or re-enter:\n');
+      continue;
+    }
+
+    const invalid = entries.filter((e) => !isValidDomain(e));
+
+    if (invalid.length > 0) {
+      for (const inv of invalid) {
+        process.stdout.write(
+          `✖ Invalid domain: "${inv}" — domains must contain a dot and no spaces.\n`,
+        );
+      }
+      process.stdout.write('Please re-enter:\n');
+      continue;
+    }
+
+    return entries;
+  }
+}
+
+export interface NameAndEmailAnswers {
+  name: string;
+  email: string;
+}
+
+export interface RoleAndCompanyAnswers {
+  role: string;
+  company: string;
+}
+
+/**
+ * Prompts for the user's name and work email only.
+ * Split from `promptMinimalOnboarding` so `promptAdditionalDomains` can fire
+ * immediately after the email field, as specified in Story 9.4.
+ */
+export async function promptNameAndEmail(): Promise<NameAndEmailAnswers> {
+  return inquirer.prompt<NameAndEmailAnswers>([
+    {
+      type: 'input',
+      name: 'name',
+      message: 'Your full name:',
+      validate: (v: string): ValidateResult =>
+        v.trim().length > 0 ? true : 'Name cannot be empty',
+    },
+    {
+      type: 'input',
+      name: 'email',
+      message: 'Your work email:',
+      validate: (v: string): ValidateResult => {
+        try {
+          validateEmail(v.trim());
+          return true;
+        } catch (e) {
+          return e instanceof InvalidEmailError ? e.message : 'Invalid email address';
+        }
+      },
+    },
+  ]);
+}
+
+/**
+ * Prompts for the user's role and company.
+ * Called after `promptNameAndEmail` and `promptAdditionalDomains` so that
+ * the domain prompt fires immediately after email collection.
+ */
+export async function promptRoleAndCompany(): Promise<RoleAndCompanyAnswers> {
+  return inquirer.prompt<RoleAndCompanyAnswers>([
+    {
+      type: 'input',
+      name: 'role',
+      message: 'Your current role / title:',
+      validate: (v: string): ValidateResult =>
+        v.trim().length > 0 ? true : 'Role cannot be empty',
+    },
+    {
+      type: 'input',
+      name: 'company',
+      message: 'Your company / domain (e.g. acme.com):',
+      validate: (v: string): ValidateResult =>
+        v.trim().length > 0 ? true : 'Company cannot be empty',
+    },
+  ]);
 }
 
 export async function promptMinimalOnboarding(): Promise<MinimalOnboardingAnswers> {

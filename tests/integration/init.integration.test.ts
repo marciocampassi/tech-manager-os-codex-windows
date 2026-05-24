@@ -370,8 +370,8 @@ describe('InitCommand integration (Story 2.3 — member collection loop)', () =>
   });
 
   describe('prompt call count', () => {
-    it('uses exactly 10 prompt calls — workspace + onboarding + leader + count + 2 names + member loop', () => {
-      expect(mockPrompt).toHaveBeenCalledTimes(10);
+    it('uses exactly 12 prompt calls — workspace + nameEmail + additionalDomains + roleCompany + leader + count + 2 names + member loop', () => {
+      expect(mockPrompt).toHaveBeenCalledTimes(12);
     });
   });
 
@@ -584,25 +584,24 @@ describe('InitCommand integration — multi-member team (INIT-INT-007)', () => {
     mockPrompt
       // 1. workspace
       .mockResolvedValueOnce({ workspacePath: WORKSPACE })
-      // 2. onboarding
-      .mockResolvedValueOnce({
-        name: FIXTURE_DATA.USER_NAME,
-        email: FIXTURE_DATA.USER_EMAIL,
-        role: FIXTURE_DATA.USER_ROLE,
-        company: FIXTURE_DATA.USER_COMPANY,
-      })
-      // 3. leader
+      // 2. promptNameAndEmail
+      .mockResolvedValueOnce({ name: FIXTURE_DATA.USER_NAME, email: FIXTURE_DATA.USER_EMAIL })
+      // 3. promptAdditionalDomains — skip
+      .mockResolvedValueOnce({ raw: '' })
+      // 4. promptRoleAndCompany
+      .mockResolvedValueOnce({ role: FIXTURE_DATA.USER_ROLE, company: FIXTURE_DATA.USER_COMPANY })
+      // 5. leader
       .mockResolvedValueOnce({
         name: FIXTURE_DATA.LEADER_NAME,
         email: FIXTURE_DATA.LEADER_EMAIL,
         role: FIXTURE_DATA.LEADER_ROLE,
       })
-      // 4. team count = 2
+      // 6. team count = 2
       .mockResolvedValueOnce({ teamCount: '2' })
-      // 5–6. team names
+      // 7–8. team names
       .mockResolvedValueOnce({ teamName: FIXTURE_DATA.TEAM_1 })
       .mockResolvedValueOnce({ teamName: FIXTURE_DATA.TEAM_2 })
-      // 7–8. Team 1 member 1
+      // 9–10. Team 1 member 1
       .mockResolvedValueOnce({ memberEmail: MEMBER_1_EMAIL })
       .mockResolvedValueOnce({
         name: MEMBER_1_NAME,
@@ -610,12 +609,12 @@ describe('InitCommand integration — multi-member team (INIT-INT-007)', () => {
         gender: MEMBER_1_GENDER,
         location: MEMBER_1_LOCATION,
       })
-      // 9–10. Team 1 member 2 (added after member 1 — validates state is preserved)
+      // 11–12. Team 1 member 2 (added after member 1 — validates state is preserved)
       .mockResolvedValueOnce({ memberEmail: 'second-member@example.com' })
       .mockResolvedValueOnce({ name: 'Second Member', role: 'Designer', gender: '', location: '' })
-      // 11. Team 1 end loop
+      // 13. Team 1 end loop
       .mockResolvedValueOnce({ memberEmail: '' })
-      // 12. Team 2 end loop
+      // 14. Team 2 end loop
       .mockResolvedValueOnce({ memberEmail: '' });
 
     mockWriteFile.mockReset().mockImplementation(async (filePath: string, content: string) => {

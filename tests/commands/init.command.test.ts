@@ -114,37 +114,36 @@ const { InitCommand } = await import('../../src/commands/init.command.js');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/** Standard happy-path prompt sequence (Story 2.3): 10 calls total. */
+/** Standard happy-path prompt sequence (Story 9.4 split): 12 calls total. */
 function setupMinimalHappyPath(): void {
   mockPrompt
     // 1. promptWorkspacePath
     .mockResolvedValueOnce({ workspacePath: '/tmp/test-workspace' })
-    // 2. promptMinimalOnboarding
-    .mockResolvedValueOnce({
-      name: 'Alice Example',
-      email: 'alice@example.com',
-      role: 'Engineering Manager',
-      company: 'example.com',
-    })
-    // 3. promptLeaderDetails
+    // 2. promptNameAndEmail
+    .mockResolvedValueOnce({ name: 'Alice Example', email: 'alice@example.com' })
+    // 3. promptAdditionalDomains — skip (press Enter)
+    .mockResolvedValueOnce({ raw: '' })
+    // 4. promptRoleAndCompany
+    .mockResolvedValueOnce({ role: 'Engineering Manager', company: 'example.com' })
+    // 5. promptLeaderDetails
     .mockResolvedValueOnce({
       name: 'Bob Director',
       email: 'bob@example.com',
       role: 'Engineering Director',
     })
-    // 4. promptTeamCount
+    // 6. promptTeamCount
     .mockResolvedValueOnce({ teamCount: '2' })
-    // 5. promptTeamName(1)
+    // 7. promptTeamName(1)
     .mockResolvedValueOnce({ teamName: 'Backend Team' })
-    // 6. promptTeamName(2)
+    // 8. promptTeamName(2)
     .mockResolvedValueOnce({ teamName: 'Frontend Team' })
-    // 7. promptMemberEmail(Backend Team) — one member
+    // 9. promptMemberEmail(Backend Team) — one member
     .mockResolvedValueOnce({ memberEmail: 'member@example.com' })
-    // 8. promptMemberDetails()
+    // 10. promptMemberDetails()
     .mockResolvedValueOnce({ name: 'Test Member', role: 'Engineer', gender: '', location: '' })
-    // 9. promptMemberEmail(Backend Team) — end loop
+    // 11. promptMemberEmail(Backend Team) — end loop
     .mockResolvedValueOnce({ memberEmail: '' })
-    // 10. promptMemberEmail(Frontend Team) — end loop
+    // 12. promptMemberEmail(Frontend Team) — end loop
     .mockResolvedValueOnce({ memberEmail: '' });
 }
 
@@ -282,9 +281,9 @@ describe('InitCommand', () => {
     it('does not collect API keys — no AIProviderFactory calls', async () => {
       setupMinimalHappyPath();
       await new InitCommand().run();
-      // 10 prompt calls: workspace + onboarding + leader + teamCount + 2 names + 4 member prompts.
-      // No extra API key prompts are made.
-      expect(mockPrompt).toHaveBeenCalledTimes(10);
+      // 12 prompt calls: workspace + nameEmail + additionalDomains + roleCompany + leader
+      //                  + teamCount + 2 names + 4 member prompts. No API key prompts.
+      expect(mockPrompt).toHaveBeenCalledTimes(12);
     });
   });
 
@@ -436,22 +435,25 @@ describe('InitCommand', () => {
     function setupScaffoldFailure(): void {
       mockCreateDirectory.mockRejectedValueOnce(new Error('disk full'));
       mockPrompt
+        // 1. promptWorkspacePath
         .mockResolvedValueOnce({ workspacePath: '/tmp/test-workspace' })
-        .mockResolvedValueOnce({
-          name: 'Alice Example',
-          email: 'alice@example.com',
-          role: 'Engineering Manager',
-          company: 'example.com',
-        })
+        // 2. promptNameAndEmail
+        .mockResolvedValueOnce({ name: 'Alice Example', email: 'alice@example.com' })
+        // 3. promptAdditionalDomains — skip
+        .mockResolvedValueOnce({ raw: '' })
+        // 4. promptRoleAndCompany
+        .mockResolvedValueOnce({ role: 'Engineering Manager', company: 'example.com' })
+        // 5. promptLeaderDetails
         .mockResolvedValueOnce({
           name: 'Bob Director',
           email: 'bob@example.com',
           role: 'Engineering Director',
         })
+        // 6–8. teamCount + 2 team names
         .mockResolvedValueOnce({ teamCount: '2' })
         .mockResolvedValueOnce({ teamName: 'Backend Team' })
         .mockResolvedValueOnce({ teamName: 'Frontend Team' })
-        // member collection for both teams (empty → no members)
+        // 9–10. member collection for both teams (empty → no members)
         .mockResolvedValueOnce({ memberEmail: '' })
         .mockResolvedValueOnce({ memberEmail: '' });
     }

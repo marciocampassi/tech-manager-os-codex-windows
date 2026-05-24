@@ -62,9 +62,19 @@ export class ObsidianPluginService {
     );
 
     const appJsonPath = join(obsidianDir, 'app.json');
-    if (!(await fileSystemService.exists(appJsonPath))) {
-      await fileSystemService.writeFile(appJsonPath, '{}');
+    let appConfig: Record<string, unknown> = {};
+    if (await fileSystemService.exists(appJsonPath)) {
+      try {
+        const parsed: unknown = JSON.parse(await fileSystemService.readFile(appJsonPath));
+        if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          appConfig = parsed as Record<string, unknown>;
+        }
+      } catch {
+        // malformed app.json — start fresh
+      }
     }
+    appConfig['showUnsupportedFiles'] = true;
+    await fileSystemService.writeFile(appJsonPath, JSON.stringify(appConfig, null, 2));
 
     try {
       await this.writeGranolaConfig(obsidianDir);

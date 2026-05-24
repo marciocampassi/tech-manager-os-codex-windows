@@ -5,9 +5,10 @@ import { join } from 'node:path';
 
 const mockWriteFile = jest.fn<(path: string, content: string) => Promise<void>>();
 const mockExists = jest.fn<(path: string) => Promise<boolean>>();
+const mockReadFile = jest.fn<(path: string) => Promise<string>>();
 
 jest.unstable_mockModule('../../src/services/file-system.service.js', () => ({
-  fileSystemService: { writeFile: mockWriteFile, exists: mockExists },
+  fileSystemService: { writeFile: mockWriteFile, exists: mockExists, readFile: mockReadFile },
 }));
 
 jest.unstable_mockModule('../../src/utils/logger.js', () => ({
@@ -55,6 +56,7 @@ describe('ObsidianPluginService', () => {
     jest.clearAllMocks();
     mockWriteFile.mockResolvedValue(undefined);
     mockExists.mockResolvedValue(false);
+    mockReadFile.mockResolvedValue('{}');
     originalFetch = globalThis.fetch;
     service = new ObsidianPluginService();
   });
@@ -145,7 +147,7 @@ describe('ObsidianPluginService', () => {
       ]);
     });
 
-    it('writes app.json with {} when it does not exist', async () => {
+    it('writes app.json with showUnsupportedFiles:true when file does not exist', async () => {
       globalThis.fetch = mockFetchOk();
       mockExists.mockResolvedValue(false);
 
@@ -156,18 +158,23 @@ describe('ObsidianPluginService', () => {
         | [string, string]
         | undefined;
       expect(appJsonCall).toBeDefined();
-      expect(appJsonCall![1]).toBe('{}');
+      expect(JSON.parse(appJsonCall![1])).toEqual({ showUnsupportedFiles: true });
     });
 
-    it('does not write app.json when it already exists', async () => {
+    it('merges showUnsupportedFiles into existing app.json without losing other keys', async () => {
       globalThis.fetch = mockFetchOk();
       mockExists.mockResolvedValue(true);
+      mockReadFile.mockResolvedValue('{"existingKey":"existingValue"}');
 
       await service.installPlugins(WORKSPACE);
 
       const appJsonPath = join(WORKSPACE, '.obsidian', 'app.json');
-      const appJsonCall = mockWriteFile.mock.calls.find(([p]) => p === appJsonPath);
-      expect(appJsonCall).toBeUndefined();
+      const appJsonCall = mockWriteFile.mock.calls.find(([p]) => p === appJsonPath) as
+        | [string, string]
+        | undefined;
+      expect(appJsonCall).toBeDefined();
+      const parsed = JSON.parse(appJsonCall![1]);
+      expect(parsed).toMatchObject({ existingKey: 'existingValue', showUnsupportedFiles: true });
     });
 
     it('completes without throwing when all downloads fail (network unavailable)', async () => {

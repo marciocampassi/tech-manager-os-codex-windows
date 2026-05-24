@@ -541,6 +541,26 @@ describe('InitService', () => {
       expect(call?.[1]).toContain('corp.internal.io');
     });
 
+    it('writes inferred domain plus all additional domains when supplied', async () => {
+      await svc.writeOrgConfig(WS, 'alice@example.com', ['example-eu.com', 'subsidiary.io']);
+      const call = (mockFS.writeFile.mock.calls as [string, string][]).find(([p]) =>
+        p.endsWith('organization.yaml'),
+      );
+      expect(call?.[1]).toContain('example.com');
+      expect(call?.[1]).toContain('example-eu.com');
+      expect(call?.[1]).toContain('subsidiary.io');
+    });
+
+    it('deduplicates additional domains matching the inferred domain', async () => {
+      await svc.writeOrgConfig(WS, 'alice@example.com', ['example.com', 'partner.io']);
+      const call = (mockFS.writeFile.mock.calls as [string, string][]).find(([p]) =>
+        p.endsWith('organization.yaml'),
+      );
+      const content = call?.[1] ?? '';
+      const domainLines = content.split('\n').filter((l) => l.trim().startsWith('- '));
+      expect(domainLines).toHaveLength(2); // example.com once + partner.io
+    });
+
     it('re-throws when writeFile rejects', async () => {
       mockFS.writeFile.mockRejectedValueOnce(new Error('no space left'));
       await expect(svc.writeOrgConfig(WS, 'alice@example.com')).rejects.toThrow('no space left');

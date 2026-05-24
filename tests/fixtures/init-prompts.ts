@@ -5,17 +5,19 @@
  * correct sequence of resolved values for a given scenario so callers do not
  * have to manually chain `mockResolvedValueOnce` calls.
  *
- * Prompt call order for the full happy-path (Story 2.3: 10 calls total):
+ * Prompt call order for the full happy-path (Story 9.4 split: 12 calls total):
  *   1.  promptWorkspacePath            → { workspacePath }
- *   2.  promptMinimalOnboarding        → { name, email, role, company }
- *   3.  promptLeaderDetails            → { name, email, role }
- *   4.  promptTeamCount                → { teamCount: '2' }
- *   5.  promptTeamName(1)              → { teamName: TEAM_1 }
- *   6.  promptTeamName(2)              → { teamName: TEAM_2 }
- *   7.  promptMemberEmail(TEAM_1)      → { memberEmail: MEMBER_1_EMAIL }
- *   8.  promptMemberDetails()          → { name, role, gender, location }
- *   9.  promptMemberEmail(TEAM_1)      → { memberEmail: '' }  (end loop)
- *   10. promptMemberEmail(TEAM_2)      → { memberEmail: '' }  (end loop)
+ *   2.  promptNameAndEmail             → { name, email }
+ *   3.  promptAdditionalDomains        → { raw: '' }  (skip — no extra domains)
+ *   4.  promptRoleAndCompany           → { role, company }
+ *   5.  promptLeaderDetails            → { name, email, role }
+ *   6.  promptTeamCount                → { teamCount: '2' }
+ *   7.  promptTeamName(1)              → { teamName: TEAM_1 }
+ *   8.  promptTeamName(2)              → { teamName: TEAM_2 }
+ *   9.  promptMemberEmail(TEAM_1)      → { memberEmail: MEMBER_1_EMAIL }
+ *   10. promptMemberDetails()          → { name, role, gender, location }
+ *   11. promptMemberEmail(TEAM_1)      → { memberEmail: '' }  (end loop)
+ *   12. promptMemberEmail(TEAM_2)      → { memberEmail: '' }  (end loop)
  */
 
 // ── Shared fixture constants ───────────────────────────────────────────────────
@@ -53,7 +55,7 @@ type PromptMockFn = jest.MockedFunction<() => Promise<Record<string, unknown>>>;
 /**
  * Applies pre-wired mock sequences to the provided `inquirer.prompt` mock.
  *
- * - `'happy-path'`: full 10-call sequence covering the entire `tmr init` flow
+ * - `'happy-path'`: full 12-call sequence covering the entire `tmr init` flow
  *   (incl. member collection for 2 teams: 1 member on Team 1, 0 on Team 2).
  *   Safe to use in integration and command-level tests.
  *
@@ -97,33 +99,32 @@ export function applyInitPromptFixture(scenario: InitPromptScenario, mockFn: Pro
       mockFn
         // 1. promptWorkspacePath
         .mockResolvedValueOnce({ workspacePath: WORKSPACE })
-        // 2. promptMinimalOnboarding
-        .mockResolvedValueOnce({
-          name: USER_NAME,
-          email: USER_EMAIL,
-          role: USER_ROLE,
-          company: USER_COMPANY,
-        })
-        // 3. promptLeaderDetails
+        // 2. promptNameAndEmail
+        .mockResolvedValueOnce({ name: USER_NAME, email: USER_EMAIL })
+        // 3. promptAdditionalDomains — press Enter to skip (no extra domains)
+        .mockResolvedValueOnce({ raw: '' })
+        // 4. promptRoleAndCompany
+        .mockResolvedValueOnce({ role: USER_ROLE, company: USER_COMPANY })
+        // 5. promptLeaderDetails
         .mockResolvedValueOnce({ name: LEADER_NAME, email: LEADER_EMAIL, role: LEADER_ROLE })
-        // 4. promptTeamCount (returns string; parseInt() happens inside promptTeamCount)
+        // 6. promptTeamCount (returns string; parseInt() happens inside promptTeamCount)
         .mockResolvedValueOnce({ teamCount: '2' })
-        // 5. promptTeamName(1)
+        // 7. promptTeamName(1)
         .mockResolvedValueOnce({ teamName: TEAM_1 })
-        // 6. promptTeamName(2)
+        // 8. promptTeamName(2)
         .mockResolvedValueOnce({ teamName: TEAM_2 })
-        // 7. promptMemberEmail(TEAM_1) — first member
+        // 9. promptMemberEmail(TEAM_1) — first member
         .mockResolvedValueOnce({ memberEmail: MEMBER_1_EMAIL })
-        // 8. promptMemberDetails() — details for MEMBER_1
+        // 10. promptMemberDetails() — details for MEMBER_1
         .mockResolvedValueOnce({
           name: MEMBER_1_NAME,
           role: MEMBER_1_ROLE,
           gender: MEMBER_1_GENDER,
           location: MEMBER_1_LOCATION,
         })
-        // 9. promptMemberEmail(TEAM_1) — empty → end loop for Team 1
+        // 11. promptMemberEmail(TEAM_1) — empty → end loop for Team 1
         .mockResolvedValueOnce({ memberEmail: '' })
-        // 10. promptMemberEmail(TEAM_2) — empty → end loop for Team 2
+        // 12. promptMemberEmail(TEAM_2) — empty → end loop for Team 2
         .mockResolvedValueOnce({ memberEmail: '' });
       break;
 

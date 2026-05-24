@@ -167,6 +167,33 @@ export class MemberService {
   }
 
   /**
+   * Appends `domain` to the `internal_domains` list in `config/organization.yaml`.
+   * Idempotent — if the domain is already present (case-insensitive), does nothing.
+   * Creates the file with the key if it does not exist yet.
+   * Uses the same line-by-line format as `getInternalDomains()` — no external YAML lib.
+   */
+  async appendInternalDomain(domain: string, workspaceRoot: string): Promise<void> {
+    const normalizedDomain = domain.toLowerCase();
+    const existing = await this.getInternalDomains(workspaceRoot);
+    if (existing.includes(normalizedDomain)) return;
+
+    const orgPath = path.join(workspaceRoot, 'config', 'organization.yaml');
+    const line = `  - ${normalizedDomain}\n`;
+
+    if (!(await this._fs.exists(orgPath))) {
+      await this._fs.writeFile(orgPath, `internal_domains:\n${line}`);
+      return;
+    }
+
+    const content = await this._fs.readFile(orgPath);
+    if (content.includes('internal_domains:')) {
+      await this._fs.writeFile(orgPath, content.trimEnd() + '\n' + line);
+    } else {
+      await this._fs.writeFile(orgPath, content.trimEnd() + '\ninternal_domains:\n' + line);
+    }
+  }
+
+  /**
    * Creates a dated member file (1on1, feedback, assessment, performance-review),
    * then appends its wiki-link to the corresponding section in the member profile.
    *
