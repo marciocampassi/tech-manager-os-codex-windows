@@ -241,3 +241,17 @@ The following items were surfaced by the pre-launch AC audit (Epics 1–5) and a
 - W3 (Low) — Auto-create shim uses raw inline string instead of `gray-matter` — pre-existing technical debt already tracked by TODO(Story 3.2). [`src/services/email-resolution.service.ts`]
 - W4 (Low) — Quoting inconsistency: shim writes `relationship: "company-member"` (YAML-quoted) while `matter.stringify` profiles write unquoted values — harmless (both are valid YAML), depends on W3 shim refactor. [`src/services/email-resolution.service.ts:126`]
 - W5 (Low) — No typed frontmatter interface for member `relationship` field — `MemberService` builds frontmatter as `Record<string, unknown>` with no compile-time enforcement; a mis-spelled value reaches the vault silently. [`src/services/member.service.ts:111`]
+
+## Deferred from: code review of 9-8-email-similarity-warning (2026-05-25)
+
+- D1 (Medium) — SCAN_DIRS skips legacy `.md` files at dir root: entries like `user@co.com.md` get domain `co.com.md` after split, never matching the input domain. Affects pre-9.1 vaults that haven't fully migrated. [`src/utils/email-similarity.ts:findSimilarEmail`]
+- D2 (Low) — Archived members never scanned: `my-teams/archived/<year>/<email>/` is not in SCAN_DIRS, so typo warnings won't fire against archived profiles. Spec defines scan paths explicitly; extending requires intentional scope decision.
+- D3 (Low) — Workspace root fallback may point to wrong dir: if no `.tmr` sentinel exists, `getWorkspaceRoot()` falls back to `process.cwd()`; similarity scan hits wrong tree silently. Pre-existing issue with workspace detection.
+- D4 (Low) — Levenshtein missing length-delta early-exit: when `|a.length - b.length| > 2`, the result is guaranteed > 2; short-circuiting here would skip the full DP computation. Performance nit only — no correctness impact.
+- D5 (Low) — No test coverage for SCAN_DIRS `.md` suffix gap (follows D1).
+- D6 (Low) — `team add` email prompt validates length only (not format): `inquirer` validate checks `v.trim().length > 0`, not a full email regex. `findSimilarEmail` correctly returns null for non-emails; `addMember` throws `InvalidEmailError` after secondary prompts. Pre-existing.
+- D7 (Low) — `leadership add` CLI arg not validated before similarity guard: passing `notanemail` as CLI arg skips the prompt regex; the guard runs with a malformed email, returns null, and `addLeadership` may fail. Pre-existing validation gap.
+- D8 (Low) — Bulk link partial writes on mid-batch error: if `linkMember`/`linkStakeholder` throws after some emails are processed, earlier writes are not rolled back. Pre-existing service-layer atomicity issue.
+- D9 (Low) — Bulk link duplicate emails not deduped before similarity loop: `a@x.com,a@x.com` passes through the filter twice. Service-level dedup concern.
+- D10 (Low) — Bulk link per-email skip is silent: when user aborts for some emails in a batch, no per-email message is printed. Only "All emails were skipped" fires when none remain. Story has no spec for partial-skip feedback.
+- D12 (Low) — Non-interactive stdin may crash `inquirer.prompt` in `warnIfSimilarEmail`: CI/piped contexts can cause unhandled rejection. Pre-existing pattern across entire codebase.

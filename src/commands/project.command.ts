@@ -2,8 +2,27 @@ import { Command } from 'commander';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { projectService, ProjectService } from '../services/project.service.js';
-import { printError } from '../utils/display.js';
+import { printError, printWarning } from '../utils/display.js';
+import { findSimilarEmail } from '../utils/email-similarity.js';
 import type { IProjectFileOptions } from '../types/project.types.js';
+
+// ── Shared guard ─────────────────────────────────────────────────────────────
+
+async function warnIfSimilarEmail(email: string, workspaceRoot: string): Promise<boolean> {
+  const similar = findSimilarEmail(email, workspaceRoot);
+  if (!similar) return true;
+
+  printWarning(`Similar email already exists: ${similar}`);
+  const { proceed } = await inquirer.prompt<{ proceed: boolean }>([
+    {
+      type: 'confirm',
+      name: 'proceed',
+      message: `Did you mean "${similar}"? (N = continue adding "${email}")`,
+      default: false,
+    },
+  ]);
+  return !proceed;
+}
 
 // ── Formatting helpers ────────────────────────────────────────────────────────
 
@@ -89,6 +108,10 @@ export async function runProjectLinkMember(
   }
 
   const ws = svc.getWorkspaceRoot();
+
+  const shouldContinue = await warnIfSimilarEmail(email, ws);
+  if (!shouldContinue) return;
+
   let result;
   try {
     result = await svc.linkMember(name, email, ws);
@@ -127,12 +150,24 @@ export async function runProjectLinkMembers(
     return;
   }
 
-  process.stdout.write(`Linking ${emails.length} member(s) to "${name}"…\n`);
   const ws = svc.getWorkspaceRoot();
+
+  const filteredEmails: string[] = [];
+  for (const email of emails) {
+    const shouldContinue = await warnIfSimilarEmail(email, ws);
+    if (shouldContinue) filteredEmails.push(email);
+  }
+
+  if (filteredEmails.length === 0) {
+    process.stdout.write(`${chalk.dim('ℹ')} All emails were skipped.\n`);
+    return;
+  }
+
+  process.stdout.write(`Linking ${filteredEmails.length} member(s) to "${name}"…\n`);
 
   let result;
   try {
-    result = await svc.linkMembers(name, emails, ws);
+    result = await svc.linkMembers(name, filteredEmails, ws);
   } catch (err) {
     printError(
       err instanceof Error ? err.message : String(err),
@@ -165,6 +200,10 @@ export async function runProjectLinkStakeholder(
   }
 
   const ws = svc.getWorkspaceRoot();
+
+  const shouldContinue = await warnIfSimilarEmail(email, ws);
+  if (!shouldContinue) return;
+
   let result;
   try {
     result = await svc.linkStakeholder(name, email, ws);
@@ -203,12 +242,24 @@ export async function runProjectLinkStakeholders(
     return;
   }
 
-  process.stdout.write(`Linking ${emails.length} stakeholder(s) to "${name}"…\n`);
   const ws = svc.getWorkspaceRoot();
+
+  const filteredEmails: string[] = [];
+  for (const email of emails) {
+    const shouldContinue = await warnIfSimilarEmail(email, ws);
+    if (shouldContinue) filteredEmails.push(email);
+  }
+
+  if (filteredEmails.length === 0) {
+    process.stdout.write(`${chalk.dim('ℹ')} All emails were skipped.\n`);
+    return;
+  }
+
+  process.stdout.write(`Linking ${filteredEmails.length} stakeholder(s) to "${name}"…\n`);
 
   let result;
   try {
-    result = await svc.linkStakeholders(name, emails, ws);
+    result = await svc.linkStakeholders(name, filteredEmails, ws);
   } catch (err) {
     printError(
       err instanceof Error ? err.message : String(err),

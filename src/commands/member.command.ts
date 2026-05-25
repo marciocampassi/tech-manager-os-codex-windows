@@ -2,10 +2,29 @@ import { Command } from 'commander';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { memberService, MemberService } from '../services/member.service.js';
-import { printError, printSuccess, printInfo } from '../utils/display.js';
+import { printError, printSuccess, printInfo, printWarning } from '../utils/display.js';
 import { InvalidEmailError } from '../errors/tmr-error.js';
+import { findSimilarEmail } from '../utils/email-similarity.js';
 import { validateEmail } from '../utils/validation.js';
 import type { FileType } from '../types/member.types.js';
+
+// ── Shared guard ─────────────────────────────────────────────────────────────
+
+async function warnIfSimilarEmail(email: string, workspaceRoot: string): Promise<boolean> {
+  const similar = findSimilarEmail(email, workspaceRoot);
+  if (!similar) return true;
+
+  printWarning(`Similar email already exists: ${similar}`);
+  const { proceed } = await inquirer.prompt<{ proceed: boolean }>([
+    {
+      type: 'confirm',
+      name: 'proceed',
+      message: `Did you mean "${similar}"? (N = continue adding "${email}")`,
+      default: false,
+    },
+  ]);
+  return !proceed;
+}
 
 // ── Type guard ────────────────────────────────────────────────────────────────
 
@@ -36,6 +55,11 @@ export async function runMemberAdd(
   if (isEmail(typeArg)) {
     const email = typeArg.trim().toLowerCase();
 
+    const ws = svc.getWorkspaceRoot();
+
+    const shouldContinue = await warnIfSimilarEmail(email, ws);
+    if (!shouldContinue) return;
+
     const { name, gender, role, location } = await inquirer.prompt<{
       name: string;
       gender: string;
@@ -53,8 +77,6 @@ export async function runMemberAdd(
         },
       ].filter(Boolean) as Parameters<typeof inquirer.prompt>[0],
     );
-
-    const ws = svc.getWorkspaceRoot();
 
     // ── Domain check (FR41) ───────────────────────────────────────────────────
     let isContractor = opts.contractor ?? false;
@@ -168,6 +190,9 @@ export async function runMemberAdd(
   }
 
   const ws = svc.getWorkspaceRoot();
+
+  const shouldContinueTypePath = await warnIfSimilarEmail(email, ws);
+  if (!shouldContinueTypePath) return;
 
   let result;
   try {
