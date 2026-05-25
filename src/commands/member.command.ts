@@ -36,15 +36,23 @@ export async function runMemberAdd(
   if (isEmail(typeArg)) {
     const email = typeArg.trim().toLowerCase();
 
-    const { name, gender, role } = await inquirer.prompt<{
+    const { name, gender, role, location } = await inquirer.prompt<{
       name: string;
       gender: string;
       role: string;
-    }>([
-      { type: 'input', name: 'name', message: 'Name (optional):' },
-      { type: 'input', name: 'gender', message: 'Gender (optional):' },
-      { type: 'input', name: 'role', message: 'Role (optional):' },
-    ]);
+      location?: string;
+    }>(
+      [
+        { type: 'input', name: 'name', message: 'Name (optional):' },
+        { type: 'input', name: 'gender', message: 'Gender (optional):' },
+        { type: 'input', name: 'role', message: 'Role (optional):' },
+        !opts.location?.trim() && {
+          type: 'input',
+          name: 'location',
+          message: 'Location (optional):',
+        },
+      ].filter(Boolean) as Parameters<typeof inquirer.prompt>[0],
+    );
 
     const ws = svc.getWorkspaceRoot();
 
@@ -85,7 +93,7 @@ export async function runMemberAdd(
         email,
         {
           team: opts.team,
-          location: opts.location,
+          location: opts.location?.trim() || location?.trim() || undefined,
           contractor: isContractor,
           name: name.trim() || undefined,
           gender: gender.trim() || undefined,

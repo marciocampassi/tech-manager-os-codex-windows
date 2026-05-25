@@ -156,7 +156,7 @@ describe('member command', () => {
 
   describe('email-first routing (member creation mode)', () => {
     it('calls addMember when first arg is a valid email', async () => {
-      mockPrompt.mockResolvedValue({ name: '', gender: '', role: '' });
+      mockPrompt.mockResolvedValue({ name: '', gender: '', role: '', location: '' });
 
       await runMemberAdd(mockMemberServiceInstance as never, 'newuser@co.com', undefined, {});
 
@@ -169,7 +169,7 @@ describe('member command', () => {
     });
 
     it('MEM-INT-001: no --team flag routes to company scope (addMember called without team)', async () => {
-      mockPrompt.mockResolvedValue({ name: '', gender: '', role: '' });
+      mockPrompt.mockResolvedValue({ name: '', gender: '', role: '', location: '' });
       const cmd = createMemberCommand();
       await cmd.parseAsync(['add', 'joao@company.com'], { from: 'user' });
 
@@ -181,7 +181,7 @@ describe('member command', () => {
     });
 
     it('MEM-INT-002: --team flag routes to team scope (addMember called with team)', async () => {
-      mockPrompt.mockResolvedValue({ name: '', gender: '', role: '' });
+      mockPrompt.mockResolvedValue({ name: '', gender: '', role: '', location: '' });
       const cmd = createMemberCommand();
       await cmd.parseAsync(['add', 'joao@company.com', '--team', 'backend'], { from: 'user' });
 
@@ -193,7 +193,7 @@ describe('member command', () => {
     });
 
     it('prints success when member is created', async () => {
-      mockPrompt.mockResolvedValue({ name: '', gender: '', role: '' });
+      mockPrompt.mockResolvedValue({ name: '', gender: '', role: '', location: '' });
       mockAddMember.mockResolvedValue({ created: true });
 
       await runMemberAdd(mockMemberServiceInstance as never, 'newuser@co.com', undefined, {});
@@ -203,7 +203,7 @@ describe('member command', () => {
     });
 
     it('prints already-exists message when member profile exists', async () => {
-      mockPrompt.mockResolvedValue({ name: '', gender: '', role: '' });
+      mockPrompt.mockResolvedValue({ name: '', gender: '', role: '', location: '' });
       mockAddMember.mockResolvedValue({ created: false });
 
       await runMemberAdd(mockMemberServiceInstance as never, 'existing@co.com', undefined, {});
@@ -218,7 +218,7 @@ describe('member command', () => {
   describe('domain-check and contractor routing', () => {
     it('FR41: does not prompt when internal_domains list is empty', async () => {
       mockGetInternalDomains.mockResolvedValue([]);
-      mockPrompt.mockResolvedValue({ name: '', gender: '', role: '' });
+      mockPrompt.mockResolvedValue({ name: '', gender: '', role: '', location: '' });
 
       await runMemberAdd(mockMemberServiceInstance as never, 'ext@partner.com', undefined, {});
 
@@ -232,7 +232,7 @@ describe('member command', () => {
 
     it('FR41: does not prompt when email domain matches internal list', async () => {
       mockGetInternalDomains.mockResolvedValue(['internal.com']);
-      mockPrompt.mockResolvedValue({ name: '', gender: '', role: '' });
+      mockPrompt.mockResolvedValue({ name: '', gender: '', role: '', location: '' });
 
       await runMemberAdd(mockMemberServiceInstance as never, 'user@internal.com', undefined, {});
 
@@ -245,9 +245,12 @@ describe('member command', () => {
 
     it('FR41: prompts routing when email domain is external and internal_domains is configured', async () => {
       mockGetInternalDomains.mockResolvedValue(['internal.com']);
-      // Prompt order in runMemberAdd: (1) name/gender/role, (2) routing (no company prompt)
+      // Prompt order in runMemberAdd: (1) name/gender/role/location, (2) routing (no company prompt)
       mockPrompt
-        .mockResolvedValueOnce({ name: '', gender: '', role: '' } as Record<string, string>)
+        .mockResolvedValueOnce({ name: '', gender: '', role: '', location: '' } as Record<
+          string,
+          string
+        >)
         .mockResolvedValueOnce({ routing: 'contractor' } as Record<string, string>);
 
       await runMemberAdd(mockMemberServiceInstance as never, 'ext@partner.com', undefined, {});
@@ -261,9 +264,12 @@ describe('member command', () => {
 
     it('FR41: routes to member (not contractor) when user picks member in prompt', async () => {
       mockGetInternalDomains.mockResolvedValue(['internal.com']);
-      // Prompt order: (1) name/gender/role, (2) routing → member (no company prompt)
+      // Prompt order: (1) name/gender/role/location, (2) routing → member (no company prompt)
       mockPrompt
-        .mockResolvedValueOnce({ name: '', gender: '', role: '' } as Record<string, string>)
+        .mockResolvedValueOnce({ name: '', gender: '', role: '', location: '' } as Record<
+          string,
+          string
+        >)
         .mockResolvedValueOnce({ routing: 'member' } as Record<string, string>);
 
       await runMemberAdd(mockMemberServiceInstance as never, 'ext@partner.com', undefined, {});
@@ -277,8 +283,8 @@ describe('member command', () => {
 
     it('FR41: --contractor flag bypasses routing prompt entirely', async () => {
       mockGetInternalDomains.mockResolvedValue(['internal.com']);
-      // Prompt order: (1) name/gender/role only (routing skipped, no company prompt)
-      mockPrompt.mockResolvedValueOnce({ name: '', gender: '', role: '' } as Record<
+      // Prompt order: (1) name/gender/role/location only (routing skipped, no company prompt)
+      mockPrompt.mockResolvedValueOnce({ name: '', gender: '', role: '', location: '' } as Record<
         string,
         string
       >);
@@ -298,7 +304,7 @@ describe('member command', () => {
 
     it('P2: gracefully skips domain check when getInternalDomains throws (I/O error)', async () => {
       mockGetInternalDomains.mockRejectedValueOnce(new Error('EACCES: permission denied'));
-      mockPrompt.mockResolvedValue({ name: '', gender: '', role: '' });
+      mockPrompt.mockResolvedValue({ name: '', gender: '', role: '', location: '' });
 
       await runMemberAdd(mockMemberServiceInstance as never, 'ext@partner.com', undefined, {});
 
@@ -312,9 +318,12 @@ describe('member command', () => {
 
     it('9.5: contractor routing — no company-name prompt fires (company field removed)', async () => {
       mockGetInternalDomains.mockResolvedValue(['internal.com']);
-      // Prompt order: (1) name/gender/role, (2) routing → contractor (no third prompt)
+      // Prompt order: (1) name/gender/role/location, (2) routing → contractor (no third prompt)
       mockPrompt
-        .mockResolvedValueOnce({ name: '', gender: '', role: '' } as Record<string, string>)
+        .mockResolvedValueOnce({ name: '', gender: '', role: '', location: '' } as Record<
+          string,
+          string
+        >)
         .mockResolvedValueOnce({ routing: 'contractor' } as Record<string, string>);
 
       await runMemberAdd(mockMemberServiceInstance as never, 'ext@partner.com', undefined, {});
@@ -323,6 +332,65 @@ describe('member command', () => {
       expect(mockAddMember).toHaveBeenCalledWith(
         'ext@partner.com',
         expect.not.objectContaining({ company: expect.anything() }),
+        '/fake/ws',
+      );
+    });
+  });
+
+  // ── Story 9.7 — location prompt ──────────────────────────────────────────────
+
+  describe('9.7: location prompt', () => {
+    it('9.7: prompts for location when --location flag is not provided', async () => {
+      mockPrompt.mockResolvedValueOnce({ name: '', gender: '', role: '', location: 'Berlin' });
+
+      await runMemberAdd(mockMemberServiceInstance as never, 'user@co.com', undefined, {});
+
+      expect(mockAddMember).toHaveBeenCalledWith(
+        'user@co.com',
+        expect.objectContaining({ location: 'Berlin' }),
+        '/fake/ws',
+      );
+    });
+
+    it('9.7: skips location prompt and uses --location flag value', async () => {
+      // --location flag provided; location question filtered out — prompt returns only name/gender/role
+      mockPrompt.mockResolvedValueOnce({ name: '', gender: '', role: '' });
+
+      await runMemberAdd(mockMemberServiceInstance as never, 'user@co.com', undefined, {
+        location: 'São Paulo',
+      });
+
+      expect(mockAddMember).toHaveBeenCalledWith(
+        'user@co.com',
+        expect.objectContaining({ location: 'São Paulo' }),
+        '/fake/ws',
+      );
+    });
+
+    it('9.7: location prompt fires for --team flag (no --location)', async () => {
+      mockPrompt.mockResolvedValueOnce({ name: '', gender: '', role: '', location: 'Remote' });
+
+      await runMemberAdd(mockMemberServiceInstance as never, 'user@co.com', undefined, {
+        team: 'backend',
+      });
+
+      expect(mockAddMember).toHaveBeenCalledWith(
+        'user@co.com',
+        expect.objectContaining({ location: 'Remote', team: 'backend' }),
+        '/fake/ws',
+      );
+    });
+
+    it('9.7: location prompt fires for --contractor flag (no --location)', async () => {
+      mockPrompt.mockResolvedValueOnce({ name: '', gender: '', role: '', location: 'NYC' });
+
+      await runMemberAdd(mockMemberServiceInstance as never, 'user@co.com', undefined, {
+        contractor: true,
+      });
+
+      expect(mockAddMember).toHaveBeenCalledWith(
+        'user@co.com',
+        expect.objectContaining({ location: 'NYC', contractor: true }),
         '/fake/ws',
       );
     });

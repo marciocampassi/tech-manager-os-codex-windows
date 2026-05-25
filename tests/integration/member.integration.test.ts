@@ -328,4 +328,94 @@ describe('Member Integration', () => {
       expect(profileContent).toContain('[[feedback/');
     });
   });
+
+  // ── Story 9.7 — addMember: location, routing, remember-domain ────────────────
+
+  describe('Story 9.7 — addMember routing and location', () => {
+    it('9.7-INT-001: company-scoped member: nested path, 4 subdirs, relationship and location in frontmatter', async () => {
+      await memberSvc.addMember('user@company.com', { location: 'Berlin' }, workspace);
+
+      const profilePath = path.join(
+        workspace,
+        'my-company',
+        'members',
+        'user@company.com',
+        'user@company.com.md',
+      );
+      expect(fs.existsSync(profilePath)).toBe(true);
+
+      const entityDir = path.dirname(profilePath);
+      for (const subDir of ['1on1s', 'feedbacks', 'assessments', 'performance-reviews']) {
+        expect(fs.existsSync(path.join(entityDir, subDir))).toBe(true);
+      }
+
+      const content = fs.readFileSync(profilePath, 'utf8');
+      expect(content).toContain('relationship: company-member');
+      expect(content).toContain('location: Berlin');
+    });
+
+    it('9.7-INT-002: contractor routing — profile in my-company/contractors/, relationship: contractor, no manager field', async () => {
+      await memberSvc.addMember(
+        'ext@partner.com',
+        { contractor: true, location: 'Berlin' },
+        workspace,
+      );
+
+      const profilePath = path.join(
+        workspace,
+        'my-company',
+        'contractors',
+        'ext@partner.com',
+        'ext@partner.com.md',
+      );
+      expect(fs.existsSync(profilePath)).toBe(true);
+
+      const content = fs.readFileSync(profilePath, 'utf8');
+      expect(content).toContain('relationship: contractor');
+      expect(content).not.toContain('manager:');
+      expect(content).toContain('location: Berlin');
+    });
+
+    it('9.7-INT-003: appendInternalDomain adds new domain to organization.yaml without removing existing ones', async () => {
+      const configDir = path.join(workspace, 'config');
+      fs.mkdirSync(configDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(configDir, 'organization.yaml'),
+        'internal_domains:\n  - company.com\n',
+      );
+
+      await memberSvc.appendInternalDomain('partner.com', workspace);
+
+      const orgContent = fs.readFileSync(path.join(configDir, 'organization.yaml'), 'utf8');
+      expect(orgContent).toContain('company.com');
+      expect(orgContent).toContain('partner.com');
+    });
+
+    it('9.7-INT-004: team-scoped member: my-teams path, 4 subdirs + shared, relationship: direct-report', async () => {
+      await memberSvc.addMember(
+        'user@company.com',
+        { team: 'backend', location: 'Berlin' },
+        workspace,
+      );
+
+      const profilePath = path.join(
+        workspace,
+        'my-teams',
+        'members',
+        'user@company.com',
+        'user@company.com.md',
+      );
+      expect(fs.existsSync(profilePath)).toBe(true);
+
+      const entityDir = path.dirname(profilePath);
+      for (const subDir of ['1on1s', 'feedbacks', 'assessments', 'performance-reviews']) {
+        expect(fs.existsSync(path.join(entityDir, subDir))).toBe(true);
+      }
+      expect(fs.existsSync(path.join(entityDir, 'user@company.com-shared'))).toBe(true);
+
+      const content = fs.readFileSync(profilePath, 'utf8');
+      expect(content).toContain('relationship: direct-report');
+      expect(content).toContain('location: Berlin');
+    });
+  });
 });
