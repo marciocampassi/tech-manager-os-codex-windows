@@ -37,6 +37,7 @@ function buildLeadershipProfileMd(email: string, opts: IAddLeadershipOptions): s
     email,
     name: opts.name ?? '',
     role: opts.role ?? '',
+    ...(opts.location ? { location: opts.location } : {}),
     ...(opts.gender ? { gender: opts.gender } : {}),
     areas_of_responsibility: opts.areas_of_responsibility ?? '',
     relationship: 'leadership',
@@ -114,7 +115,7 @@ export class LeadershipService {
     const oneOnOneDir = path.join(leadershipDir(workspaceRoot, normalizedEmail), '1on1s');
     await this._fs.createDirectory(oneOnOneDir);
 
-    const fileName = `${date}-${normalizedEmail}-1on1.md`;
+    const fileName = `${date}-1on1-${normalizedEmail}.md`;
     const filePath = path.join(oneOnOneDir, fileName);
 
     const content = this._template.getLeadership1on1Template(date, normalizedEmail);

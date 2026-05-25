@@ -107,7 +107,7 @@ describe('Leadership Integration', () => {
     expect(fileContent).toContain('## Notes');
 
     const profileContent = fs.readFileSync(result.profilePath, 'utf8');
-    expect(profileContent).toContain('[[1on1s/2026-03-09-boss@co.com-1on1.md]]');
+    expect(profileContent).toContain('[[1on1s/2026-03-09-1on1-boss@co.com.md]]');
   });
 
   it('AC2: throws descriptive error when leadership contact not found', async () => {
@@ -159,9 +159,9 @@ describe('Leadership Integration', () => {
     );
 
     expect(fs.existsSync(filePath)).toBe(true);
-    expect(wikiLink).toBe('- [[1on1s/2026-03-09-boss@co.com-1on1.md]]');
+    expect(wikiLink).toBe('- [[1on1s/2026-03-09-1on1-boss@co.com.md]]');
     expect(fs.readFileSync(profilePath, 'utf8')).toContain(
-      '[[1on1s/2026-03-09-boss@co.com-1on1.md]]',
+      '[[1on1s/2026-03-09-1on1-boss@co.com.md]]',
     );
 
     const rows = await svc.listLeadership(workspace);
@@ -182,7 +182,7 @@ describe('Leadership Integration', () => {
     const profilePath = path.join(workspace, 'my-leadership', 'boss@co.com', 'boss@co.com.md');
     const content = fs.readFileSync(profilePath, 'utf8');
 
-    expect(content).toContain('2026-02-01-boss@co.com-1on1.md');
-    expect(content).toContain('2026-03-09-boss@co.com-1on1.md');
+    expect(content).toContain('2026-02-01-1on1-boss@co.com.md');
+    expect(content).toContain('2026-03-09-1on1-boss@co.com.md');
   });
 });

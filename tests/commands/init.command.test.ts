@@ -130,6 +130,7 @@ function setupMinimalHappyPath(): void {
       name: 'Bob Director',
       email: 'bob@example.com',
       role: 'Engineering Director',
+      location: '',
     })
     // 6. promptTeamCount
     .mockResolvedValueOnce({ teamCount: '2' })
@@ -448,6 +449,7 @@ describe('InitCommand', () => {
           name: 'Bob Director',
           email: 'bob@example.com',
           role: 'Engineering Director',
+          location: '',
         })
         // 6–8. teamCount + 2 team names
         .mockResolvedValueOnce({ teamCount: '2' })

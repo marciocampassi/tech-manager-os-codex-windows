@@ -595,6 +595,7 @@ describe('InitCommand integration — multi-member team (INIT-INT-007)', () => {
         name: FIXTURE_DATA.LEADER_NAME,
         email: FIXTURE_DATA.LEADER_EMAIL,
         role: FIXTURE_DATA.LEADER_ROLE,
+        location: '',
       })
       // 6. team count = 2
       .mockResolvedValueOnce({ teamCount: '2' })

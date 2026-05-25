@@ -190,11 +190,11 @@ export class InitService {
    */
   async writeLeaderProfile(
     vaultPath: string,
-    opts: { email: string; name: string; role: string },
+    opts: { email: string; name: string; role: string; location?: string },
   ): Promise<void> {
     await this._leadership.addLeadership(
       opts.email,
-      { name: opts.name, role: opts.role },
+      { name: opts.name, role: opts.role, location: opts.location },
       vaultPath,
     );
   }

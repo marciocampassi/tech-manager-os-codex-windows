@@ -10,7 +10,7 @@
  *   2.  promptNameAndEmail             → { name, email }
  *   3.  promptAdditionalDomains        → { raw: '' }  (skip — no extra domains)
  *   4.  promptRoleAndCompany           → { role, company }
- *   5.  promptLeaderDetails            → { name, email, role }
+ *   5.  promptLeaderDetails            → { name, email, role, location }
  *   6.  promptTeamCount                → { teamCount: '2' }
  *   7.  promptTeamName(1)              → { teamName: TEAM_1 }
  *   8.  promptTeamName(2)              → { teamName: TEAM_2 }
@@ -106,7 +106,12 @@ export function applyInitPromptFixture(scenario: InitPromptScenario, mockFn: Pro
         // 4. promptRoleAndCompany
         .mockResolvedValueOnce({ role: USER_ROLE, company: USER_COMPANY })
         // 5. promptLeaderDetails
-        .mockResolvedValueOnce({ name: LEADER_NAME, email: LEADER_EMAIL, role: LEADER_ROLE })
+        .mockResolvedValueOnce({
+          name: LEADER_NAME,
+          email: LEADER_EMAIL,
+          role: LEADER_ROLE,
+          location: '',
+        })
         // 6. promptTeamCount (returns string; parseInt() happens inside promptTeamCount)
         .mockResolvedValueOnce({ teamCount: '2' })
         // 7. promptTeamName(1)

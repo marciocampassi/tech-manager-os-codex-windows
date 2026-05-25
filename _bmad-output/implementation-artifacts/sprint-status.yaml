@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-27
-last_updated: 2026-05-24 (story 9-5 done)
+last_updated: 2026-05-24 (story 9-6 done)
 project: tech-manager-os
 project_key: NOKEY
 tracking_system: file-system
@@ -104,7 +104,7 @@ development_status:
   9-3-my-career-flat-structure: done
   9-4-organization-yaml-domain-inference-and-obsidian-config: done
   9-5-relationship-frontmatter-all-profiles: done
-  9-6-leadership-location-and-1on1-subcommand: ready-for-dev
+  9-6-leadership-location-and-1on1-subcommand: done
   9-7-member-add-location-prompt-and-routing-integration: ready-for-dev
   9-8-email-similarity-warning: ready-for-dev
   9-9-member-feedback-fix: ready-for-dev

@@ -384,10 +384,16 @@ export interface LeaderDetails {
   name: string;
   email: string;
   role: string;
+  location?: string;
 }
 
 export async function promptLeaderDetails(): Promise<LeaderDetails> {
-  const result = await inquirer.prompt<LeaderDetails>([
+  const result = await inquirer.prompt<{
+    name: string;
+    email: string;
+    role: string;
+    location: string;
+  }>([
     {
       type: 'input',
       name: 'name',
@@ -415,11 +421,18 @@ export async function promptLeaderDetails(): Promise<LeaderDetails> {
       validate: (v: string): ValidateResult =>
         v.trim().length > 0 ? true : 'Role cannot be empty',
     },
+    {
+      type: 'input',
+      name: 'location',
+      message: "Your leader's location (optional):",
+      default: '',
+    },
   ]);
   return {
     name: result.name.trim(),
     email: result.email.trim(),
     role: result.role.trim(),
+    ...(result.location?.trim() ? { location: result.location.trim() } : {}),
   };
 }
 

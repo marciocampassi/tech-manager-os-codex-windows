@@ -12,6 +12,7 @@ export interface ILeadershipFrontmatter {
   email: string;
   name: string;
   role: string;
+  location?: string;
   gender?: string;
   areas_of_responsibility: string;
   relationship: 'leadership';
@@ -23,6 +24,7 @@ export interface IAddLeadershipOptions {
   name?: string;
   role?: string;
   gender?: string;
+  location?: string;
   areas_of_responsibility?: string;
   date?: string;
   noEdit?: boolean;

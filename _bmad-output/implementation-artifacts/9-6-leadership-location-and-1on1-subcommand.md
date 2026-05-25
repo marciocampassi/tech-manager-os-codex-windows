@@ -176,3 +176,105 @@ In `onboarding.prompts.ts`, add a `location` prompt to the leadership collection
 - The "remember domain" offer in `leadership.command.ts` requires importing `memberService` — this is a cross-service call at the command layer, which is acceptable (commands may coordinate services; services must not call each other).
 - `ILeadershipFrontmatter` in `leadership.types.ts` needs a `location` field added alongside the interface update.
 - Run `npm run validate` before marking done.
+
+---
+
+## Tasks/Subtasks
+
+- [x] T1: Add `location?: string` to `IAddLeadershipOptions` and `ILeadershipFrontmatter` (`src/types/leadership.types.ts`)
+- [x] T2: Add `location` to `buildLeadershipProfileMd()` frontmatter; fix `add1on1()` filename to `YYYY-MM-DD-1on1-<email>.md` (`src/services/leadership.service.ts`)
+- [x] T3: Restructure `runLeadershipAdd` for type-first routing (`1on1 <email>`), add `location` prompt, remove standalone `tmr leadership 1on1` subcommand, add `--location` option (`src/commands/leadership.command.ts`)
+- [x] T4: Add `location` prompt to `promptLeaderDetails()` (`src/workflows/onboarding.prompts.ts`)
+- [x] T5: Pass `location` through `InitService.writeLeaderProfile()` and `init.command.ts`
+- [x] T6: Update tests — `leadership.service.test.ts`, `leadership.command.test.ts`, `leadership.integration.test.ts`, `init.command.test.ts`, `init.integration.test.ts`, `init-prompts.ts` fixture
+- [x] T7: Run `npm run validate` — 1133 tests pass, lint/typecheck/build clean
+
+---
+
+## File List
+
+- `src/types/leadership.types.ts` — added `location?: string` to `ILeadershipFrontmatter` and `IAddLeadershipOptions`
+- `src/services/leadership.service.ts` — added `location` to `buildLeadershipProfileMd()`; fixed `add1on1()` filename to `YYYY-MM-DD-1on1-<email>.md`
+- `src/commands/leadership.command.ts` — restructured `runLeadershipAdd` for type-first routing; added `location` prompt; removed standalone `tmr leadership 1on1` subcommand; added `--location` option
+- `src/workflows/onboarding.prompts.ts` — added `location` field to `promptLeaderDetails()` and `LeaderDetails` interface
+- `src/services/init.service.ts` — added `location?: string` to `writeLeaderProfile()` opts; passes it to `addLeadership()`
+- `tests/services/leadership.service.test.ts` — updated 1on1 filename assertions; added `9.6: location` assertion
+- `tests/commands/leadership.command.test.ts` — updated mock filename; updated `runLeadershipAdd` call signatures; routing test uses `add 1on1` form; added `--location` flag test
+- `tests/integration/leadership.integration.test.ts` — updated all 1on1 filename assertions
+- `tests/commands/init.command.test.ts` — added `location: ''` to `promptLeaderDetails` mock calls
+- `tests/integration/init.integration.test.ts` — added `location: ''` to INIT-INT-007 leader mock
+- `tests/fixtures/init-prompts.ts` — added `location: ''` to `promptLeaderDetails` happy-path mock
+- `_bmad-output/implementation-artifacts/sprint-status.yaml` — 9-6 → in-progress
+
+---
+
+## Change Log
+
+- Story 9.6 implementation (2026-05-24): added `location` prompt and frontmatter field to leadership profiles; fixed 1on1 filename convention to `YYYY-MM-DD-1on1-<email>.md`; restructured `tmr leadership add` to accept type-first form (`1on1 <email>`); removed standalone `tmr leadership 1on1` subcommand. "Remember domain" offer was already implemented. 1133 tests pass; lint/typecheck/build clean.
+
+---
+
+## Dev Agent Record
+
+### Completion Notes
+
+- **`ILeadershipFrontmatter`** — `location?: string` added so `buildLeadershipProfileMd()` can include the field. `IAddLeadershipOptions` also gets `location?: string`.
+- **`buildLeadershipProfileMd()`** — `location: opts.location ?? ''` added to frontmatter object between `role` and `gender`.
+- **`add1on1()` filename** — changed from `${date}-${normalizedEmail}-1on1.md` to `${date}-1on1-${normalizedEmail}.md` to match canonical convention from project-context.md.
+- **`runLeadershipAdd()`** — signature changed to `(svc, typeOrEmail, emailArg, opts)`. When `typeOrEmail === '1on1'`, delegates to `runLeadership1on1(svc, emailArg, opts)`. Otherwise, `typeOrEmail` is the email (existing leader profile creation path). Location prompt added to secondary inquirer batch.
+- **`createLeadershipCommand()`** — `add` command changed from `add [email]` to `add <type-or-email> [email]`; `--location` and `--date` options added; standalone `1on1 [email]` subcommand removed.
+- **`promptLeaderDetails()`** — added `location` field (optional, empty default). Returns include `location` conditionally (only if non-empty).
+- **`InitService.writeLeaderProfile()`** — `location?: string` added to opts, passed through to `addLeadership()`.
+- **"Remember domain" offer** — already implemented in `leadership.command.ts` before this story; AC6 was already satisfied.
+- **Note**: the `location?.trim()` optional chaining in `promptLeaderDetails()` is defensive — Inquirer always returns the field with a default of `''`, but this protects against edge cases in tests where mocks omit the field.
+
+---
+
+## Review Findings
+
+### Summary
+
+Three subagents reviewed 11 files / 457 diff lines (Blind Hunter × 13, Edge Case Hunter × 5, Acceptance Auditor × 5). After deduplication and false-positive removal: **5 patch**, **4 defer**, **~12 dismiss**.
+
+Acceptance Auditor false positives: AA-1 (wiki-link update exists in unchanged `add1on1()` code); AA-2 (location prompt IS in the diff, secondary inquirer batch); AA-3 (directory path visible in service); AA-5 (email is first arg to `addLeadership()`, not in opts — no data loss).
+
+---
+
+### Patch
+
+- [x] **P1 — Case-sensitive `'1on1'` dispatch** (`leadership.command.ts:24`)
+  `if (typeOrEmail === '1on1')` fails for `'1ON1'` or `' 1on1 '` (typos, copy-paste).
+  Fix: `if (typeOrEmail?.trim().toLowerCase() === '1on1')`.
+
+- [x] **P2 — Empty-string `opts.location` discards prompt answer** (`leadership.command.ts:66`)
+  `!opts.location` is `true` when `opts.location = ''` → prompt fires → user enters value → but `'' ?? answer` returns `''` (empty string is not nullish) → answer silently discarded.
+  Fix: change `??` to `||` for all four secondary-field merge lines (name, role, gender, location).
+
+- [x] **P3 — `location` always written as `''`; inconsistent with `gender` conditional spread** (`leadership.service.ts:40`)
+  `gender` uses `...(opts.gender ? { gender: opts.gender } : {})` — omitted when blank.
+  `location: opts.location ?? ''` always writes the key, producing `location: ''` in every leadership YAML when no location is provided. Inconsistent Dataview queries.
+  Fix: `...(opts.location ? { location: opts.location } : {})`.
+
+- [x] **P4 — No direct unit test for `runLeadershipAdd` `'1on1'` dispatch branch** (`leadership.command.test.ts`)
+  Added two direct tests: `runLeadershipAdd(svc, '1on1', email, {})` and `runLeadershipAdd(svc, '1ON1', email, {})` asserting `mockAdd1on1` called and `mockAddLeadership` not called.
+
+- [x] **P5 — `--date` help text regressed** (`leadership.command.ts:172`)
+  Restored "defaults to today" in the option description.
+
+---
+
+### Defer
+
+- **W1 — Interactive no-arg profile-creation path is dead code** — With `add <type-or-email>` required, Commander rejects `tmr leadership add` before the handler runs; `if (!email) { prompt }` is unreachable for the profile path. Intentional per spec (mirrors `member add <email>`). Dead code cleanup is a separate chore.
+
+- **W2 — No migration for renamed 1on1 files** — Pre-existing `${date}-${email}-1on1.md` files will not match the new `${date}-1on1-${email}.md` pattern in `listLeadership()` parsing. Migration is a separate story for existing vaults.
+
+- **W3 — `--date` semantics bleed into contact-add mode** — When user runs `tmr leadership add boss@co.com --date 2026-01-01`, the date sets `date_added` on the profile, not a 1on1 file. Acceptable; `--date` has always been in `IAddLeadershipOptions` and UX confusion is low.
+
+- **W4 — Magic-string routing not visible in `--help`** — `tmr leadership add --help` description partially conveys the `1on1` form but the routing logic is an if-statement, not a Commander subcommand. Matches the `member add 1on1` pattern in the codebase; acceptable for this phase.
+
+---
+
+## Status
+
+done
