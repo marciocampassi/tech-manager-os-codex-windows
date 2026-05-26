@@ -142,7 +142,12 @@ describe('MemberService', () => {
         created: true,
       });
 
-      await svc.createMemberFile(EMAIL, 'feedback', { date: '2026-03-07' }, WS);
+      await svc.createMemberFile(
+        EMAIL,
+        'feedback',
+        { date: '2026-03-07', fromEmail: 'reviewer@co.com' },
+        WS,
+      );
 
       expect(mockParser.appendToFile).toHaveBeenCalledWith(
         expect.stringContaining('my-company/members/john@co.com/john@co.com.md'),
@@ -151,39 +156,50 @@ describe('MemberService', () => {
       );
     });
 
-    it('creates the 1on1 file at correct path', async () => {
+    it('creates the 1on1 file at correct path (full date, suffix before email)', async () => {
       const opts = { date: '2026-03-07' };
       await svc.createMemberFile(EMAIL, '1on1', opts, WS);
 
       expect(mockFS.writeFile).toHaveBeenCalledWith(
-        expect.stringContaining('1on1s/2026-03-07-john@co.com-1on1.md'),
+        expect.stringContaining('1on1s/2026-03-07-1on1-john@co.com.md'),
         expect.stringContaining('type: 1on1'),
       );
     });
 
-    it('creates the feedback file at correct path', async () => {
-      await svc.createMemberFile(EMAIL, 'feedback', { date: '2026-03-07' }, WS);
+    it('creates the feedback file at correct path (year-month, feedbacks/ subdir, reviewer email)', async () => {
+      await svc.createMemberFile(
+        EMAIL,
+        'feedback',
+        { date: '2026-03-07', fromEmail: 'reviewer@co.com' },
+        WS,
+      );
 
       expect(mockFS.writeFile).toHaveBeenCalledWith(
-        expect.stringContaining('feedback/2026-03-07-john@co.com-feedback.md'),
+        expect.stringContaining('feedbacks/2026-03-feedback-reviewer@co.com-john@co.com.md'),
         expect.stringContaining('type: feedback'),
       );
     });
 
-    it('creates the assessment file at correct path', async () => {
+    it('throws when fromEmail is omitted for feedback type', async () => {
+      await expect(
+        svc.createMemberFile(EMAIL, 'feedback', { date: '2026-03-07' }, WS),
+      ).rejects.toThrow('fromEmail is required for feedback type');
+    });
+
+    it('creates the assessment file at correct path (year-month, suffix before email)', async () => {
       await svc.createMemberFile(EMAIL, 'assessment', { date: '2026-03-07' }, WS);
 
       expect(mockFS.writeFile).toHaveBeenCalledWith(
-        expect.stringContaining('assessments/2026-03-07-john@co.com-assessment.md'),
+        expect.stringContaining('assessments/2026-03-assessment-john@co.com.md'),
         expect.stringContaining('type: assessment'),
       );
     });
 
-    it('creates the performance-review file with -review suffix', async () => {
+    it('creates the performance-review file with year-month prefix and -review suffix', async () => {
       await svc.createMemberFile(EMAIL, 'performance-review', { date: '2026-03-07' }, WS);
 
       expect(mockFS.writeFile).toHaveBeenCalledWith(
-        expect.stringContaining('performance-reviews/2026-03-07-john@co.com-review.md'),
+        expect.stringContaining('performance-reviews/2026-03-review-john@co.com.md'),
         expect.stringContaining('type: performance-review'),
       );
     });
@@ -194,12 +210,17 @@ describe('MemberService', () => {
       expect(mockParser.appendToFile).toHaveBeenCalledWith(
         PROFILE_PATH,
         '1on1s',
-        expect.stringContaining('[[1on1s/2026-03-07-john@co.com-1on1.md]]'),
+        expect.stringContaining('[[1on1s/2026-03-07-1on1-john@co.com.md]]'),
       );
     });
 
     it('calls appendToFile with correct section name for Feedbacks', async () => {
-      await svc.createMemberFile(EMAIL, 'feedback', { date: '2026-03-07' }, WS);
+      await svc.createMemberFile(
+        EMAIL,
+        'feedback',
+        { date: '2026-03-07', fromEmail: 'reviewer@co.com' },
+        WS,
+      );
 
       expect(mockParser.appendToFile).toHaveBeenCalledWith(
         PROFILE_PATH,
@@ -217,9 +238,9 @@ describe('MemberService', () => {
     it('returns filePath, profilePath, and wikiLink', async () => {
       const result = await svc.createMemberFile(EMAIL, '1on1', { date: '2026-03-07' }, WS);
 
-      expect(result.filePath).toContain('2026-03-07-john@co.com-1on1.md');
+      expect(result.filePath).toContain('2026-03-07-1on1-john@co.com.md');
       expect(result.profilePath).toContain('john@co.com.md');
-      expect(result.wikiLink).toContain('[[1on1s/2026-03-07-john@co.com-1on1.md]]');
+      expect(result.wikiLink).toContain('[[1on1s/2026-03-07-1on1-john@co.com.md]]');
     });
 
     it('normalizes email to lowercase', async () => {
@@ -229,7 +250,7 @@ describe('MemberService', () => {
         created: false,
       });
       const result = await svc.createMemberFile('JOHN@CO.COM', '1on1', { date: '2026-03-07' }, WS);
-      expect(result.filePath).toContain('john@co.com');
+      expect(result.filePath).toContain('1on1-john@co.com.md');
     });
   });
 
@@ -509,7 +530,12 @@ describe('MemberService', () => {
         created: false,
       });
 
-      await svc.createMemberFile('joao@company.com', 'feedback', { date: '2026-01-15' }, WS);
+      await svc.createMemberFile(
+        'joao@company.com',
+        'feedback',
+        { date: '2026-01-15', fromEmail: 'reviewer@co.com' },
+        WS,
+      );
 
       expect(mockParser.appendToFile).toHaveBeenCalledWith(
         expect.stringContaining('my-teams/members/joao@company.com/joao@company.com.md'),
@@ -525,7 +551,12 @@ describe('MemberService', () => {
         created: false,
       });
 
-      await svc.createMemberFile('pedro@company.com', 'feedback', { date: '2026-01-15' }, WS);
+      await svc.createMemberFile(
+        'pedro@company.com',
+        'feedback',
+        { date: '2026-01-15', fromEmail: 'reviewer@co.com' },
+        WS,
+      );
 
       expect(mockParser.appendToFile).toHaveBeenCalledWith(
         expect.stringContaining('my-company/members/pedro@company.com/pedro@company.com.md'),
@@ -542,7 +573,12 @@ describe('MemberService', () => {
         created: true,
       });
 
-      await svc.createMemberFile('unknown@company.com', 'feedback', { date: '2026-01-15' }, WS);
+      await svc.createMemberFile(
+        'unknown@company.com',
+        'feedback',
+        { date: '2026-01-15', fromEmail: 'reviewer@co.com' },
+        WS,
+      );
 
       expect(mockParser.appendToFile).toHaveBeenCalledWith(
         expect.stringContaining('my-company/members/unknown@company.com/unknown@company.com.md'),

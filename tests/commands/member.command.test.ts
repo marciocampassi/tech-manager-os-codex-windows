@@ -6,9 +6,9 @@ const mockGetWorkspaceRoot = jest.fn<() => string>().mockReturnValue('/fake/ws')
 const mockCreateMemberFile = jest
   .fn<() => Promise<{ filePath: string; profilePath: string; wikiLink: string }>>()
   .mockResolvedValue({
-    filePath: '/fake/ws/my-teams/members/john@co.com/1on1s/2026-03-07-john@co.com-1on1.md',
+    filePath: '/fake/ws/my-teams/members/john@co.com/1on1s/2026-03-07-1on1-john@co.com.md',
     profilePath: '/fake/ws/my-teams/members/john@co.com/john@co.com.md',
-    wikiLink: '- [[1on1s/2026-03-07-john@co.com-1on1.md]]',
+    wikiLink: '- [[1on1s/2026-03-07-1on1-john@co.com.md]]',
   });
 const mockAddMember = jest
   .fn<() => Promise<{ created: boolean }>>()
@@ -56,6 +56,11 @@ jest.unstable_mockModule('chalk', () => ({
   },
 }));
 
+const mockResolveSelfEmail = jest.fn<() => Promise<string | null>>().mockResolvedValue(null);
+jest.unstable_mockModule('../../src/utils/self-email.js', () => ({
+  resolveSelfEmail: mockResolveSelfEmail,
+}));
+
 // Dynamic imports after mocks
 const { createMemberCommand, runMemberAdd } = await import('../../src/commands/member.command.js');
 
@@ -74,13 +79,14 @@ describe('member command', () => {
     mockFindSimilarEmail.mockReturnValue(null);
     mockGetWorkspaceRoot.mockReturnValue('/fake/ws');
     mockCreateMemberFile.mockResolvedValue({
-      filePath: '/fake/ws/my-teams/members/john@co.com/1on1s/2026-03-07-john@co.com-1on1.md',
+      filePath: '/fake/ws/my-teams/members/john@co.com/1on1s/2026-03-07-1on1-john@co.com.md',
       profilePath: '/fake/ws/my-teams/members/john@co.com/john@co.com.md',
-      wikiLink: '- [[1on1s/2026-03-07-john@co.com-1on1.md]]',
+      wikiLink: '- [[1on1s/2026-03-07-1on1-john@co.com.md]]',
     });
     mockAddMember.mockResolvedValue({ created: true });
     mockGetInternalDomains.mockResolvedValue([]);
     mockPrompt.mockResolvedValue({});
+    mockResolveSelfEmail.mockResolvedValue(null);
   });
 
   afterEach(() => {
@@ -104,14 +110,15 @@ describe('member command', () => {
       );
     });
 
-    it('creates feedback file', async () => {
+    it('creates feedback file (self-email resolved from my-career/)', async () => {
+      mockResolveSelfEmail.mockResolvedValueOnce('manager@co.com');
       const cmd = createMemberCommand();
       await cmd.parseAsync(['add', 'feedback', 'john@co.com'], { from: 'user' });
 
       expect(mockCreateMemberFile).toHaveBeenCalledWith(
         'john@co.com',
         'feedback',
-        expect.any(Object),
+        expect.objectContaining({ fromEmail: 'manager@co.com' }),
         '/fake/ws',
       );
     });
@@ -159,7 +166,7 @@ describe('member command', () => {
       await cmd.parseAsync(['add', '1on1', 'john@co.com'], { from: 'user' });
 
       const output = stdoutSpy.mock.calls.map((c: unknown[]) => c[0]).join('');
-      expect(output).toContain('1on1s/2026-03-07-john@co.com-1on1.md');
+      expect(output).toContain('1on1s/2026-03-07-1on1-john@co.com.md');
     });
   });
 
@@ -448,9 +455,9 @@ describe('member command', () => {
     it('prompts for email when email argument is missing', async () => {
       mockPrompt.mockResolvedValueOnce({ resolvedEmail: 'alice@co.com' } as Record<string, string>);
       mockCreateMemberFile.mockResolvedValueOnce({
-        filePath: '/fake/ws/my-teams/members/alice@co.com/1on1s/2026-03-07-alice@co.com-1on1.md',
+        filePath: '/fake/ws/my-teams/members/alice@co.com/1on1s/2026-03-07-1on1-alice@co.com.md',
         profilePath: '/fake/ws/my-teams/members/alice@co.com/alice@co.com.md',
-        wikiLink: '- [[1on1s/2026-03-07-alice@co.com-1on1.md]]',
+        wikiLink: '- [[1on1s/2026-03-07-1on1-alice@co.com.md]]',
       });
 
       await runMemberAdd(mockMemberServiceInstance as never, '1on1', undefined, {});
@@ -462,6 +469,91 @@ describe('member command', () => {
         expect.any(Object),
         '/fake/ws',
       );
+    });
+  });
+
+  // ── Story 9.9 — feedback --from flag and self-email resolution ───────────────
+
+  describe('9.9: feedback --from flag and self-email resolution', () => {
+    it('9.9: passes --from email as fromEmail option to createMemberFile', async () => {
+      const cmd = createMemberCommand();
+      await cmd.parseAsync(['add', 'feedback', 'john@co.com', '--from', 'manager@co.com'], {
+        from: 'user',
+      });
+
+      expect(mockCreateMemberFile).toHaveBeenCalledWith(
+        'john@co.com',
+        'feedback',
+        expect.objectContaining({ fromEmail: 'manager@co.com' }),
+        '/fake/ws',
+      );
+    });
+
+    it('9.9: resolves reviewer email from self-email when --from is omitted', async () => {
+      mockResolveSelfEmail.mockResolvedValueOnce('self@co.com');
+
+      const cmd = createMemberCommand();
+      await cmd.parseAsync(['add', 'feedback', 'john@co.com'], { from: 'user' });
+
+      expect(mockCreateMemberFile).toHaveBeenCalledWith(
+        'john@co.com',
+        'feedback',
+        expect.objectContaining({ fromEmail: 'self@co.com' }),
+        '/fake/ws',
+      );
+    });
+
+    it('9.9: prompts for reviewer email when --from omitted and self-email unresolvable', async () => {
+      mockResolveSelfEmail.mockResolvedValueOnce(null);
+      mockPrompt.mockResolvedValueOnce({ resolved: 'prompted@co.com' } as Record<string, string>);
+
+      const cmd = createMemberCommand();
+      await cmd.parseAsync(['add', 'feedback', 'john@co.com'], { from: 'user' });
+
+      expect(mockCreateMemberFile).toHaveBeenCalledWith(
+        'john@co.com',
+        'feedback',
+        expect.objectContaining({ fromEmail: 'prompted@co.com' }),
+        '/fake/ws',
+      );
+    });
+
+    it('9.9: prints error and sets exitCode when --from has invalid email', async () => {
+      await runMemberAdd(mockMemberServiceInstance as never, 'feedback', 'john@co.com', {
+        from: 'not-an-email',
+      });
+
+      const errOutput = stderrSpy.mock.calls.map((c: unknown[]) => c[0]).join('');
+      expect(errOutput).toContain('Invalid email address');
+      expect(exitCodeSpy).toHaveBeenCalledWith(1);
+      expect(mockCreateMemberFile).not.toHaveBeenCalled();
+    });
+
+    it('9.9: --from email is normalized to lowercase', async () => {
+      const cmd = createMemberCommand();
+      await cmd.parseAsync(['add', 'feedback', 'john@co.com', '--from', 'MANAGER@CO.COM'], {
+        from: 'user',
+      });
+
+      expect(mockCreateMemberFile).toHaveBeenCalledWith(
+        'john@co.com',
+        'feedback',
+        expect.objectContaining({ fromEmail: 'manager@co.com' }),
+        '/fake/ws',
+      );
+    });
+
+    it('9.9: non-feedback types do not resolve fromEmail (fromEmail undefined)', async () => {
+      const cmd = createMemberCommand();
+      await cmd.parseAsync(['add', '1on1', 'john@co.com'], { from: 'user' });
+
+      expect(mockCreateMemberFile).toHaveBeenCalledWith(
+        'john@co.com',
+        '1on1',
+        expect.not.objectContaining({ fromEmail: expect.anything() }),
+        '/fake/ws',
+      );
+      expect(mockResolveSelfEmail).not.toHaveBeenCalled();
     });
   });
 

@@ -30,6 +30,7 @@ const { FileSystemService } = await import('../../src/services/file-system.servi
 const { SectionParserService } = await import('../../src/services/section-parser.service.js');
 const { TemplateService } = await import('../../src/services/template.service.js');
 const { MemberService } = await import('../../src/services/member.service.js');
+const { runMemberAdd } = await import('../../src/commands/member.command.js');
 
 describe('Member Integration', () => {
   let workspace: string;
@@ -75,9 +76,9 @@ describe('Member Integration', () => {
     expect(fileContent).toContain('date: 2026-03-07');
     expect(fileContent).toContain('## Check-in');
 
-    // Wiki-link appended to profile
+    // Wiki-link uses full date for 1on1, suffix before email
     const profileContent = fs.readFileSync(result.profilePath, 'utf8');
-    expect(profileContent).toContain('[[1on1s/2026-03-07-john@co.com-1on1.md]]');
+    expect(profileContent).toContain('[[1on1s/2026-03-07-1on1-john@co.com.md]]');
     expect(profileContent).toContain('## 1on1s');
   });
 
@@ -87,7 +88,7 @@ describe('Member Integration', () => {
     const result = await memberSvc.createMemberFile(
       'john@co.com',
       'feedback',
-      { date: '2026-03-07', noEdit: true },
+      { date: '2026-03-07', noEdit: true, fromEmail: 'reviewer@co.com' },
       workspace,
     );
 
@@ -96,8 +97,11 @@ describe('Member Integration', () => {
     expect(fileContent).toContain('type: feedback');
     expect(fileContent).toContain('## Situation');
 
+    // feedbacks/ subdir, year-month prefix, reviewer-email-member-email order
     const profileContent = fs.readFileSync(result.profilePath, 'utf8');
-    expect(profileContent).toContain('[[feedback/2026-03-07-john@co.com-feedback.md]]');
+    expect(profileContent).toContain(
+      '[[feedbacks/2026-03-feedback-reviewer@co.com-john@co.com.md]]',
+    );
   });
 
   // ── assessment ───────────────────────────────────────────────────────────────
@@ -111,8 +115,9 @@ describe('Member Integration', () => {
     );
 
     expect(fs.existsSync(result.filePath)).toBe(true);
+    // Year-month prefix, suffix before email
     const profileContent = fs.readFileSync(result.profilePath, 'utf8');
-    expect(profileContent).toContain('[[assessments/2026-03-07-john@co.com-assessment.md]]');
+    expect(profileContent).toContain('[[assessments/2026-03-assessment-john@co.com.md]]');
   });
 
   // ── performance-review ────────────────────────────────────────────────────────
@@ -130,8 +135,9 @@ describe('Member Integration', () => {
     expect(fileContent).toContain('type: performance-review');
     expect(fileContent).toContain('## Accomplishments');
 
+    // Year-month prefix, -review suffix before email
     const profileContent = fs.readFileSync(result.profilePath, 'utf8');
-    expect(profileContent).toContain('[[performance-reviews/2026-03-07-john@co.com-review.md]]');
+    expect(profileContent).toContain('[[performance-reviews/2026-03-review-john@co.com.md]]');
   });
 
   // ── Error: member not found → auto-create (Story 3.3) ───────────────────────
@@ -140,7 +146,7 @@ describe('Member Integration', () => {
     const result = await memberSvc.createMemberFile(
       'ghost@co.com',
       'feedback',
-      { date: '2026-03-07', noEdit: true },
+      { date: '2026-03-07', noEdit: true, fromEmail: 'reviewer@co.com' },
       workspace,
     );
 
@@ -152,9 +158,9 @@ describe('Member Integration', () => {
     ).toBe(true);
     // Dated feedback file created
     expect(fs.existsSync(result.filePath)).toBe(true);
-    // Wiki-link appended to auto-created profile
+    // Wiki-link appended to auto-created profile (feedbacks/ subdir)
     const profileContent = fs.readFileSync(result.profilePath, 'utf8');
-    expect(profileContent).toContain('[[feedback/');
+    expect(profileContent).toContain('[[feedbacks/');
   });
 
   // ── Multiple files accumulate in section ──────────────────────────────────────
@@ -182,8 +188,8 @@ describe('Member Integration', () => {
     );
     const profileContent = fs.readFileSync(profilePath, 'utf8');
 
-    expect(profileContent).toContain('2026-03-01-john@co.com-1on1.md');
-    expect(profileContent).toContain('2026-03-07-john@co.com-1on1.md');
+    expect(profileContent).toContain('2026-03-01-1on1-john@co.com.md');
+    expect(profileContent).toContain('2026-03-07-1on1-john@co.com.md');
 
     // Both links appear in the 1on1s section (before the next ##)
     const sectionStart = profileContent.indexOf('## 1on1s');
@@ -248,7 +254,7 @@ describe('Member Integration', () => {
       const result = await memberSvc.createMemberFile(
         'joao@company.com',
         'feedback',
-        { date: '2026-01-15', noEdit: true },
+        { date: '2026-01-15', noEdit: true, fromEmail: 'reviewer@co.com' },
         workspace,
       );
 
@@ -256,7 +262,7 @@ describe('Member Integration', () => {
       // Routed to the nested team profile
       expect(result.profilePath).toContain('my-teams/members/joao@company.com/joao@company.com.md');
       const profileContent = fs.readFileSync(result.profilePath, 'utf8');
-      expect(profileContent).toContain('[[feedback/');
+      expect(profileContent).toContain('[[feedbacks/');
     });
 
     it('MEM-INT-003: createMemberFile routes feedback to existing nested company-scoped profile', async () => {
@@ -266,14 +272,14 @@ describe('Member Integration', () => {
       const result = await memberSvc.createMemberFile(
         'joao@company.com',
         'feedback',
-        { date: '2026-01-15', noEdit: true },
+        { date: '2026-01-15', noEdit: true, fromEmail: 'reviewer@co.com' },
         workspace,
       );
 
       expect(fs.existsSync(result.filePath)).toBe(true);
       const profileContent = fs.readFileSync(result.profilePath, 'utf8');
       expect(profileContent).toContain('## Feedbacks');
-      expect(profileContent).toContain('[[feedback/');
+      expect(profileContent).toContain('[[feedbacks/');
       expect(result.profilePath).toContain(
         'my-company/members/joao@company.com/joao@company.com.md',
       );
@@ -283,7 +289,7 @@ describe('Member Integration', () => {
       const result = await memberSvc.createMemberFile(
         'unknown@company.com',
         'feedback',
-        { date: '2026-01-15', noEdit: true },
+        { date: '2026-01-15', noEdit: true, fromEmail: 'reviewer@co.com' },
         workspace,
       );
 
@@ -301,9 +307,9 @@ describe('Member Integration', () => {
       ).toBe(true);
       // Dated feedback file created
       expect(fs.existsSync(result.filePath)).toBe(true);
-      // Wiki-link appended
+      // Wiki-link appended (feedbacks/ subdir)
       const profileContent = fs.readFileSync(result.profilePath, 'utf8');
-      expect(profileContent).toContain('[[feedback/');
+      expect(profileContent).toContain('[[feedbacks/');
     });
 
     it('MEM-INT-005: case-insensitive lookup resolves to existing nested profile without duplicate', async () => {
@@ -313,7 +319,7 @@ describe('Member Integration', () => {
       const result = await memberSvc.createMemberFile(
         'JOAO@COMPANY.COM',
         'feedback',
-        { date: '2026-01-15', noEdit: true },
+        { date: '2026-01-15', noEdit: true, fromEmail: 'reviewer@co.com' },
         workspace,
       );
 
@@ -322,10 +328,10 @@ describe('Member Integration', () => {
       const entries = fs.readdirSync(membersDir);
       expect(entries).toContain('joao@company.com');
       expect(entries).not.toContain('JOAO@COMPANY.COM');
-      // Feedback appended to the correct nested profile
+      // Feedback appended to the correct nested profile (feedbacks/ subdir)
       expect(result.profilePath).toContain('joao@company.com/joao@company.com.md');
       const profileContent = fs.readFileSync(result.profilePath, 'utf8');
-      expect(profileContent).toContain('[[feedback/');
+      expect(profileContent).toContain('[[feedbacks/');
     });
   });
 
@@ -416,6 +422,60 @@ describe('Member Integration', () => {
       const content = fs.readFileSync(profilePath, 'utf8');
       expect(content).toContain('relationship: direct-report');
       expect(content).toContain('location: Berlin');
+    });
+  });
+
+  // ── 9.9: --from CLI path end-to-end ──────────────────────────────────────────
+
+  describe('9.9-INT: --from flag wiring from command layer to file creation', () => {
+    let stdoutSpy: ReturnType<typeof jest.spyOn>;
+    let stderrSpy: ReturnType<typeof jest.spyOn>;
+
+    beforeEach(() => {
+      stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
+      stderrSpy = jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
+      process.exitCode = undefined;
+    });
+
+    afterEach(() => {
+      stdoutSpy.mockRestore();
+      stderrSpy.mockRestore();
+      process.exitCode = undefined;
+    });
+
+    it('9.9-INT-001: --from flows from command opts through validation to feedbacks/ file with correct reviewer', async () => {
+      const spy = jest.spyOn(memberSvc, 'getWorkspaceRoot').mockReturnValue(workspace);
+      try {
+        await runMemberAdd(memberSvc, 'feedback', 'john@co.com', {
+          from: 'reviewer@co.com',
+          date: '2026-03-15',
+        });
+      } finally {
+        spy.mockRestore();
+      }
+
+      const feedbacksDir = path.join(workspace, 'my-teams', 'members', 'john@co.com', 'feedbacks');
+      const files = fs.readdirSync(feedbacksDir);
+      expect(files).toContain('2026-03-feedback-reviewer@co.com-john@co.com.md');
+    });
+
+    it('9.9-INT-002: --from with invalid email aborts without creating a file', async () => {
+      const spy = jest.spyOn(memberSvc, 'getWorkspaceRoot').mockReturnValue(workspace);
+      try {
+        await runMemberAdd(memberSvc, 'feedback', 'john@co.com', {
+          from: 'not-an-email',
+          date: '2026-03-15',
+        });
+      } finally {
+        spy.mockRestore();
+      }
+
+      const feedbacksDir = path.join(workspace, 'my-teams', 'members', 'john@co.com', 'feedbacks');
+      const mdFiles = fs.existsSync(feedbacksDir)
+        ? fs.readdirSync(feedbacksDir).filter((f: string) => f.endsWith('.md'))
+        : [];
+      expect(mdFiles.length).toBe(0);
+      expect(process.exitCode).toBe(1);
     });
   });
 });

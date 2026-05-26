@@ -22,6 +22,14 @@ function todayIso(): string {
   return new Date().toISOString().split('T')[0] as string;
 }
 
+function yearMonth(isoDate: string): string {
+  return isoDate.slice(0, 7);
+}
+
+function filePrefix(type: FileType, isoDate: string): string {
+  return type === '1on1' ? isoDate : yearMonth(isoDate);
+}
+
 /**
  * Resolves the directory where dated files (1on1s, feedback, etc.) should be written,
  * given a profile path that may be either nested or flat.
@@ -217,7 +225,14 @@ export class MemberService {
     );
     await this._fs.createDirectory(subDirPath);
 
-    const fileName = `${date}-${normalizedEmail}-${config.fileSuffix}.md`;
+    const prefix = filePrefix(type, date);
+    if (type === 'feedback' && !options.fromEmail) {
+      throw new Error('fromEmail is required for feedback type');
+    }
+    const fileName =
+      type === 'feedback'
+        ? `${prefix}-feedback-${options.fromEmail}-${normalizedEmail}.md`
+        : `${prefix}-${config.fileSuffix}-${normalizedEmail}.md`;
     const filePath = path.join(subDirPath, fileName);
 
     const content = this._template.getTemplate(type, date, normalizedEmail);

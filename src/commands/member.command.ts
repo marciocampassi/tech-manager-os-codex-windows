@@ -6,6 +6,7 @@ import { printError, printSuccess, printInfo, printWarning } from '../utils/disp
 import { InvalidEmailError } from '../errors/tmr-error.js';
 import { findSimilarEmail } from '../utils/email-similarity.js';
 import { validateEmail } from '../utils/validation.js';
+import { resolveSelfEmail } from '../utils/self-email.js';
 import type { FileType } from '../types/member.types.js';
 
 // ── Shared guard ─────────────────────────────────────────────────────────────
@@ -49,7 +50,7 @@ export async function runMemberAdd(
   svc: MemberService,
   typeArg: string,
   emailArg: string | undefined,
-  opts: { date?: string; team?: string; location?: string; contractor?: boolean },
+  opts: { date?: string; team?: string; location?: string; contractor?: boolean; from?: string },
 ): Promise<void> {
   // Routing: if first arg is a valid email → member-creation mode
   if (isEmail(typeArg)) {
@@ -191,12 +192,71 @@ export async function runMemberAdd(
 
   const ws = svc.getWorkspaceRoot();
 
+  // P7: Warn immediately when --from is supplied for a type that ignores it
+  if (opts.from && typeArg !== 'feedback') {
+    printWarning(`--from has no effect for "${typeArg}" files and will be ignored.`);
+  }
+
+  // P12: Run similar-email guard before prompting for reviewer details
   const shouldContinueTypePath = await warnIfSimilarEmail(email, ws);
   if (!shouldContinueTypePath) return;
 
+  // ── Resolve reviewer email for feedback files ─────────────────────────────
+  let fromEmail: string | undefined;
+  if (typeArg === 'feedback') {
+    const rawFrom = opts.from?.trim().toLowerCase();
+    if (rawFrom) {
+      try {
+        validateEmail(rawFrom);
+      } catch (err) {
+        if (err instanceof InvalidEmailError) {
+          printError(`Invalid email address: ${rawFrom}`);
+          process.exitCode = 1;
+          return;
+        }
+        throw err; // P3: re-throw unexpected validation errors
+      }
+      fromEmail = rawFrom;
+    } else {
+      // P2: resolveSelfEmail catches all I/O/parsing errors internally — never throws
+      const selfEmail = await resolveSelfEmail(ws);
+      if (selfEmail) {
+        // P4: validate format before trusting the frontmatter value
+        try {
+          validateEmail(selfEmail);
+          fromEmail = selfEmail;
+        } catch {
+          printWarning(
+            `Email in my-career/ profile ("${selfEmail}") is not a valid address — please enter it manually.`,
+          );
+        }
+      }
+      if (!fromEmail) {
+        const { resolved } = await inquirer.prompt<{ resolved: string }>([
+          {
+            type: 'input',
+            name: 'resolved',
+            message: 'Reviewer email (--from):',
+            // P5: use validateEmail for the same rules as the --from flag path
+            validate: (v: string): boolean | string => {
+              try {
+                validateEmail(v.trim());
+                return true;
+              } catch (err) {
+                if (err instanceof InvalidEmailError) return err.message || 'Valid email required';
+                return 'Valid email required';
+              }
+            },
+          },
+        ]);
+        fromEmail = resolved.trim().toLowerCase();
+      }
+    }
+  }
+
   let result;
   try {
-    result = await svc.createMemberFile(email, typeArg, opts, ws);
+    result = await svc.createMemberFile(email, typeArg, { date: opts.date, fromEmail }, ws);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     printError(message, 'Check that the member exists: tmr team list');
@@ -228,11 +288,18 @@ export function createMemberCommand(): Command {
       '--contractor',
       'create profile in my-company/contractors/ for external/contractor members',
     )
+    .option('--from <email>', 'reviewer email for feedback files (defaults to your own email)')
     .action(
       async (
         typeOrEmail: string,
         email: string | undefined,
-        opts: { date?: string; team?: string; location?: string; contractor?: boolean },
+        opts: {
+          date?: string;
+          team?: string;
+          location?: string;
+          contractor?: boolean;
+          from?: string;
+        },
       ) => {
         await runMemberAdd(svc, typeOrEmail, email, opts);
       },

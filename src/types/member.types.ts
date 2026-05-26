@@ -20,8 +20,8 @@ export const FILE_TYPE_CONFIG: Readonly<Record<FileType, ISectionConfig>> = {
     sectionName: '1on1s',
   },
   feedback: {
-    subDir: 'feedback',
-    fileSuffix: 'feedback',
+    subDir: 'feedbacks',
+    fileSuffix: 'feedback', // kept for structural consistency — filename builder overrides for feedback type
     sectionName: 'Feedbacks',
   },
   assessment: {
@@ -40,6 +40,8 @@ export const FILE_TYPE_CONFIG: Readonly<Record<FileType, ISectionConfig>> = {
 export interface ICreateFileOptions {
   date?: string;
   noEdit?: boolean;
+  /** Reviewer email for feedback files. Resolved from my-career/ when omitted at the command layer. */
+  fromEmail?: string;
 }
 
 /** Options accepted by MemberService.addMember(). */
