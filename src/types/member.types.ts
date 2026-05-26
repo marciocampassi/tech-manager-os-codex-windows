@@ -31,7 +31,7 @@ export const FILE_TYPE_CONFIG: Readonly<Record<FileType, ISectionConfig>> = {
   },
   'performance-review': {
     subDir: 'performance-reviews',
-    fileSuffix: 'review',
+    fileSuffix: 'performance-review',
     sectionName: 'Performance Reviews',
   },
 };

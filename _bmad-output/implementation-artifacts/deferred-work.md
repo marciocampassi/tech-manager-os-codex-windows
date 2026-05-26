@@ -255,3 +255,10 @@ The following items were surfaced by the pre-launch AC audit (Epics 1–5) and a
 - D9 (Low) — Bulk link duplicate emails not deduped before similarity loop: `a@x.com,a@x.com` passes through the filter twice. Service-level dedup concern.
 - D10 (Low) — Bulk link per-email skip is silent: when user aborts for some emails in a batch, no per-email message is printed. Only "All emails were skipped" fires when none remain. Story has no spec for partial-skip feedback.
 - D12 (Low) — Non-interactive stdin may crash `inquirer.prompt` in `warnIfSimilarEmail`: CI/piped contexts can cause unhandled rejection. Pre-existing pattern across entire codebase.
+
+## Deferred from: code review of 9-10-member-assessment-and-performance-review (2026-05-26)
+
+- W1 — Vault data backward compatibility: existing vault files named `YYYY-MM-review-<email>.md` now have broken wiki-links after the `fileSuffix` rename; no migration note or release changelog entry was included. Pre-existing data concern out of scope for this story.
+- W2 — Wrap 9.10 tests in a dedicated `describe` block: new tests are behind a comment banner but not an enforceable describe scope; other story tests use `describe('Story X.Y — ...')` for selective execution. Stylistic.
+- W3 — Standardize test dates across assessment/performance-review tests: existing tests use `2026-03-07`, new tests use `2026-05-22`; produces two expected year-month prefixes for the same behavior. Low priority.
+- W4 — Add flat profile branch test for auto-create: the auto-create test uses a nested profile only; the flat profile layout of `memberSubDirFromProfile` is never exercised in any auto-create test. Pre-existing coverage gap.

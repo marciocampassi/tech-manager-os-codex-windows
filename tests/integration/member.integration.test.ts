@@ -131,13 +131,24 @@ describe('Member Integration', () => {
     );
 
     expect(fs.existsSync(result.filePath)).toBe(true);
+    // P6: assert filename format contains the correct suffix
+    expect(result.filePath).toContain('performance-review');
+    // P7: assert wikiLink return value contains the correct suffix
+    expect(result.wikiLink).toContain('performance-review');
     const fileContent = fs.readFileSync(result.filePath, 'utf8');
     expect(fileContent).toContain('type: performance-review');
     expect(fileContent).toContain('## Accomplishments');
 
-    // Year-month prefix, -review suffix before email
+    // Year-month prefix, -performance-review suffix before email
     const profileContent = fs.readFileSync(result.profilePath, 'utf8');
-    expect(profileContent).toContain('[[performance-reviews/2026-03-review-john@co.com.md]]');
+    expect(profileContent).toContain(
+      '[[performance-reviews/2026-03-performance-review-john@co.com.md]]',
+    );
+    // P8: assert wiki-link appears under the correct section header
+    const sectionIdx = profileContent.indexOf('## Performance Reviews');
+    const wikiIdx = profileContent.indexOf('[[performance-reviews/');
+    expect(sectionIdx).toBeGreaterThan(-1);
+    expect(wikiIdx).toBeGreaterThan(sectionIdx);
   });
 
   // ── Error: member not found → auto-create (Story 3.3) ───────────────────────

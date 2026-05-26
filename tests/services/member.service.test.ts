@@ -1,6 +1,7 @@
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import path from 'node:path';
 import { MemberService } from '../../src/services/member.service.js';
+import { FILE_TYPE_CONFIG } from '../../src/types/member.types.js';
 import { InvalidEmailError } from '../../src/errors/tmr-error.js';
 import type { FileSystemService } from '../../src/services/file-system.service.js';
 import type { SectionParserService } from '../../src/services/section-parser.service.js';
@@ -189,18 +190,84 @@ describe('MemberService', () => {
     it('creates the assessment file at correct path (year-month, suffix before email)', async () => {
       await svc.createMemberFile(EMAIL, 'assessment', { date: '2026-03-07' }, WS);
 
+      expect(mockFS.createDirectory).toHaveBeenCalledWith(expect.stringContaining('assessments'));
       expect(mockFS.writeFile).toHaveBeenCalledWith(
         expect.stringContaining('assessments/2026-03-assessment-john@co.com.md'),
         expect.stringContaining('type: assessment'),
       );
+      expect(mockParser.appendToFile).toHaveBeenCalledWith(
+        PROFILE_PATH,
+        'Assessments',
+        expect.stringContaining('[[assessments/2026-03-assessment-john@co.com.md]]'),
+      );
     });
 
-    it('creates the performance-review file with year-month prefix and -review suffix', async () => {
+    it('creates the performance-review file with year-month prefix and -performance-review suffix', async () => {
       await svc.createMemberFile(EMAIL, 'performance-review', { date: '2026-03-07' }, WS);
 
+      expect(mockFS.createDirectory).toHaveBeenCalledWith(
+        expect.stringContaining('performance-reviews'),
+      );
       expect(mockFS.writeFile).toHaveBeenCalledWith(
-        expect.stringContaining('performance-reviews/2026-03-review-john@co.com.md'),
+        expect.stringContaining('performance-reviews/2026-03-performance-review-john@co.com.md'),
         expect.stringContaining('type: performance-review'),
+      );
+      expect(mockParser.appendToFile).toHaveBeenCalledWith(
+        PROFILE_PATH,
+        'Performance Reviews',
+        expect.stringContaining(
+          '[[performance-reviews/2026-03-performance-review-john@co.com.md]]',
+        ),
+      );
+    });
+
+    // ── 9.10: assessment & performance-review auto-create tests ───────────────
+
+    it('9.10: assessment — auto-creates profile when member does not exist', async () => {
+      const newEmail = 'newuser@co.com';
+      const autoCreatedProfile = `${WS}/my-company/members/${newEmail}/${newEmail}.md`;
+      mockEmailResolver.resolve.mockResolvedValue({
+        type: 'relationship',
+        absolutePath: autoCreatedProfile,
+        created: true,
+      });
+
+      await svc.createMemberFile(newEmail, 'assessment', {}, WS);
+
+      expect(mockFS.createDirectory).toHaveBeenCalledWith(expect.stringContaining('assessments'));
+      expect(mockFS.writeFile).toHaveBeenCalledWith(
+        expect.stringContaining(`-assessment-${newEmail}.md`),
+        expect.stringContaining('type: assessment'),
+      );
+      expect(mockParser.appendToFile).toHaveBeenCalledWith(
+        autoCreatedProfile,
+        'Assessments',
+        expect.stringContaining(`-assessment-${newEmail}.md`),
+      );
+    });
+
+    it('9.10: performance-review — auto-creates profile when member does not exist', async () => {
+      const newEmail = 'newuser@co.com';
+      const autoCreatedProfile = `${WS}/my-company/members/${newEmail}/${newEmail}.md`;
+      mockEmailResolver.resolve.mockResolvedValue({
+        type: 'relationship',
+        absolutePath: autoCreatedProfile,
+        created: true,
+      });
+
+      await svc.createMemberFile(newEmail, 'performance-review', {}, WS);
+
+      expect(mockFS.createDirectory).toHaveBeenCalledWith(
+        expect.stringContaining('performance-reviews'),
+      );
+      expect(mockFS.writeFile).toHaveBeenCalledWith(
+        expect.stringContaining(`-performance-review-${newEmail}.md`),
+        expect.stringContaining('type: performance-review'),
+      );
+      expect(mockParser.appendToFile).toHaveBeenCalledWith(
+        autoCreatedProfile,
+        'Performance Reviews',
+        expect.stringContaining(`-performance-review-${newEmail}.md`),
       );
     });
 
@@ -585,6 +652,26 @@ describe('MemberService', () => {
         'Feedbacks',
         expect.any(String),
       );
+    });
+  });
+});
+
+// ── P5: FILE_TYPE_CONFIG direct snapshot tests ────────────────────────────────
+
+describe('FILE_TYPE_CONFIG', () => {
+  it('assessment entry matches spec (subDir, fileSuffix, sectionName)', () => {
+    expect(FILE_TYPE_CONFIG['assessment']).toEqual({
+      subDir: 'assessments',
+      fileSuffix: 'assessment',
+      sectionName: 'Assessments',
+    });
+  });
+
+  it('performance-review entry matches spec (subDir, fileSuffix, sectionName)', () => {
+    expect(FILE_TYPE_CONFIG['performance-review']).toEqual({
+      subDir: 'performance-reviews',
+      fileSuffix: 'performance-review',
+      sectionName: 'Performance Reviews',
     });
   });
 });
