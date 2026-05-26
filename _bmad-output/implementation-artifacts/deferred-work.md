@@ -256,6 +256,13 @@ The following items were surfaced by the pre-launch AC audit (Epics 1–5) and a
 - D10 (Low) — Bulk link per-email skip is silent: when user aborts for some emails in a batch, no per-email message is printed. Only "All emails were skipped" fires when none remain. Story has no spec for partial-skip feedback.
 - D12 (Low) — Non-interactive stdin may crash `inquirer.prompt` in `warnIfSimilarEmail`: CI/piped contexts can cause unhandled rejection. Pre-existing pattern across entire codebase.
 
+## Deferred from: code review of 9-11-member-add-1on1-subcommand (2026-05-26)
+
+- W1 — Fix `as unknown as Record<string, string>` cast to `{ proceed: boolean }` actual type in command test. Stylistic; works correctly at runtime.
+- W2 — Tighten `expect.any(Object)` in continue-path to also validate the `date` field. Deliberate loose choice; defer to avoid over-specification.
+- W3 — Add service test for 1on1 with no `date` option to exercise default date handling. Pre-existing coverage gap.
+- W4 — Guard for `EmailResolutionService.resolve()` returning `created: true` with a null `absolutePath`. Pre-existing service-layer edge case.
+
 ## Deferred from: code review of 9-10-member-assessment-and-performance-review (2026-05-26)
 
 - W1 — Vault data backward compatibility: existing vault files named `YYYY-MM-review-<email>.md` now have broken wiki-links after the `fileSuffix` rename; no migration note or release changelog entry was included. Pre-existing data concern out of scope for this story.

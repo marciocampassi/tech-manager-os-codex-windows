@@ -557,6 +557,57 @@ describe('member command', () => {
     });
   });
 
+  // ── Story 9.11 — 1on1 similarity check ordering ──────────────────────────────
+
+  describe('9.11: similarity check fires before 1on1 creation (type-first path)', () => {
+    // NOTE: `proceed: true` = abort. The prompt message is "Did you mean <similar>?"
+    // so answering Y (true) means "yes, I meant the similar email" → abort the current one.
+    // `proceed: false` = "no, continue with my original email" → createMemberFile is called.
+
+    it('9.11: abort on similar email prevents createMemberFile call', async () => {
+      mockFindSimilarEmail.mockReturnValueOnce('user1@co.com');
+      mockPrompt.mockResolvedValueOnce({ proceed: true } as unknown as Record<string, string>);
+
+      await runMemberAdd(mockMemberServiceInstance as never, '1on1', 'usr1@co.com', {});
+
+      // P2: verify the check was invoked with the correct args
+      expect(mockFindSimilarEmail).toHaveBeenCalledWith('usr1@co.com', '/fake/ws');
+      // P3: verify the user was shown the warning prompt
+      expect(mockPrompt).toHaveBeenCalled();
+      expect(mockCreateMemberFile).not.toHaveBeenCalled();
+    });
+
+    it('9.11: continuing past similar-email warning still creates the 1on1 file', async () => {
+      mockFindSimilarEmail.mockReturnValueOnce('user1@co.com');
+      mockPrompt.mockResolvedValueOnce({ proceed: false } as unknown as Record<string, string>);
+
+      await runMemberAdd(mockMemberServiceInstance as never, '1on1', 'usr1@co.com', {});
+
+      expect(mockCreateMemberFile).toHaveBeenCalledWith(
+        'usr1@co.com',
+        '1on1',
+        expect.any(Object),
+        '/fake/ws',
+      );
+    });
+
+    // P4: happy-path — no similar email found → no prompt, file created immediately
+    it('9.11: no similar email found → createMemberFile called without prompt', async () => {
+      mockFindSimilarEmail.mockReturnValueOnce(null);
+
+      await runMemberAdd(mockMemberServiceInstance as never, '1on1', 'john@co.com', {});
+
+      expect(mockFindSimilarEmail).toHaveBeenCalledWith('john@co.com', '/fake/ws');
+      expect(mockPrompt).not.toHaveBeenCalled();
+      expect(mockCreateMemberFile).toHaveBeenCalledWith(
+        'john@co.com',
+        '1on1',
+        expect.any(Object),
+        '/fake/ws',
+      );
+    });
+  });
+
   // ── Error handling ────────────────────────────────────────────────────────────
 
   describe('error handling', () => {

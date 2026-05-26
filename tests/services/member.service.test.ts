@@ -271,6 +271,46 @@ describe('MemberService', () => {
       );
     });
 
+    // ── 9.11: 1on1 tests ──────────────────────────────────────────────────────
+
+    it('9.11: 1on1 — creates file at full-date path and wiki-links ## 1on1s (existing member)', async () => {
+      await svc.createMemberFile(EMAIL, '1on1', { date: '2026-05-22' }, WS);
+
+      expect(mockFS.createDirectory).toHaveBeenCalledWith(expect.stringContaining('1on1s'));
+      expect(mockFS.writeFile).toHaveBeenCalledWith(
+        expect.stringContaining('1on1s/2026-05-22-1on1-john@co.com.md'),
+        expect.stringContaining('type: 1on1'),
+      );
+      expect(mockParser.appendToFile).toHaveBeenCalledWith(
+        PROFILE_PATH,
+        '1on1s',
+        expect.stringContaining('[[1on1s/2026-05-22-1on1-john@co.com.md]]'),
+      );
+    });
+
+    it('9.11: 1on1 — auto-creates profile and creates 1on1 file (new member)', async () => {
+      const newEmail = 'newuser@co.com';
+      const autoCreatedProfile = `${WS}/my-company/members/${newEmail}/${newEmail}.md`;
+      mockEmailResolver.resolve.mockResolvedValue({
+        type: 'relationship',
+        absolutePath: autoCreatedProfile,
+        created: true,
+      });
+
+      await svc.createMemberFile(newEmail, '1on1', { date: '2026-05-22' }, WS);
+
+      expect(mockFS.createDirectory).toHaveBeenCalledWith(expect.stringContaining('1on1s'));
+      expect(mockFS.writeFile).toHaveBeenCalledWith(
+        expect.stringContaining(`1on1s/2026-05-22-1on1-${newEmail}.md`),
+        expect.stringContaining('type: 1on1'),
+      );
+      expect(mockParser.appendToFile).toHaveBeenCalledWith(
+        autoCreatedProfile,
+        '1on1s',
+        expect.stringContaining(`[[1on1s/2026-05-22-1on1-${newEmail}.md]]`),
+      );
+    });
+
     it('calls appendToFile with correct section name for 1on1', async () => {
       await svc.createMemberFile(EMAIL, '1on1', { date: '2026-03-07' }, WS);
 
