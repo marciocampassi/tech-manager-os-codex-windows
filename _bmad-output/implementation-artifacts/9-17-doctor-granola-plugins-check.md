@@ -161,3 +161,39 @@ return [
 - The check is synchronous (uses `readFileSync` / `existsSync` like `checkGranolaSync`) — no need to add it to the `Promise.all` in `runChecks()`.
 - `NAME_COL = 14` pads label to 14 characters. `"Community Plugins"` is 17 characters — the column may overflow slightly. This is acceptable; do not change `NAME_COL` just for this check.
 - Run `npm run validate` before marking done.
+
+---
+
+## Dev Agent Record
+
+### Implementation Notes
+
+- Exported `REQUIRED_PLUGIN_IDS` and `RequiredPluginId` from `obsidian-plugin.service.ts`. Changed `OBSIDIAN_PLUGINS` to use `RequiredPluginId` element type for type safety.
+- Added private `checkCommunityPlugins(vaultPath)` to `DoctorService` (synchronous, mirrors `checkGranolaSync` pattern). Appended call in `runChecks()` return array.
+- Added 6 unit tests in `doctor.service.test.ts` covering all ACs: Linux info, vault-not-configured skip, all-present pass (4/4 registered), partial-missing fail with ID list, file-absent fail, malformed-JSON fail.
+- Added `jest.unstable_mockModule` for `obsidian-plugin.service.js` in the test file to prevent the transitive `FileSystemService → fs-extra → node:fs` chain from breaking the existing `node:fs` partial mock.
+- Updated `runChecks ordering` test from 7 → 8 checks.
+
+### File List
+
+- `src/services/obsidian-plugin.service.ts` — added `REQUIRED_PLUGIN_IDS` export + `RequiredPluginId` type
+- `src/services/doctor.service.ts` — added `checkCommunityPlugins()` method; imported `REQUIRED_PLUGIN_IDS`
+- `tests/services/doctor.service.test.ts` — added 6 new tests + ordering update + obsidian-plugin mock
+
+### Change Log
+
+- 2026-05-27: Implemented Story 9.17 — added `community_plugins` check to `tmr doctor` (6 tests added, 1234/1234 passing)
+
+### Status
+
+done
+
+---
+
+## Review Findings Round 1 (AI)
+
+- [x] [Review][Patch] Array.isArray guard missing before `.filter` on parsed JSON — non-array content (object, string, null) causes incorrect result or silent false negative [src/services/doctor.service.ts — checkCommunityPlugins try block]
+- [x] [Review][Defer] Hardcoded REQUIRED_PLUGIN_IDS in test mock decouples test data from production — ESM architectural constraint; ideal fix would extract constant to a lightweight file [tests/services/doctor.service.test.ts] — deferred, pre-existing
+- [x] [Review][Defer] OBSIDIAN_PLUGINS elements no longer deeply readonly after type annotation replaces as-const — internal constant, zero practical impact [src/services/obsidian-plugin.service.ts] — deferred, pre-existing
+- [x] [Review][Defer] One-directional drift: adding to REQUIRED_PLUGIN_IDS without updating OBSIDIAN_PLUGINS is not caught at compile time [src/services/obsidian-plugin.service.ts] — deferred, pre-existing
+- [x] [Review][Defer] No test for vault-configured-but-directory-absent branch of checkCommunityPlugins — consistent gap with checkGranolaSync pattern [tests/services/doctor.service.test.ts] — deferred, pre-existing

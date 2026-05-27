@@ -23,6 +23,14 @@ const mockWhich = jest.fn<(cmd: string, opts?: { nothrow: boolean }) => Promise<
 );
 jest.unstable_mockModule('which', () => ({ default: mockWhich }));
 
+// Mock obsidian-plugin.service to avoid transitive dependency on FileSystemService
+// (which imports fs-extra, breaking the node:fs partial mock above).
+jest.unstable_mockModule('../../src/services/obsidian-plugin.service.js', () => ({
+  REQUIRED_PLUGIN_IDS: ['obsidian-git', 'granola-sync', 'terminal', 'dataview'],
+  ObsidianPluginService: class {},
+  obsidianPluginService: {},
+}));
+
 // ── Dynamic imports (after mocks) ─────────────────────────────────────────────
 
 const { DoctorService } = await import('../../src/services/doctor.service.js');
@@ -358,10 +366,94 @@ describe('DoctorService', () => {
     });
   });
 
+  // ── Community Plugins check ──────────────────────────────────────────────────
+
+  describe('Community Plugins check', () => {
+    const VAULT = '/users/marlon/vault';
+    const PLUGINS_JSON = `${VAULT}/.obsidian/community-plugins.json`;
+    const ALL_PLUGINS = ['obsidian-git', 'granola-sync', 'terminal', 'dataview'];
+
+    beforeEach(() => {
+      mockGetWorkspacePath.mockReturnValue(VAULT);
+      mockExistsSync.mockImplementation((p) => p === VAULT || p === PLUGINS_JSON);
+      mockReadFileSync.mockReturnValue(JSON.stringify(ALL_PLUGINS));
+    });
+
+    it('returns info (not warning) on Linux — same policy as granola_sync', async () => {
+      setPlatform('linux');
+      const results = await service.runChecks();
+      const check = results.find((r) => r.key === 'community_plugins')!;
+      expect(check.ok).toBe(false);
+      expect(check.info).toBe(true);
+      expect(check.detail).toContain('not applicable on Linux');
+    });
+
+    it('skips when vault is not configured', async () => {
+      mockGetWorkspacePath.mockReturnValue(undefined);
+      const results = await service.runChecks();
+      const check = results.find((r) => r.key === 'community_plugins')!;
+      expect(check.ok).toBe(false);
+      expect(check.detail).toContain('vault not configured');
+    });
+
+    it('passes when all 4 required plugins are registered — value shows count', async () => {
+      const results = await service.runChecks();
+      const check = results.find((r) => r.key === 'community_plugins')!;
+      expect(check.ok).toBe(true);
+      expect(check.value).toBe('4/4 registered');
+    });
+
+    it('fails when some plugins are missing — detail lists missing IDs and fix is tmr init', async () => {
+      mockReadFileSync.mockReturnValue(JSON.stringify(['granola-sync', 'dataview']));
+      const results = await service.runChecks();
+      const check = results.find((r) => r.key === 'community_plugins')!;
+      expect(check.ok).toBe(false);
+      expect(check.detail).toContain('missing: obsidian-git, terminal');
+      expect(check.fix).toBe('tmr init');
+    });
+
+    it('fails when community-plugins.json is absent — detail is "not found"', async () => {
+      // Only vault dir exists, not the plugins json
+      mockExistsSync.mockImplementation((p) => p === VAULT);
+      const results = await service.runChecks();
+      const check = results.find((r) => r.key === 'community_plugins')!;
+      expect(check.ok).toBe(false);
+      expect(check.detail).toContain('not found');
+      expect(check.fix).toBe('tmr init');
+    });
+
+    it('fails gracefully when community-plugins.json is malformed JSON — detail is "not found"', async () => {
+      mockReadFileSync.mockReturnValue('{ invalid json');
+      const results = await service.runChecks();
+      const check = results.find((r) => r.key === 'community_plugins')!;
+      expect(check.ok).toBe(false);
+      expect(check.detail).toContain('not found');
+      expect(check.fix).toBe('tmr init');
+    });
+
+    it('fails with "not found" when community-plugins.json contains valid but non-array JSON (object)', async () => {
+      mockReadFileSync.mockReturnValue(JSON.stringify({ plugins: ['obsidian-git'] }));
+      const results = await service.runChecks();
+      const check = results.find((r) => r.key === 'community_plugins')!;
+      expect(check.ok).toBe(false);
+      expect(check.detail).toContain('not found');
+      expect(check.fix).toBe('tmr init');
+    });
+
+    it('fails with "not found" when community-plugins.json contains a JSON string (not array)', async () => {
+      mockReadFileSync.mockReturnValue(JSON.stringify('obsidian-git'));
+      const results = await service.runChecks();
+      const check = results.find((r) => r.key === 'community_plugins')!;
+      expect(check.ok).toBe(false);
+      expect(check.detail).toContain('not found');
+      expect(check.fix).toBe('tmr init');
+    });
+  });
+
   // ── runChecks ordering ───────────────────────────────────────────────────────
 
   describe('runChecks', () => {
-    it('returns 7 checks in expected order', async () => {
+    it('returns 8 checks in expected order', async () => {
       const results = await service.runChecks();
       expect(results.map((r) => r.key)).toEqual([
         'nodejs',
@@ -371,6 +463,7 @@ describe('DoctorService', () => {
         'granola',
         'google_drive',
         'granola_sync',
+        'community_plugins',
       ]);
     });
   });

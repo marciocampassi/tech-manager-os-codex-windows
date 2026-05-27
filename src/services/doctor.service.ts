@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { homedir } from 'node:os';
 import which from 'which';
 import { configService } from './config.service.js';
+import { REQUIRED_PLUGIN_IDS } from './obsidian-plugin.service.js';
 
 export interface CheckResult {
   key: string;
@@ -270,6 +271,81 @@ export class DoctorService {
     }
   }
 
+  private checkCommunityPlugins(vaultPath: string | undefined): CheckResult {
+    if (process.platform === 'linux') {
+      return {
+        key: 'community_plugins',
+        label: 'Community Plugins',
+        ok: false,
+        info: true,
+        detail: 'not applicable on Linux',
+      };
+    }
+
+    if (!vaultPath || !existsSync(vaultPath)) {
+      return {
+        key: 'community_plugins',
+        label: 'Community Plugins',
+        ok: false,
+        detail: 'skipped (vault not configured)',
+        fix: 'tmr init',
+      };
+    }
+
+    const pluginsJsonPath = join(vaultPath, '.obsidian', 'community-plugins.json');
+
+    if (!existsSync(pluginsJsonPath)) {
+      return {
+        key: 'community_plugins',
+        label: 'Community Plugins',
+        ok: false,
+        detail: 'not found',
+        fix: 'tmr init',
+      };
+    }
+
+    try {
+      const raw = readFileSync(pluginsJsonPath, 'utf-8');
+      const parsed: unknown = JSON.parse(raw);
+      if (!Array.isArray(parsed)) {
+        return {
+          key: 'community_plugins',
+          label: 'Community Plugins',
+          ok: false,
+          detail: 'not found',
+          fix: 'tmr init',
+        };
+      }
+      const registered = parsed as string[];
+      const missing = REQUIRED_PLUGIN_IDS.filter((id) => !registered.includes(id));
+
+      if (missing.length > 0) {
+        return {
+          key: 'community_plugins',
+          label: 'Community Plugins',
+          ok: false,
+          detail: `missing: ${missing.join(', ')}`,
+          fix: 'tmr init',
+        };
+      }
+
+      return {
+        key: 'community_plugins',
+        label: 'Community Plugins',
+        ok: true,
+        value: `${REQUIRED_PLUGIN_IDS.length}/${REQUIRED_PLUGIN_IDS.length} registered`,
+      };
+    } catch {
+      return {
+        key: 'community_plugins',
+        label: 'Community Plugins',
+        ok: false,
+        detail: 'not found',
+        fix: 'tmr init',
+      };
+    }
+  }
+
   async runChecks(): Promise<CheckResult[]> {
     const vaultPath = configService.getWorkspacePath();
 
@@ -287,6 +363,7 @@ export class DoctorService {
       granola,
       googleDrive,
       this.checkGranolaSync(vaultPath),
+      this.checkCommunityPlugins(vaultPath),
     ];
   }
 }

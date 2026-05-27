@@ -2,12 +2,21 @@ import { join } from 'node:path';
 import { fileSystemService } from './file-system.service.js';
 import { logger } from '../utils/logger.js';
 
-const OBSIDIAN_PLUGINS = [
+export const REQUIRED_PLUGIN_IDS = [
+  'obsidian-git',
+  'granola-sync',
+  'terminal',
+  'dataview',
+] as const;
+
+export type RequiredPluginId = (typeof REQUIRED_PLUGIN_IDS)[number];
+
+const OBSIDIAN_PLUGINS: readonly { id: RequiredPluginId; owner: string; repo: string }[] = [
   { id: 'obsidian-git', owner: 'Vinzent03', repo: 'obsidian-git' },
   { id: 'granola-sync', owner: 'tomelliot', repo: 'obsidian-granola-sync' },
   { id: 'terminal', owner: 'polyipseity', repo: 'obsidian-terminal' },
   { id: 'dataview', owner: 'blacksmithgu', repo: 'obsidian-dataview' },
-] as const;
+];
 
 const PLUGIN_FILES = ['main.js', 'manifest.json', 'styles.css'] as const;
 

@@ -333,3 +333,10 @@ The following items were surfaced by the pre-launch AC audit (Epics 1–5) and a
 - D4 — `todayIso()` calls `new Date()` directly with no injection point; default-date test asserts only `expect.any(String)`. Pre-existing pattern (identical in `member.service.ts`). [`src/services/myself.service.ts:8`]
 - D5 — Command error handler drops `TmrError.code` silently. Pre-existing pattern across all command error handlers. [`src/commands/myself.command.ts:15`]
 - D6 — `jest.unstable_mockModule` used without documenting its instability. Pre-existing pattern in every command test file.
+
+## Deferred from: code review of 9-17-doctor-granola-plugins-check (2026-05-27)
+
+- D1 — Hardcoded `REQUIRED_PLUGIN_IDS` in test mock (`jest.unstable_mockModule`) decouples test data from production constant. ESM architectural constraint; ideal fix would extract the constant to a lightweight file (no `fileSystemService` dependency) so the mock factory can import directly. [`tests/services/doctor.service.test.ts`]
+- D2 — `OBSIDIAN_PLUGINS` array elements no longer deeply readonly after explicit type annotation was added (`as const` removed). Internal private constant with zero public API exposure; practical risk is nil. [`src/services/obsidian-plugin.service.ts`]
+- D3 — One-directional compile-time drift: adding to `REQUIRED_PLUGIN_IDS` without updating `OBSIDIAN_PLUGINS` is not caught at compile time (the reverse direction IS caught via `RequiredPluginId` type constraint). [`src/services/obsidian-plugin.service.ts`]
+- D4 — No test for vault-configured-but-directory-absent branch of `checkCommunityPlugins`. Consistent gap with `checkGranolaSync` test pattern — neither service has this branch explicitly tested. [`tests/services/doctor.service.test.ts`]
