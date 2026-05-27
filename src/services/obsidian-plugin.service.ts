@@ -23,7 +23,12 @@ const PLUGIN_FILES = ['main.js', 'manifest.json', 'styles.css'] as const;
 const DOWNLOAD_TIMEOUT_MS = 30_000;
 
 export class ObsidianPluginService {
-  async downloadPluginFile(pluginDir: string, url: string, filename: string): Promise<boolean> {
+  async downloadPluginFile(
+    pluginDir: string,
+    url: string,
+    filename: string,
+    optional: boolean = false,
+  ): Promise<boolean> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), DOWNLOAD_TIMEOUT_MS);
     try {
@@ -33,37 +38,53 @@ export class ObsidianPluginService {
       await fileSystemService.writeFile(join(pluginDir, filename), buffer.toString());
       return true;
     } catch (err) {
-      logger.warn(
-        `Failed to download ${filename} from ${url}: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      if (!optional) {
+        logger.warn(
+          `Failed to download ${filename} from ${url}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
       return false;
     } finally {
       clearTimeout(timeout);
     }
   }
 
-  async installPlugins(workspacePath: string): Promise<void> {
+  async installPlugins(workspacePath: string): Promise<string[]> {
     const obsidianDir = join(workspacePath, '.obsidian');
+    const OPTIONAL_FILES = new Set(['styles.css']);
+    const fullyFailedPlugins: string[] = [];
+    const requiredCount = PLUGIN_FILES.length - OPTIONAL_FILES.size;
 
-    const results = await Promise.all(
-      OBSIDIAN_PLUGINS.map((plugin) => {
+    await Promise.all(
+      OBSIDIAN_PLUGINS.map(async (plugin) => {
         const pluginDir = join(obsidianDir, 'plugins', plugin.id);
         const baseUrl = `https://github.com/${plugin.owner}/${plugin.repo}/releases/latest/download`;
-        return Promise.all(
-          PLUGIN_FILES.map((filename) =>
-            this.downloadPluginFile(pluginDir, `${baseUrl}/${filename}`, filename),
-          ),
+
+        const fileResults = await Promise.all(
+          PLUGIN_FILES.map(async (filename) => {
+            const isOptional = OPTIONAL_FILES.has(filename);
+            const ok = await this.downloadPluginFile(
+              pluginDir,
+              `${baseUrl}/${filename}`,
+              filename,
+              isOptional,
+            );
+            if (!ok && isOptional) {
+              logger.debug(`Optional file ${filename} not found for ${plugin.id} — skipping`);
+              return true;
+            }
+            return ok;
+          }),
         );
+
+        const failed = fileResults.filter((ok) => !ok).length;
+        if (failed === requiredCount) {
+          fullyFailedPlugins.push(plugin.id);
+        } else if (failed > 0) {
+          logger.warn(`${failed}/${PLUGIN_FILES.length} files failed for plugin "${plugin.id}"`);
+        }
       }),
     );
-
-    const allFailed = results.flat().every((ok) => !ok);
-    if (allFailed) {
-      logger.warn(
-        'Obsidian plugins could not be downloaded (network unavailable). ' +
-          'Install them manually from: https://obsidian.md/plugins',
-      );
-    }
 
     await fileSystemService.writeFile(
       join(obsidianDir, 'community-plugins.json'),
@@ -92,6 +113,8 @@ export class ObsidianPluginService {
         `Granola Sync config write failed: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
+
+    return fullyFailedPlugins;
   }
 
   private async writeGranolaConfig(obsidianDir: string): Promise<void> {

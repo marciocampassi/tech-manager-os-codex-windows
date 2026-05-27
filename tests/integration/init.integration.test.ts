@@ -84,8 +84,8 @@ jest.unstable_mockModule('../../src/services/file-system.service.js', () => ({
 }));
 
 const mockInstallPlugins = jest
-  .fn<(workspacePath: string) => Promise<void>>()
-  .mockResolvedValue(undefined);
+  .fn<(workspacePath: string) => Promise<string[]>>()
+  .mockResolvedValue([]);
 
 jest.unstable_mockModule('../../src/services/obsidian-plugin.service.js', () => ({
   obsidianPluginService: { installPlugins: mockInstallPlugins },
@@ -540,7 +540,7 @@ describe('InitCommand integration — skill install failure (INIT-INT-010)', () 
     mockReadFile.mockReset().mockResolvedValue('# Team Members\n');
     mockAppendFile.mockReset();
     mockListDirectories.mockReset().mockResolvedValue([]);
-    mockInstallPlugins.mockReset().mockResolvedValue(undefined);
+    mockInstallPlugins.mockReset().mockResolvedValue([]);
 
     jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
     applyInitPromptFixture(
@@ -630,7 +630,7 @@ describe('InitCommand integration — multi-member team (INIT-INT-007)', () => {
       appendedFiles3.set(filePath, existing);
     });
     mockListDirectories.mockReset().mockResolvedValue([]);
-    mockInstallPlugins.mockReset().mockResolvedValue(undefined);
+    mockInstallPlugins.mockReset().mockResolvedValue([]);
     mockFetchSkillContent.mockReset().mockResolvedValue({
       success: true,
       data: { content: '# skill', version: '1.0.0' },
@@ -688,7 +688,7 @@ describe('InitCommand integration — copySampleInboxFiles throws (INIT-INT-011)
     mockReadFile.mockReset().mockResolvedValue('# Team Members\n');
     mockAppendFile.mockReset();
     mockListDirectories.mockReset().mockResolvedValue([]);
-    mockInstallPlugins.mockReset().mockResolvedValue(undefined);
+    mockInstallPlugins.mockReset().mockResolvedValue([]);
     mockFetchSkillContent.mockReset().mockResolvedValue({
       success: true,
       data: { content: '# skill', version: '1.0.0' },

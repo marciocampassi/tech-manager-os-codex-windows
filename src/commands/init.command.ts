@@ -18,7 +18,7 @@ import {
 import { obsidianPluginService } from '../services/obsidian-plugin.service.js';
 import { generateClaudeMd } from '../services/claude-md.generator.js';
 import { generateTaskFileTemplate } from '../templates/onboarding.templates.js';
-import { startSpinner, printError } from '../utils/display.js';
+import { startSpinner, printError, printInfo, printWarning } from '../utils/display.js';
 import type { TaskPeriod } from '../types/task.types.js';
 
 const TASKS_MD_TEMPLATE =
@@ -28,6 +28,7 @@ export class InitCommand {
   constructor(
     private readonly version: string = '1.0.0',
     private readonly plain: boolean = false,
+    private readonly scaffoldOnly: boolean = false,
   ) {}
 
   /**
@@ -220,9 +221,27 @@ export class InitCommand {
     await fileSystemService.writeFile(join(workspacePath, 'CLAUDE.md'), generateClaudeMd(answers));
     claudeSpinner.succeed('CLAUDE.md generated');
 
-    const pluginSpinner = startSpinner('Downloading Obsidian plugins', this.plain);
-    await obsidianPluginService.installPlugins(workspacePath);
-    pluginSpinner.succeed('Obsidian plugins installed');
+    if (!this.scaffoldOnly) {
+      const pluginSpinner = startSpinner('Downloading Obsidian plugins', this.plain);
+      const failedPlugins = await obsidianPluginService.installPlugins(workspacePath);
+      pluginSpinner.succeed('Obsidian plugins installed');
+      for (const id of failedPlugins) {
+        printWarning(
+          `All required files failed for plugin "${id}" — install manually from https://obsidian.md/plugins`,
+          this.plain,
+        );
+      }
+
+      const skillSpinner = startSpinner('Installing default skills', this.plain);
+      try {
+        await initService.installDefaultSkill(workspacePath);
+      } catch {
+        // installDefaultSkill never throws — safety net only
+      }
+      skillSpinner.succeed('Default skills installed');
+    } else {
+      printInfo('Scaffold-only mode: skipped plugin downloads and skill installs.', this.plain);
+    }
 
     const sampleSpinner = startSpinner('Copying sample files', this.plain);
     try {
@@ -235,14 +254,6 @@ export class InitCommand {
       return;
     }
     sampleSpinner.succeed('Sample files ready');
-
-    const skillSpinner = startSpinner('Installing default skills', this.plain);
-    try {
-      await initService.installDefaultSkill(workspacePath);
-    } catch {
-      // installDefaultSkill never throws — safety net only
-    }
-    skillSpinner.succeed('Default skills installed');
 
     const readmeSpinner = startSpinner('Writing README', this.plain);
     try {

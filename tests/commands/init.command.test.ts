@@ -63,7 +63,7 @@ jest.unstable_mockModule('../../src/services/file-system.service.js', () => ({
   },
 }));
 
-const mockInstallPlugins = jest.fn<(workspacePath: string) => Promise<void>>();
+const mockInstallPlugins = jest.fn<(workspacePath: string) => Promise<string[]>>();
 
 jest.unstable_mockModule('../../src/services/obsidian-plugin.service.js', () => ({
   obsidianPluginService: { installPlugins: mockInstallPlugins },
@@ -161,7 +161,7 @@ describe('InitCommand', () => {
     mockReadFile.mockResolvedValue('# Team Members\n');
     mockAppendFile.mockResolvedValue(undefined);
     mockListDirectories.mockResolvedValue([]);
-    mockInstallPlugins.mockResolvedValue(undefined);
+    mockInstallPlugins.mockResolvedValue([]);
     stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
   });
 
@@ -525,6 +525,91 @@ describe('InitCommand', () => {
 
       // Banner was shown — stdout had output
       expect(stdoutSpy).toHaveBeenCalled();
+    });
+  });
+
+  // ── --scaffold-only flag ─────────────────────────────────────────────────────
+
+  describe('--scaffold-only flag', () => {
+    it('skips installPlugins when scaffoldOnly is true', async () => {
+      setupMinimalHappyPath();
+      await new InitCommand('1.0.0', false, true).run();
+
+      expect(mockInstallPlugins).not.toHaveBeenCalled();
+    });
+
+    it('skips installDefaultSkill when scaffoldOnly is true', async () => {
+      const mockInstallSkill = jest.fn<() => void>();
+      const { SkillRegistryService } = await import('../../src/services/skill-registry.service.js');
+      jest.mocked(SkillRegistryService).mockImplementation(
+        () =>
+          ({
+            fetchSkillContent: jest
+              .fn<() => Promise<{ success: true; data: { content: string; version: string } }>>()
+              .mockResolvedValue({ success: true, data: { content: '# skill', version: '1.0.0' } }),
+            installSkill: mockInstallSkill,
+          }) as never,
+      );
+
+      setupMinimalHappyPath();
+      await new InitCommand('1.0.0', false, true).run();
+
+      expect(mockInstallSkill).not.toHaveBeenCalled();
+    });
+
+    it('prints scaffold-only info message to stdout when scaffoldOnly is true', async () => {
+      setupMinimalHappyPath();
+      await new InitCommand('1.0.0', false, true).run();
+
+      const allOutput = (stdoutSpy.mock.calls as [string][]).map((c) => c[0]).join('');
+      expect(allOutput).toContain('Scaffold-only mode');
+    });
+
+    it('still calls installPlugins on default run (scaffoldOnly false)', async () => {
+      setupMinimalHappyPath();
+      await new InitCommand('1.0.0', false, false).run();
+
+      expect(mockInstallPlugins).toHaveBeenCalledWith('/tmp/test-workspace');
+    });
+
+    it('still writes README when scaffoldOnly is true', async () => {
+      setupMinimalHappyPath();
+      await new InitCommand('1.0.0', false, true).run();
+
+      // README write calls writeFile with 'README.md' in the path
+      const writeFileCalls = mockWriteFile.mock.calls as [string, string][];
+      const readmeCall = writeFileCalls.find(([p]) => p.includes('README'));
+      expect(readmeCall).toBeDefined();
+    });
+
+    it('still runs copySampleInboxFiles when scaffoldOnly is true', async () => {
+      setupMinimalHappyPath();
+      await new InitCommand('1.0.0', false, true).run();
+
+      const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map(([p]) => p);
+      expect(writtenPaths.some((p) => p.includes('inbox/'))).toBe(true);
+    });
+  });
+
+  describe('plugin failure warnings', () => {
+    it('prints user-facing warning for each fully-failed plugin returned by installPlugins', async () => {
+      mockInstallPlugins.mockResolvedValueOnce(['obsidian-git', 'dataview']);
+      setupMinimalHappyPath();
+      await new InitCommand('1.0.0', false, false).run();
+
+      const allOutput = (stdoutSpy.mock.calls as [string][]).map((c) => c[0]).join('');
+      expect(allOutput).toContain('obsidian-git');
+      expect(allOutput).toContain('dataview');
+      expect(allOutput).toContain('install manually');
+    });
+
+    it('does not print plugin failure warning when installPlugins returns empty array', async () => {
+      mockInstallPlugins.mockResolvedValueOnce([]);
+      setupMinimalHappyPath();
+      await new InitCommand('1.0.0', false, false).run();
+
+      const allOutput = (stdoutSpy.mock.calls as [string][]).map((c) => c[0]).join('');
+      expect(allOutput).not.toContain('install manually');
     });
   });
 });

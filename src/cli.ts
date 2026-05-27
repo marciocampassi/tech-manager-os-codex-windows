@@ -39,11 +39,16 @@ export function createProgram(): Command {
   // Lazy: init loads inquirer, boxen, googleapis chain — only needed when actually running init
   p.command('init')
     .description('interactive setup wizard — configure your workspace')
-    .action(async (_opts: unknown, command: Command) => {
+    .option(
+      '--scaffold-only',
+      'create files and folders only — skip all network operations (plugin downloads, skill installs)',
+      false,
+    )
+    .action(async (opts: { scaffoldOnly?: boolean }, command: Command) => {
       const globals = command.parent?.opts() as { plain?: boolean } | undefined;
       const plain = globals?.plain ?? false;
       const { InitCommand } = await import('./commands/init.command.js');
-      await new InitCommand(pkg.version, plain).run();
+      await new InitCommand(pkg.version, plain, opts.scaffoldOnly ?? false).run();
     });
 
   p.addCommand(createConfigCommand());
