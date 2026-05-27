@@ -318,8 +318,9 @@ export function createProjectCommand(): Command {
   cmd
     .command('standup <name>')
     .description('create a standup note for a project')
-    .action(async (name: string) => {
-      await runProjectStandup(svc, name, {});
+    .option('--date <date>', 'date for the standup file (YYYY-MM-DD), defaults to today')
+    .action(async (name: string, opts: { date?: string }) => {
+      await runProjectStandup(svc, name, opts);
     });
 
   cmd

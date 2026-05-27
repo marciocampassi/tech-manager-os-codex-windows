@@ -197,6 +197,37 @@ describe('ProjectService', () => {
       expect(content).toContain('## Today');
       expect(content).toContain('## Blockers');
     });
+
+    // ── 9.13 tests ──────────────────────────────────────────────────────────────
+
+    it('9.13: standup frontmatter contains a wiki-link to the project overview', async () => {
+      mockFS.exists.mockResolvedValue(true);
+      await svc.addStandup(NAME, { date: '2026-05-20' }, WS);
+
+      const content = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
+      // The project field must be a wiki-link, not just the raw project name
+      expect(content).toContain('[[');
+      expect(content).toContain(`${NORMALIZED}.md`);
+    });
+
+    it('9.13: standup wiki-link points from standups/ dir to overview one level up', async () => {
+      mockFS.exists.mockResolvedValue(true);
+      await svc.addStandup(NAME, { date: '2026-05-20' }, WS);
+
+      const content = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
+      // overview is at ../<name>.md relative to the standup file
+      expect(content).toContain(`[[../${NORMALIZED}.md|${NORMALIZED}]]`);
+    });
+
+    it('9.13: standup with --date option uses specified date in filename and template', async () => {
+      mockFS.exists.mockResolvedValue(true);
+      await svc.addStandup(NAME, { date: '2026-05-20' }, WS);
+
+      expect(mockFS.writeFile).toHaveBeenCalledWith(
+        expect.stringContaining('standups/2026-05-20-platform-project-standup.md'),
+        expect.stringContaining('date: 2026-05-20'),
+      );
+    });
   });
 
   // ── linkMember ────────────────────────────────────────────────────────────────

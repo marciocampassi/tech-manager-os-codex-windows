@@ -277,3 +277,12 @@ The following items were surfaced by the pre-launch AC audit (Epics 1–5) and a
 - W3 — Existing-member backfill gap: `<email>-shared/` and `relationship: direct-report` are never added to pre-9.12 profiles when `team add` is re-run for a second team; needs a separate migration story.
 - W4 — Flat `my-career/` manager resolution (Story 9.3 scope): `getManagerEmail()` uses `listDirectories()` on a now-flat folder and returns `null` on fresh vaults; TODO comments in the code are the explicit contract for Story 9.3 to fix.
 - W5 — `archiveMember` partial archive omits `<email>-shared/`: the date-range branch `subDirs` list has 4 entries and excludes `<email>-shared/`; low impact since shared-folder files are typically not date-prefixed; full archive is unaffected.
+
+## Deferred from: code review of 9-13-project-standup-date-flag-and-wikilink (2026-05-26)
+
+- D1 — Special characters in project name (e.g. `"`, `|`, `]]`) could corrupt YAML quoted scalar or wiki-link boundary; normalizeSlug scope predates this diff.
+- D2 — Quoted wiki-link `project: "[[...]]"` may not render in Obsidian graph or properties panel; product design decision — spec explicitly showed this form; document intended consumer (Obsidian vs Dataview) if it causes user confusion.
+- D3 — Path arithmetic (`formatWikiLink` call) now lives in `TemplateService` which is documented as pure template generation; mild separation-of-concerns debt; consider moving link computation to `ProjectService` in a future refactor.
+- D4 — No guard against silently overwriting an existing standup file; `addStandup` calls `writeFile` unconditionally; consider existence check + error or `--force` flag in a future story.
+- D5 — No CLI-layer Commander argument-parsing test for `--date` registration; all command tests bypass Commander and invoke handlers directly; pre-existing test architecture decision.
+- D6 — Third 9.13 service test (`9.13: standup with --date option uses specified date in filename and template`) partially redundant with pre-existing coverage; minor test noise, no correctness impact.

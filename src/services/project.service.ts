@@ -156,9 +156,15 @@ export class ProjectService {
 
     const normalized = normalizeProjectName(name);
     const date = opts.date ?? todayIso();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      throw new Error(`Invalid date format '${date}'. Expected YYYY-MM-DD.`);
+    }
     const fileName = `${date}-${normalized}-standup.md`;
     const filePath = path.join(projectStandupsDir(ws, name), fileName);
-    await this._fs.writeFile(filePath, this._template.getStandupTemplate(date, normalized));
+    await this._fs.writeFile(
+      filePath,
+      this._template.getStandupTemplate(date, normalized, overviewPath, filePath),
+    );
 
     return { filePath };
   }

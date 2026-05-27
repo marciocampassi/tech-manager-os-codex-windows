@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-27
-last_updated: 2026-05-26 (story 9-12 done)
+last_updated: 2026-05-26 (story 9-13 done)
 project: tech-manager-os
 project_key: NOKEY
 tracking_system: file-system
@@ -111,7 +111,7 @@ development_status:
   9-10-member-assessment-and-performance-review: done
   9-11-member-add-1on1-subcommand: done
   9-12-team-shared-folder-and-direct-report-frontmatter: done
-  9-13-project-standup-date-flag-and-wikilink: ready-for-dev
+  9-13-project-standup-date-flag-and-wikilink: done
   9-14-project-bidirectional-member-stakeholder-links: ready-for-dev
   9-15-show-self-profile-lookup-fix: ready-for-dev
   9-16-myself-add-performance-review: ready-for-dev

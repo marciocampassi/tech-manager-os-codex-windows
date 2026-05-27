@@ -147,6 +147,13 @@ describe('runProjectStandup', () => {
     expect(process.exitCode).toBe(1);
     expect(mockAddStandup).not.toHaveBeenCalled();
   });
+
+  it('9.13: forwards --date option through to addStandup', async () => {
+    await runProjectStandup(mockSvcInstance as unknown as SvcType, 'platform', {
+      date: '2026-05-20',
+    });
+    expect(mockAddStandup).toHaveBeenCalledWith('platform', { date: '2026-05-20' }, '/fake/ws');
+  });
 });
 
 describe('runProjectLinkMember', () => {
