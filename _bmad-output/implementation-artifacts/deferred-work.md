@@ -269,3 +269,11 @@ The following items were surfaced by the pre-launch AC audit (Epics 1–5) and a
 - W2 — Wrap 9.10 tests in a dedicated `describe` block: new tests are behind a comment banner but not an enforceable describe scope; other story tests use `describe('Story X.Y — ...')` for selective execution. Stylistic.
 - W3 — Standardize test dates across assessment/performance-review tests: existing tests use `2026-03-07`, new tests use `2026-05-22`; produces two expected year-month prefixes for the same behavior. Low priority.
 - W4 — Add flat profile branch test for auto-create: the auto-create test uses a nested profile only; the flat profile layout of `memberSubDirFromProfile` is never exercised in any auto-create test. Pre-existing coverage gap.
+
+## Deferred from: code review of 9-12-team-shared-folder-and-direct-report-frontmatter (2026-05-26)
+
+- W1 — Orphaned subdirs on write failure: if `createDirectory` succeeds for all 5 dirs but `writeFile` throws, the member folder exists with no profile; pre-existing pattern across all subdirs, not introduced by this story.
+- W2 — Duplicate test setup in 9.12 block: three new tests repeat identical `mockFS` boilerplate; could share a `beforeEach`; style only, no correctness impact.
+- W3 — Existing-member backfill gap: `<email>-shared/` and `relationship: direct-report` are never added to pre-9.12 profiles when `team add` is re-run for a second team; needs a separate migration story.
+- W4 — Flat `my-career/` manager resolution (Story 9.3 scope): `getManagerEmail()` uses `listDirectories()` on a now-flat folder and returns `null` on fresh vaults; TODO comments in the code are the explicit contract for Story 9.3 to fix.
+- W5 — `archiveMember` partial archive omits `<email>-shared/`: the date-range branch `subDirs` list has 4 entries and excludes `<email>-shared/`; low impact since shared-folder files are typically not date-prefixed; full archive is unaffected.

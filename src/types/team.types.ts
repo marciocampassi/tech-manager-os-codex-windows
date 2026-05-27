@@ -14,6 +14,7 @@ export interface ITeamMemberFrontmatter {
   role: string;
   gender?: string;
   location: string;
+  relationship?: string;
   teams: string[];
   date_added: string;
   archived?: boolean;

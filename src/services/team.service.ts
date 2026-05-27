@@ -86,6 +86,7 @@ function buildMemberProfileMd(
   workspaceRoot: string,
 ): string {
   const teamsYaml = teams.map((t) => `  - ${t}`).join('\n');
+  // TODO(Story 9.3): update to: path.join(workspaceRoot, 'my-career', `${managerEmail}.md`)
   const managerLink = managerEmail
     ? formatWikiLink(
         path.join(workspaceRoot, 'my-career', managerEmail, `${managerEmail}.md`),
@@ -100,6 +101,7 @@ name: ${options.name ?? ''}
 role: ${options.role ?? ''}
 gender: ${options.gender ?? ''}
 location: ${options.location ?? ''}
+relationship: direct-report
 teams:
 ${teamsYaml}
 action_items_gdoc: ''
@@ -146,6 +148,9 @@ export class TeamService {
   async getManagerEmail(workspaceRoot: string): Promise<string | null> {
     const careerRoot = path.join(workspaceRoot, 'my-career');
     if (!(await this._fs.exists(careerRoot))) return null;
+    // TODO(Story 9.3): my-career is flat after 9.3 — change to:
+    //   const profilePath = path.join(careerRoot, `${email}.md`);
+    //   and replace listDirectories() with listFiles() filtered to .md
     const subdirs = await this._fs.listDirectories(careerRoot);
     if (subdirs.length === 0) return null;
     const email = subdirs[0] as string;
@@ -216,6 +221,9 @@ export class TeamService {
       );
       await this._fs.createDirectory(
         path.join(memberDir(workspaceRoot, normalizedEmail), 'performance-reviews'),
+      );
+      await this._fs.createDirectory(
+        path.join(memberDir(workspaceRoot, normalizedEmail), `${normalizedEmail}-shared`),
       );
       await this._fs.writeFile(profilePath, profileMd);
 
