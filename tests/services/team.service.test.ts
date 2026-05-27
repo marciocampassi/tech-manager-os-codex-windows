@@ -591,5 +591,44 @@ describe('TeamService', () => {
       const result = await svc.showProfile('nobody@co.com', WORKSPACE);
       expect(result).toBeNull();
     });
+
+    // ── 9.15 tests ──────────────────────────────────────────────────────────────
+
+    it('9.15: self profile takes priority over active team member when both exist', async () => {
+      const selfPath = `${WORKSPACE}/my-career/me@co.com.md`;
+      const memberPath = `${WORKSPACE}/my-teams/members/me@co.com/me@co.com.md`;
+      mockFS.exists.mockImplementation(async (p: string) => p === selfPath || p === memberPath);
+      mockFS.readFile.mockResolvedValue('self profile content');
+
+      const result = await svc.showProfile('me@co.com', WORKSPACE);
+
+      expect(result?.location).toBe('self');
+    });
+
+    it('9.15: returns self profile when my-career/<email>.md exists', async () => {
+      const selfPath = `${WORKSPACE}/my-career/me@co.com.md`;
+      mockFS.exists.mockImplementation(async (p: string) => p === selfPath);
+      mockFS.readFile.mockResolvedValue('self profile content');
+
+      const result = await svc.showProfile('me@co.com', WORKSPACE);
+
+      expect(result).not.toBeNull();
+      expect(result?.location).toBe('self');
+      expect(result?.filePath).toBe(selfPath);
+      expect(result?.content).toBe('self profile content');
+    });
+
+    it('9.15: returns contractor profile when my-company/contractors/<email>/<email>.md exists', async () => {
+      const contractorPath = `${WORKSPACE}/my-company/contractors/ext@vendor.com/ext@vendor.com.md`;
+      mockFS.exists.mockImplementation(async (p: string) => p === contractorPath);
+      mockFS.readFile.mockResolvedValue('contractor profile content');
+
+      const result = await svc.showProfile('ext@vendor.com', WORKSPACE);
+
+      expect(result).not.toBeNull();
+      expect(result?.location).toBe('contractor');
+      expect(result?.filePath).toBe(contractorPath);
+      expect(result?.content).toBe('contractor profile content');
+    });
   });
 });

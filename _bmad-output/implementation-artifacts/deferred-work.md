@@ -317,3 +317,10 @@ The following items were surfaced by the pre-launch AC audit (Epics 1–5) and a
 - D9 — `appendToSection` takes `fs: FileSystemService` as a positional trailing parameter rather than via constructor injection, inconsistent with the rest of the service layer. Deliberate design choice for a utility function; the inconsistency grows as call sites multiply. [`src/utils/markdown-section.ts:12`]
 - D10 — When `content` is an empty string, `content.trimEnd() + '\n## ...'` produces a file starting with `\n` (a leading blank line). Harmless; profile files are never empty in the current workflow. [`src/utils/markdown-section.ts:34`]
 - D11 — If a profile has two `## Projects` sections, `findIndex` returns only the first; an entry already in the second section is invisible to the idempotency guard and a duplicate is appended to the first section. Malformed-file edge case; spec assumes well-formed input. [`src/utils/markdown-section.ts:20`]
+
+## Deferred from: code review of 9-15-show-self-profile-lookup-fix (2026-05-27)
+
+- D1 — Auto-create side effect: `resolve()` at step 5 ghost-creates `my-company/members/<email>/` directories and a profile for truly unknown emails before returning null. Tied to the D_NEEDED-1 ordering decision; this is pre-existing behavior of `EmailResolutionService.resolve()`. [`src/services/team.service.ts:452`]
+- D2 — TOCTOU: self/contractor file deleted between `resolve()` exists-check and `readFile()` causes raw ENOENT to propagate. Pre-existing codebase pattern (all exists + readFile combos share this risk). [`src/services/team.service.ts:457`]
+- D3 — TOCTOU race: a relationship profile created concurrently between `showProfile` step 4 check and step 5 `resolve()` call is invisible; `showProfile` returns null despite the file being on disk. Pre-existing architectural pattern. [`src/services/team.service.ts:448`]
+- D4 — No test for self-priority scenario (user email registered as both a team member and self); outcome depends on the D_NEEDED-1 ordering decision. [`tests/services/team.service.test.ts`]

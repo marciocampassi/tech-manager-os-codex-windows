@@ -387,6 +387,16 @@ export class TeamService {
   async showProfile(email: string, workspaceRoot: string): Promise<IProfileResult | null> {
     const normalizedEmail = email.toLowerCase();
 
+    // 0. Self (my-career/<email>.md — flat layout per Story 9.3)
+    const selfPath = path.join(workspaceRoot, 'my-career', `${normalizedEmail}.md`);
+    if (await this._fs.exists(selfPath)) {
+      return {
+        location: 'self',
+        filePath: selfPath,
+        content: await this._fs.readFile(selfPath),
+      };
+    }
+
     // 1. Active team member
     const memberPath = memberProfilePath(workspaceRoot, normalizedEmail);
     if (await this._fs.exists(memberPath)) {
@@ -441,6 +451,22 @@ export class TeamService {
         location: 'relationship',
         filePath: relationshipPath,
         content: await this._fs.readFile(relationshipPath),
+      };
+    }
+
+    // 5. Contractor (my-company/contractors/<email>/<email>.md)
+    const contractorPath = path.join(
+      workspaceRoot,
+      'my-company',
+      'contractors',
+      normalizedEmail,
+      `${normalizedEmail}.md`,
+    );
+    if (await this._fs.exists(contractorPath)) {
+      return {
+        location: 'contractor',
+        filePath: contractorPath,
+        content: await this._fs.readFile(contractorPath),
       };
     }
 

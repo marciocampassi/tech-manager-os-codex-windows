@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { teamService, TeamService } from '../services/team.service.js';
+import type { ProfileLocation } from '../types/team.types.js';
 import { memberService } from '../services/member.service.js';
 import { printError, printSuccess, printInfo, printWarning } from '../utils/display.js';
 import { findSimilarEmail } from '../utils/email-similarity.js';
@@ -284,13 +285,15 @@ export async function runShow(email: string): Promise<void> {
     );
     return;
   }
-  const locationLabel: Record<string, string> = {
+  const locationLabel: Record<ProfileLocation, string> = {
     member: 'Active team member',
     archived: 'Archived member',
     leadership: 'Leadership',
-    relationship: 'Relationship',
+    relationship: 'Company member',
+    self: 'Self',
+    contractor: 'Contractor',
   };
-  process.stdout.write(`${chalk.dim(`[${locationLabel[result.location] ?? result.location}]`)}\n`);
+  process.stdout.write(`${chalk.dim(`[${locationLabel[result.location]}]`)}\n`);
   process.stdout.write(`${result.content}\n`);
 }
 

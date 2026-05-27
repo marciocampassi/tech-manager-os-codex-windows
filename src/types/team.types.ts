@@ -59,7 +59,13 @@ export interface IArchiveOptions {
 }
 
 /** Location result from TeamService.findProfile() */
-export type ProfileLocation = 'member' | 'archived' | 'leadership' | 'relationship';
+export type ProfileLocation =
+  | 'member'
+  | 'archived'
+  | 'leadership'
+  | 'relationship'
+  | 'self'
+  | 'contractor';
 
 export interface IProfileResult {
   location: ProfileLocation;
