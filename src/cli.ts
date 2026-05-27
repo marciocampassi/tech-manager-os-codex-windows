@@ -8,6 +8,7 @@ import { createTeamCommand, runShow } from './commands/team.command.js';
 import { createMemberCommand } from './commands/member.command.js';
 import { createLeadershipCommand } from './commands/leadership.command.js';
 import { createProjectCommand } from './commands/project.command.js';
+import { createMyselfCommand } from './commands/myself.command.js';
 import { createTaskViewCommands } from './commands/task-view.command.js';
 // Heavy commands (AI SDKs, inquirer, googleapis, chokidar) are lazy-loaded via dynamic
 // import() so that `tmr --version`, `tmr --help`, and lightweight commands don't pay
@@ -49,6 +50,7 @@ export function createProgram(): Command {
   p.addCommand(createDoctorCommand(pkg.version));
   p.addCommand(createTeamCommand());
   p.addCommand(createMemberCommand());
+  p.addCommand(createMyselfCommand());
   p.addCommand(createLeadershipCommand());
   p.addCommand(createProjectCommand());
 

@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-27
-last_updated: 2026-05-27 (story 9-15 done)
+last_updated: 2026-05-27 (story 9-16 review)
 project: tech-manager-os
 project_key: NOKEY
 tracking_system: file-system
@@ -114,7 +114,7 @@ development_status:
   9-13-project-standup-date-flag-and-wikilink: done
   9-14-project-bidirectional-member-stakeholder-links: done
   9-15-show-self-profile-lookup-fix: done
-  9-16-myself-add-performance-review: ready-for-dev
+  9-16-myself-add-performance-review: done
   9-17-doctor-granola-plugins-check: ready-for-dev
   9-18-init-scaffold-only-plugin-regression-version-art: ready-for-dev
   epic-9-retrospective: optional

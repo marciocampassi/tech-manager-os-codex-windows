@@ -9,6 +9,7 @@
 | **Priority** | Medium |
 | **Effort** | S |
 | **Risk** | Low — net new command, no changes to existing paths |
+| **Status** | done |
 
 ---
 
@@ -166,6 +167,45 @@ p.addCommand(createMyselfCommand());
 - Review file: `my-career/YYYY-MM-performance-review-<own-email>.md`
 
 The `my-career/` directory is flat — no subdirectory is created. Both the profile and its dated files live at the same level.
+
+---
+
+## Dev Agent Record
+
+### Implementation Notes
+
+- `listFiles()` returns absolute paths (not names) — used `files.find(f => !basename(f).match(/^\d{4}-\d{2}/)` to skip dated files and identify the profile.
+- Chose not to inject `EmailResolutionService` — profile discovery via `listFiles` on `my-career/` is the appropriate pattern for self-profile detection (consistent with `MemberService._resolveManagerLink`).
+- Wiki-link appended as `- [[YYYY-MM-performance-review-<email>.md]]` (no subdir prefix since `my-career/` is flat).
+- `chalk` used directly for the secondary "Profile updated:" dim line — consistent with `member.command.ts` pattern.
+
+### File List
+
+- `src/services/myself.service.ts` — new
+- `src/commands/myself.command.ts` — new
+- `src/cli.ts` — registered `createMyselfCommand()` as static import
+- `tests/services/myself.service.test.ts` — new (6 tests)
+- `tests/commands/myself.command.test.ts` — new (4 tests, 1 for passthrough)
+
+### Review Findings Round 1 (AI)
+
+- [ ] [Review][Patch] P0 (ex-Decision) — Inject `EmailResolutionService`, discover email via `listFiles` heuristic, then call `resolve(email, ws)` to validate email format and get canonical `absolutePath`; use `resolved.absolutePath` as `profilePath`. This satisfies AC3, validates email format (catches `README.md` etc.), and keeps auto-create safe since self-profile exists before `resolve()` is called. [src/services/myself.service.ts:30-43]
+- [ ] [Review][Patch] P1 — Profile heuristic silently picks first non-dated `.md` file; a `README.md` or `notes.md` in `my-career/` would be selected without warning; multiple non-dated files return first-match with undefined ordering. Fix: log a warning when more than one non-dated `.md` is found (consistent with `MemberService._resolveManagerLink` pattern). [src/services/myself.service.ts:30-43]
+- [ ] [Review][Patch] P2 — `--date` not validated: empty string passes `??` unchanged (produces `-performance-review-{email}.md`); arbitrary format silently garbles filename. Fix: `const rawDate = opts.date?.trim() || todayIso()` + regex format guard. [src/services/myself.service.ts:44]
+- [ ] [Review][Patch] P3 — `rawDate` (potentially `YYYY-MM-DD`) forwarded to `getTemplate()` but `datePrefix` (YYYY-MM) used for filename; default invocation writes `date: 2026-05-27` in frontmatter while file is named `2026-05-…`. Fix: normalise to `datePrefix` before passing to template. [src/services/myself.service.ts:49]
+- [ ] [Review][Patch] P4 — `svc.getWorkspaceRoot()` called before the `try` block; if workspace resolution throws, the exception escapes with no user-facing error and no exit code set. Fix: move inside the `try`. [src/commands/myself.command.ts:10]
+- [ ] [Review][Patch] P5 — `new TmrError(..., 'TMR_E001')` used directly instead of `ConfigurationError` subclass; bypasses `setPrototypeOf` requirement, `instanceof ConfigurationError` returns false, and `TMR_E001` may collide with other usages. Fix: `throw new ConfigurationError('No self-profile found in my-career/. Run tmr init first.')`. [src/services/myself.service.ts:38]
+- [ ] [Review][Patch] P6 — `createMyselfCommand` CLI wiring entirely untested: command name, `--date` option registration, and routing from `action` to handler have zero coverage. Fix: add a `parseAsync` test. [tests/commands/myself.command.test.ts]
+- [x] [Review][Defer] D1 — No duplicate-file guard; running the command twice in the same month silently overwrites the existing review and appends a second wiki-link — deferred, pre-existing pattern across all dated-file commands (member, leadership). [src/services/myself.service.ts:53]
+- [x] [Review][Defer] D2 — `path.basename('.md', '.md')` returns empty string if a file named literally `.md` exists in `my-career/` — deferred, unrealistic vault-corruption case. [src/services/myself.service.ts:41]
+- [x] [Review][Defer] D3 — `writeFile` succeeds then `appendToFile` throws → file written but wiki-link never appended; vault in inconsistent state — deferred, pre-existing pattern across all service-layer write pairs. [src/services/myself.service.ts:53-56]
+- [x] [Review][Defer] D4 — `todayIso()` calls `new Date()` directly with no injection point; default-date test asserts only `expect.any(String)` — deferred, pre-existing pattern (identical in `member.service.ts`). [src/services/myself.service.ts:8]
+- [x] [Review][Defer] D5 — Command error handler drops `TmrError.code` silently — deferred, pre-existing pattern across all command handlers. [src/commands/myself.command.ts:15]
+- [x] [Review][Defer] D6 — `jest.unstable_mockModule` used without documenting its instability — deferred, pre-existing pattern in every command test file.
+
+### Change Log
+
+- 2026-05-27: Story 9.16 implemented — `tmr myself add performance-review` command with `--date` flag, self-profile discovery, file creation, and wiki-link back-link.
 
 ---
 

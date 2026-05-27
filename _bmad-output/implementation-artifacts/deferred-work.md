@@ -324,3 +324,12 @@ The following items were surfaced by the pre-launch AC audit (Epics 1–5) and a
 - D2 — TOCTOU: self/contractor file deleted between `resolve()` exists-check and `readFile()` causes raw ENOENT to propagate. Pre-existing codebase pattern (all exists + readFile combos share this risk). [`src/services/team.service.ts:457`]
 - D3 — TOCTOU race: a relationship profile created concurrently between `showProfile` step 4 check and step 5 `resolve()` call is invisible; `showProfile` returns null despite the file being on disk. Pre-existing architectural pattern. [`src/services/team.service.ts:448`]
 - D4 — No test for self-priority scenario (user email registered as both a team member and self); outcome depends on the D_NEEDED-1 ordering decision. [`tests/services/team.service.test.ts`]
+
+## Deferred from: code review of 9-16-myself-add-performance-review (2026-05-27)
+
+- D1 — No duplicate-file guard; running the command twice in the same month silently overwrites the existing review and appends a second wiki-link. Pre-existing pattern across all dated-file commands (member, leadership). [`src/services/myself.service.ts:53`]
+- D2 — `path.basename('.md', '.md')` returns empty string if a file named literally `.md` exists in `my-career/`. Unrealistic vault-corruption edge case. [`src/services/myself.service.ts:41`]
+- D3 — `writeFile` succeeds then `appendToFile` throws → review file created but wiki-link never appended; vault in inconsistent state. Pre-existing pattern across all service-layer write pairs. [`src/services/myself.service.ts:53-56`]
+- D4 — `todayIso()` calls `new Date()` directly with no injection point; default-date test asserts only `expect.any(String)`. Pre-existing pattern (identical in `member.service.ts`). [`src/services/myself.service.ts:8`]
+- D5 — Command error handler drops `TmrError.code` silently. Pre-existing pattern across all command error handlers. [`src/commands/myself.command.ts:15`]
+- D6 — `jest.unstable_mockModule` used without documenting its instability. Pre-existing pattern in every command test file.
