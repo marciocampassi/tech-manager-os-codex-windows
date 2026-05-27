@@ -286,3 +286,34 @@ The following items were surfaced by the pre-launch AC audit (Epics 1–5) and a
 - D4 — No guard against silently overwriting an existing standup file; `addStandup` calls `writeFile` unconditionally; consider existence check + error or `--force` flag in a future story.
 - D5 — No CLI-layer Commander argument-parsing test for `--date` registration; all command tests bypass Commander and invoke handlers directly; pre-existing test architecture decision.
 - D6 — Third 9.13 service test (`9.13: standup with --date option uses specified date in filename and template`) partially redundant with pre-existing coverage; minor test noise, no correctness impact.
+
+## Deferred from: code review of 9-14-project-bidirectional-member-stakeholder-links (2026-05-26)
+
+- D1 — `_writeProjectBackLink` calls `_emailResolution.resolve()` twice per link-member/link-stakeholder invocation; first resolve already performed by the caller; redundant I/O, safe but wasteful.
+- D2 — CRLF mutation: `split('\n')` + `join('\n')` strips Windows carriage returns from any file it touches; pre-existing pattern across the codebase; low priority unless Windows vault users report line-ending corruption.
+- D3 — Service test `readFile` mock returns project overview content for all paths, including the member profile path used by `appendToSection`; inaccurate fixture but tests remain functional; idempotency and section-scoped behavior covered by `appendToSection` unit tests.
+- D4 — No service-level idempotency test: no test asserts that calling `linkMember` or `linkStakeholder` twice writes the back-link only once; covered implicitly by `appendToSection` unit tests.
+- D5 — No guard against falsy `resolved.absolutePath` from `EmailResolutionService.resolve()`; service contract guarantees a non-empty value but it is not validated defensively in `_writeProjectBackLink`.
+- D6 — `writeFile(overviewPath)` is not rolled back if `_writeProjectBackLink` rejects; project file receives forward link but member profile receives no back-link; pre-existing pattern — no atomic writes in codebase.
+- D7 — `appendToSection` accepts an unconstrained `entry` string; embedded newlines silently inject extra lines into the file; not realistic in current call sites.
+- D8 — "appends entry among existing entries in section" unit test does not verify section membership or insertion ordering; only checks `toContain`; weak signal for regression detection.
+
+## Deferred from: code review of 9-14-project-bidirectional-member-stakeholder-links (2026-05-27)
+
+- D1 — Race condition in `appendToSection`: read-modify-write on the same profile file is not atomic; concurrent calls (e.g., linking same email to two projects simultaneously) will silently overwrite each other; pre-existing pattern across codebase.
+- D2 — `linkMembers`/`linkStakeholders` batch commands do not invoke `writeProjectBackLink`; batch linking leaves member/stakeholder profiles without `## Projects` back-links while single-email commands work correctly; future story scope.
+- D3 — Multi-line `entry` argument to `appendToSection` bypasses the idempotency guard (`Array.includes` never matches a multi-line element) and corrupts the file on `splice`; unrealistic in current usage since wiki-links are single-line.
+
+## Deferred from: code review of 9-14-project-bidirectional-member-stakeholder-links Round 3 (2026-05-27)
+
+- D1 — Trailing whitespace on a heading line causes exact-match miss in `appendToSection`; the section is treated as absent and a duplicate `## Projects` is appended at EOF. Per-spec exact-match behavior; trailing whitespace on headings is uncommon in Obsidian. [`src/utils/markdown-section.ts:19`]
+- D2 — `#` (h1) headings are not recognized as a section boundary in the `insertAt` scan; only lines starting with `## ` stop the loop. Level-1 headings don't appear between `##` sections in Obsidian profiles in practice. [`src/utils/markdown-section.ts:24`]
+- D3 — Character-exact idempotency guard misses URL-encoded or whitespace variants of the same wiki-link. `formatWikiLink` output is deterministic so no variant arises in current usage. [`src/utils/markdown-section.ts:30`]
+- D4 — Back-link write failure in `writeProjectBackLink` propagates as a hard error after the primary overview write has already committed, leaving the caller with an error even though the project link succeeded. Consistent with the codebase's error-propagation pattern; no try/catch wraps write calls elsewhere. [`src/services/project.service.ts`]
+- D5 — `trimEnd()` in the section-absent branch silently strips intentional trailing whitespace from the entire file without documenting the side effect. Minor reformatting; profiles don't rely on trailing whitespace in practice. [`src/utils/markdown-section.ts:34`]
+- D6 — Blank-line formatting differs between the section-exists path (raw `splice`, no separator before new entry) and the section-absent path (`\n\n{entry}` with a blank line). Minor cosmetic inconsistency; list items don't require blank-line separators in Markdown. [`src/utils/markdown-section.ts:31,34`]
+- D7 — Integration test regex `/## Projects[\s\S]*\[\[/` does not verify exact wiki-link content or that `formatWikiLink` was used; any `[[` after `## Projects` satisfies the assertion. Behavioral testing is appropriate; `formatWikiLink` usage is verified by code review. [`tests/services/project.service.test.ts`]
+- D8 — Two divergent markdown-section insertion implementations coexist: `appendToHashSection` (private method, `#` headings, operates on a string) and `appendToSection` (free function, `##` headings, file I/O included), with no documented rationale for the divergence. Design concern; not actionable within 9.14 scope. [`src/services/project.service.ts`, `src/utils/markdown-section.ts`]
+- D9 — `appendToSection` takes `fs: FileSystemService` as a positional trailing parameter rather than via constructor injection, inconsistent with the rest of the service layer. Deliberate design choice for a utility function; the inconsistency grows as call sites multiply. [`src/utils/markdown-section.ts:12`]
+- D10 — When `content` is an empty string, `content.trimEnd() + '\n## ...'` produces a file starting with `\n` (a leading blank line). Harmless; profile files are never empty in the current workflow. [`src/utils/markdown-section.ts:34`]
+- D11 — If a profile has two `## Projects` sections, `findIndex` returns only the first; an entry already in the second section is invisible to the idempotency guard and a duplicate is appended to the first section. Malformed-file edge case; spec assumes well-formed input. [`src/utils/markdown-section.ts:20`]

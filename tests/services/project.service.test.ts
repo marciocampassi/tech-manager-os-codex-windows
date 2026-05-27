@@ -272,6 +272,18 @@ describe('ProjectService', () => {
 
       expect(result.created).toBe(false);
     });
+
+    // ── 9.14 tests ──────────────────────────────────────────────────────────────
+
+    it('9.14: writes project back-link to member profile under ## Projects', async () => {
+      await svc.linkMember(NAME, 'alice@co.com', WS);
+
+      // Single regex verifies ## Projects appears before the wiki-link in the same write
+      expect(mockFS.writeFile).toHaveBeenCalledWith(
+        DEFAULT_LOCATION.absolutePath,
+        expect.stringMatching(/## Projects[\s\S]*\[\[/),
+      );
+    });
   });
 
   // ── linkStakeholder ───────────────────────────────────────────────────────────
@@ -303,6 +315,18 @@ describe('ProjectService', () => {
       await svc.linkStakeholder(NAME, 'STAKE@CO.COM', WS);
 
       expect(mockEmailResolution.resolve).toHaveBeenCalledWith('stake@co.com', WS);
+    });
+
+    // ── 9.14 tests ──────────────────────────────────────────────────────────────
+
+    it('9.14: writes project back-link to stakeholder profile under ## Projects', async () => {
+      await svc.linkStakeholder(NAME, 'stake@co.com', WS);
+
+      // Single regex verifies ## Projects appears before the wiki-link in the same write
+      expect(mockFS.writeFile).toHaveBeenCalledWith(
+        DEFAULT_LOCATION.absolutePath,
+        expect.stringMatching(/## Projects[\s\S]*\[\[/),
+      );
     });
   });
 
