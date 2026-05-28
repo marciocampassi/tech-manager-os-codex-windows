@@ -142,6 +142,10 @@ export async function runLeadership1on1(
   }
 
   const ws = svc.getWorkspaceRoot();
+
+  const shouldContinue = await warnIfSimilarEmail(email, ws);
+  if (!shouldContinue) return;
+
   let result;
   try {
     result = await svc.add1on1(email, opts, ws);

@@ -40,6 +40,12 @@ jest.unstable_mockModule('../../src/services/leadership.service.js', () => ({
   leadershipService: mockSvcInstance,
 }));
 
+const mockFindSimilarEmail = jest.fn<(email: string, ws: string) => string | null>();
+
+jest.unstable_mockModule('../../src/utils/email-similarity.js', () => ({
+  findSimilarEmail: mockFindSimilarEmail,
+}));
+
 const mockPrompt = jest.fn<() => Promise<Record<string, string>>>();
 jest.unstable_mockModule('inquirer', () => ({
   default: { prompt: mockPrompt },
@@ -73,6 +79,7 @@ describe('leadership command', () => {
     jest.clearAllMocks();
     mockGetWorkspaceRoot.mockReturnValue('/fake/ws');
     mockAddLeadership.mockResolvedValue({ created: true });
+    mockFindSimilarEmail.mockReturnValue(null);
   });
 
   afterEach(() => {
@@ -226,6 +233,26 @@ describe('leadership command', () => {
       await runLeadership1on1(mockSvcInstance as never, undefined, {});
       expect(mockPrompt).toHaveBeenCalled();
       expect(mockAdd1on1).toHaveBeenCalledWith('boss@co.com', expect.any(Object), '/fake/ws');
+    });
+
+    it('9.8: aborts add1on1 when user confirms it is a typo (similarity guard)', async () => {
+      mockFindSimilarEmail.mockReturnValueOnce('boss@co.com');
+      // User answers "yes, it was a typo — abort"
+      mockPrompt.mockResolvedValueOnce({ proceed: true } as unknown as Record<string, string>);
+
+      await runLeadership1on1(mockSvcInstance as never, 'bos@co.com', {});
+
+      expect(mockAdd1on1).not.toHaveBeenCalled();
+    });
+
+    it('9.8: proceeds with add1on1 when user confirms the email is intentional (similarity guard)', async () => {
+      mockFindSimilarEmail.mockReturnValueOnce('boss@co.com');
+      // User answers "no — continue with the new email"
+      mockPrompt.mockResolvedValueOnce({ proceed: false } as unknown as Record<string, string>);
+
+      await runLeadership1on1(mockSvcInstance as never, 'bos@co.com', {});
+
+      expect(mockAdd1on1).toHaveBeenCalledWith('bos@co.com', expect.any(Object), '/fake/ws');
     });
 
     it('prints file path and wiki-link on success', async () => {
