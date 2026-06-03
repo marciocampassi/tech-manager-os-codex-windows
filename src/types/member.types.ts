@@ -20,8 +20,8 @@ export const FILE_TYPE_CONFIG: Readonly<Record<FileType, ISectionConfig>> = {
     sectionName: '1on1s',
   },
   feedback: {
-    subDir: 'feedback',
-    fileSuffix: 'feedback',
+    subDir: 'feedbacks',
+    fileSuffix: 'feedback', // kept for structural consistency — filename builder overrides for feedback type
     sectionName: 'Feedbacks',
   },
   assessment: {
@@ -31,7 +31,7 @@ export const FILE_TYPE_CONFIG: Readonly<Record<FileType, ISectionConfig>> = {
   },
   'performance-review': {
     subDir: 'performance-reviews',
-    fileSuffix: 'review',
+    fileSuffix: 'performance-review',
     sectionName: 'Performance Reviews',
   },
 };
@@ -40,13 +40,8 @@ export const FILE_TYPE_CONFIG: Readonly<Record<FileType, ISectionConfig>> = {
 export interface ICreateFileOptions {
   date?: string;
   noEdit?: boolean;
-}
-
-/** Options accepted by MemberService.createMember(). */
-export interface ICreateMemberOptions {
-  name?: string;
-  gender?: string;
-  role?: string;
+  /** Reviewer email for feedback files. Resolved from my-career/ when omitted at the command layer. */
+  fromEmail?: string;
 }
 
 /** Options accepted by MemberService.addMember(). */
@@ -58,8 +53,6 @@ export interface IAddMemberOptions {
   gender?: string;
   /** When true, routes the profile to my-company/contractors/<email>/<email>.md */
   contractor?: boolean;
-  /** Company name written to frontmatter when contractor is true (FR42) */
-  company?: string;
 }
 
 /** Result returned by MemberService.createMemberFile(). */

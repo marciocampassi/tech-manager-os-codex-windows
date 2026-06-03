@@ -66,6 +66,7 @@ jest.unstable_mockModule('chalk', () => ({
     green: (s: string) => s,
     dim: (s: string) => s,
     red: (s: string) => s,
+    yellow: (s: string) => s,
   },
 }));
 
@@ -145,6 +146,13 @@ describe('runProjectStandup', () => {
     await runProjectStandup(mockSvcInstance as unknown as SvcType, undefined, {});
     expect(process.exitCode).toBe(1);
     expect(mockAddStandup).not.toHaveBeenCalled();
+  });
+
+  it('9.13: forwards --date option through to addStandup', async () => {
+    await runProjectStandup(mockSvcInstance as unknown as SvcType, 'platform', {
+      date: '2026-05-20',
+    });
+    expect(mockAddStandup).toHaveBeenCalledWith('platform', { date: '2026-05-20' }, '/fake/ws');
   });
 });
 

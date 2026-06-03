@@ -84,8 +84,8 @@ jest.unstable_mockModule('../../src/services/file-system.service.js', () => ({
 }));
 
 const mockInstallPlugins = jest
-  .fn<(workspacePath: string) => Promise<void>>()
-  .mockResolvedValue(undefined);
+  .fn<(workspacePath: string) => Promise<string[]>>()
+  .mockResolvedValue([]);
 
 jest.unstable_mockModule('../../src/services/obsidian-plugin.service.js', () => ({
   obsidianPluginService: { installPlugins: mockInstallPlugins },
@@ -316,26 +316,26 @@ describe('InitCommand integration (Story 2.3 — member collection loop)', () =>
   });
 
   describe('user profile (AC: 1 — INIT-UNIT-004)', () => {
-    it('writes my-career/<email>/<email>.md', () => {
+    it('writes my-career/<email>.md (flat — no subdirectory)', () => {
       const paths = Array.from(writtenFiles.keys());
-      expect(paths.some((p) => p.includes(`my-career/${USER_EMAIL}/${USER_EMAIL}.md`))).toBe(true);
+      expect(paths.some((p) => p.endsWith(`my-career/${USER_EMAIL}.md`))).toBe(true);
     });
 
     it('user profile contains the user email in frontmatter', () => {
-      const profilePath = `${WORKSPACE}/my-career/${USER_EMAIL}/${USER_EMAIL}.md`;
+      const profilePath = `${WORKSPACE}/my-career/${USER_EMAIL}.md`;
       const content = writtenFiles.get(profilePath);
       expect(content).toBeDefined();
       expect(content).toContain(USER_EMAIL);
     });
 
     it('user profile contains the user name', () => {
-      const profilePath = `${WORKSPACE}/my-career/${USER_EMAIL}/${USER_EMAIL}.md`;
+      const profilePath = `${WORKSPACE}/my-career/${USER_EMAIL}.md`;
       const content = writtenFiles.get(profilePath);
       expect(content).toContain(USER_NAME);
     });
 
     it('user profile contains the user role', () => {
-      const profilePath = `${WORKSPACE}/my-career/${USER_EMAIL}/${USER_EMAIL}.md`;
+      const profilePath = `${WORKSPACE}/my-career/${USER_EMAIL}.md`;
       const content = writtenFiles.get(profilePath);
       expect(content).toContain(USER_ROLE);
     });
@@ -370,8 +370,8 @@ describe('InitCommand integration (Story 2.3 — member collection loop)', () =>
   });
 
   describe('prompt call count', () => {
-    it('uses exactly 10 prompt calls — workspace + onboarding + leader + count + 2 names + member loop', () => {
-      expect(mockPrompt).toHaveBeenCalledTimes(10);
+    it('uses exactly 12 prompt calls — workspace + nameEmail + additionalDomains + roleCompany + leader + count + 2 names + member loop', () => {
+      expect(mockPrompt).toHaveBeenCalledTimes(12);
     });
   });
 
@@ -511,7 +511,7 @@ describe('InitCommand integration (Story 2.3 — member collection loop)', () =>
     });
 
     it('career profile contains leadership wiki-link', () => {
-      const careerPath = `${WORKSPACE}/my-career/${USER_EMAIL}/${USER_EMAIL}.md`;
+      const careerPath = `${WORKSPACE}/my-career/${USER_EMAIL}.md`;
       const content = writtenFiles.get(careerPath);
       expect(content).toBeDefined();
       expect(content).toContain(LEADER_EMAIL);
@@ -540,7 +540,7 @@ describe('InitCommand integration — skill install failure (INIT-INT-010)', () 
     mockReadFile.mockReset().mockResolvedValue('# Team Members\n');
     mockAppendFile.mockReset();
     mockListDirectories.mockReset().mockResolvedValue([]);
-    mockInstallPlugins.mockReset().mockResolvedValue(undefined);
+    mockInstallPlugins.mockReset().mockResolvedValue([]);
 
     jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
     applyInitPromptFixture(
@@ -584,25 +584,25 @@ describe('InitCommand integration — multi-member team (INIT-INT-007)', () => {
     mockPrompt
       // 1. workspace
       .mockResolvedValueOnce({ workspacePath: WORKSPACE })
-      // 2. onboarding
-      .mockResolvedValueOnce({
-        name: FIXTURE_DATA.USER_NAME,
-        email: FIXTURE_DATA.USER_EMAIL,
-        role: FIXTURE_DATA.USER_ROLE,
-        company: FIXTURE_DATA.USER_COMPANY,
-      })
-      // 3. leader
+      // 2. promptNameAndEmail
+      .mockResolvedValueOnce({ name: FIXTURE_DATA.USER_NAME, email: FIXTURE_DATA.USER_EMAIL })
+      // 3. promptAdditionalDomains — skip
+      .mockResolvedValueOnce({ raw: '' })
+      // 4. promptRoleAndCompany
+      .mockResolvedValueOnce({ role: FIXTURE_DATA.USER_ROLE, company: FIXTURE_DATA.USER_COMPANY })
+      // 5. leader
       .mockResolvedValueOnce({
         name: FIXTURE_DATA.LEADER_NAME,
         email: FIXTURE_DATA.LEADER_EMAIL,
         role: FIXTURE_DATA.LEADER_ROLE,
+        location: '',
       })
-      // 4. team count = 2
+      // 6. team count = 2
       .mockResolvedValueOnce({ teamCount: '2' })
-      // 5–6. team names
+      // 7–8. team names
       .mockResolvedValueOnce({ teamName: FIXTURE_DATA.TEAM_1 })
       .mockResolvedValueOnce({ teamName: FIXTURE_DATA.TEAM_2 })
-      // 7–8. Team 1 member 1
+      // 9–10. Team 1 member 1
       .mockResolvedValueOnce({ memberEmail: MEMBER_1_EMAIL })
       .mockResolvedValueOnce({
         name: MEMBER_1_NAME,
@@ -610,12 +610,12 @@ describe('InitCommand integration — multi-member team (INIT-INT-007)', () => {
         gender: MEMBER_1_GENDER,
         location: MEMBER_1_LOCATION,
       })
-      // 9–10. Team 1 member 2 (added after member 1 — validates state is preserved)
+      // 11–12. Team 1 member 2 (added after member 1 — validates state is preserved)
       .mockResolvedValueOnce({ memberEmail: 'second-member@example.com' })
       .mockResolvedValueOnce({ name: 'Second Member', role: 'Designer', gender: '', location: '' })
-      // 11. Team 1 end loop
+      // 13. Team 1 end loop
       .mockResolvedValueOnce({ memberEmail: '' })
-      // 12. Team 2 end loop
+      // 14. Team 2 end loop
       .mockResolvedValueOnce({ memberEmail: '' });
 
     mockWriteFile.mockReset().mockImplementation(async (filePath: string, content: string) => {
@@ -630,7 +630,7 @@ describe('InitCommand integration — multi-member team (INIT-INT-007)', () => {
       appendedFiles3.set(filePath, existing);
     });
     mockListDirectories.mockReset().mockResolvedValue([]);
-    mockInstallPlugins.mockReset().mockResolvedValue(undefined);
+    mockInstallPlugins.mockReset().mockResolvedValue([]);
     mockFetchSkillContent.mockReset().mockResolvedValue({
       success: true,
       data: { content: '# skill', version: '1.0.0' },
@@ -688,7 +688,7 @@ describe('InitCommand integration — copySampleInboxFiles throws (INIT-INT-011)
     mockReadFile.mockReset().mockResolvedValue('# Team Members\n');
     mockAppendFile.mockReset();
     mockListDirectories.mockReset().mockResolvedValue([]);
-    mockInstallPlugins.mockReset().mockResolvedValue(undefined);
+    mockInstallPlugins.mockReset().mockResolvedValue([]);
     mockFetchSkillContent.mockReset().mockResolvedValue({
       success: true,
       data: { content: '# skill', version: '1.0.0' },

@@ -181,6 +181,19 @@ The following items were surfaced by the pre-launch AC audit (Epics 1–5) and a
 - D4 — `--team` + domain-routed contractor writes unexpected `manager:` field in contractor frontmatter — pre-existing design gap: `--team` and `--contractor` interaction was never specified as mutually exclusive. Requires a UX decision (warn user, strip `--team` silently, or error). [`src/commands/member.command.ts`]
 - D5 — Routing prompt label hardcodes `my-company/members/` even when `--team` is active — minor UX gap; actual destination path changes based on `--team` but the prompt copy does not. [`src/commands/member.command.ts`]
 
+## Deferred from: code review of 9-1-unify-entity-resolution-and-folder-structure (2026-05-24)
+
+- Legacy flat profiles invisible to resolution — workspaces with pre-9.1 flat paths (`my-company/members/<email>.md`, `my-teams/members/<email>.md`) are missed by `_doResolve()`; step 4 auto-creates a second nested profile, orphaning the original. `src/services/email-resolution.service.ts:_doResolve()`.
+- Legacy flat team profile auto-creates as company relationship — if only a flat team profile exists, steps 1–3.5 all miss and step 4 creates `my-company/members/<email>/<email>.md` with `type: 'relationship'`, routing feedback/1on1 files to the wrong scope. `src/services/email-resolution.service.ts:_doResolve() step 4`.
+- `feedbacks/` scaffold vs `feedback/` write path mismatch — `addMember()` creates `feedbacks/` per story spec; `FILE_TYPE_CONFIG.feedback.subDir` writes to `feedback/`. Explicit design decision during Story 9.1: both directories serve different vault purposes. Revisit if UX feedback surfaces user confusion. `src/services/member.service.ts:addMember()`.
+- Stale resolution cache after filesystem changes — `resolve()` caches `IEntityLocation` with no invalidation when profiles are added/moved/deleted between calls. Pre-existing design; acceptable for single-user CLI. `src/services/email-resolution.service.ts:resolve()/_cache`.
+- Relationship profile shadows contractor at same email — if both `my-company/members/<email>/<email>.md` and `my-company/contractors/<email>/<email>.md` exist (migration mistake), step 3 returns `type: 'relationship'` before step 3.5 can fire. Data-error edge case; resolution priority order is by design. `src/services/email-resolution.service.ts:_doResolve() steps 3/3.5`.
+- Concurrent `resolve()` auto-create races — two parallel calls for the same unknown email can both miss cache and both execute step 4 `writeFile()`, with the last writer winning. Pre-existing TOCTOU pattern. `src/services/email-resolution.service.ts:_doResolve() step 4`.
+- `memberSubDirFromProfile` flat-path branch unreachable — `createMemberFile()` now always obtains paths from `_doResolve()`, which never returns flat paths; the flat-path branch in `memberSubDirFromProfile()` is dead code. Not harmful; clean up in a future refactor pass. `src/services/member.service.ts:memberSubDirFromProfile()`.
+- `findMember` team-only scope silently misses company/contractor members — method hardcodes `my-teams/members/` path; unchanged behavior from pre-9.1 but more conspicuous now that contractor is a first-class type. `src/services/member.service.ts:findMember()`.
+- `findMember` constructs path without input validation — no `validateEmail()` call at method entry, unlike `addMember()`. Pre-existing caller-validates pattern; email format precludes traversal in practice. `src/services/member.service.ts:findMember()`.
+- MEM-INT-004 does not assert subdir creation — integration test asserts only the profile `.md` file and the feedback file; zero subdir existence checks. Add `fs.existsSync` assertions for all four common subdirs in a test-hardening pass. `tests/integration/member.integration.test.ts:284–309`.
+
 ## Deferred from: code review of 8-2-scaffold-deps-yaml-on-project-add (2026-05-19)
 
 - D1 — Idempotency is structurally tied to the overview-file existence guard, not a `deps.yaml`-specific guard — if `addProject` gains a `--force` or partial-repair path, `deps.yaml` will be silently overwritten without an independent guard. Spec-chosen design; real future evolution risk. [`src/services/project.service.ts:136`]
@@ -203,3 +216,127 @@ The following items were surfaced by the pre-launch AC audit (Epics 1–5) and a
 - D2 — No git tag is created after a successful publish. Release history in git is lost; `git describe`, changelogs, and `git log --tags` will be inaccurate. Requires `permissions: contents: write` and additional git push steps. [`.github/workflows/ci.yml:publish`]
 - D3 — No `npm publish --dry-run` preflight step. Malformed `package.json` fields, missing `files` entries, or `.npmignore` misconfigurations are only discovered at live publish time. [`.github/workflows/ci.yml:publish`]
 - D4 — `refs/heads/main` is hardcoded in the `if` condition. If the default branch is renamed, publish silently stops triggering with no error. Use `github.event.repository.default_branch` for resilience. [`.github/workflows/ci.yml:42`]
+
+## Deferred from: code review of 9-3-my-career-flat-structure (2026-05-24)
+
+- D1 (High) — `TeamService.getManagerEmail()` + `buildMemberProfileMd()` still use the old nested `my-career/<email>/<email>.md` layout. After 9.3, `listDirectories('my-career')` returns empty (no subdirs exist), so `tmr init` team members get `manager: ''` and team profile wiki-links point to non-existent paths. Requires a dedicated fix story targeting `src/services/team.service.ts` and `src/templates/onboarding.templates.ts`.
+- D2 (Med) — `_resolveManagerLink` picks up any `.md` file in `my-career/` without filtering for email-shaped names. Files like `README.md`, dot-prefixed backups, or (post-9.16) dated performance-review files will sort before the profile and produce a wrong manager link. Harden before Story 9.16 lands. [`src/services/member.service.ts:_resolveManagerLink`]
+- D3 (Med) — `onboarding.templates.ts` still emits `my-career/${managerEmail}/${managerEmail}.md` nested path in `generateTeamMemberProfile()`. Part of the TeamService fix (D1 above). [`src/templates/onboarding.templates.ts`]
+- D4 (Med) — `EmailResolutionService._doResolve()` step 2.5 returns `type: 'self'` for any email whose flat file exists in `my-career/`, not just the vault owner. A stray `bob@co.com.md` would resolve as self for Bob. Pre-existing design limitation — vault owner identity not stored in config for cross-checking. [`src/services/email-resolution.service.ts:_doResolve`]
+- D5 (Low) — `_resolveManagerLink` JSDoc says "first alphabetically" but `listFiles` uses `readdir` order (inode-based on POSIX). Pre-existing inaccuracy shared by `listDirectories` throughout the codebase. [`src/services/member.service.ts`]
+- D6 (Low) — Symlinked `my-career/<email>.md` files are invisible to `listFiles` because `Dirent.isFile()` returns false for symlinks. Pre-existing `FileSystemService.listFiles()` design constraint. [`src/services/file-system.service.ts:listFiles`]
+- D7 (Low) — Removal of the explicit `exists(managerProfilePath)` guard in `_resolveManagerLink` is correct (listFiles guarantees existence) but undocumented — future readers may re-add it unnecessarily. Low risk. [`src/services/member.service.ts:_resolveManagerLink`]
+
+## Deferred from: code review of 9-4-organization-yaml-domain-inference-and-obsidian-config (2026-05-24)
+
+- D1 (Med) — `appendInternalDomain` appends at end-of-file — if `organization.yaml` ever has keys after `internal_domains:`, the new domain is placed outside the block, producing invalid YAML. Current template only writes one key so this doesn't trigger in practice. Proper fix would insert under the last list entry of `internal_domains:`. [`src/services/member.service.ts:appendInternalDomain`]
+- D2 (Low) — `isValidDomain` checks `!trimmed.includes(' ')` but does not guard against tab or other whitespace characters — `"exam\tple.com"` passes validation. Replace space check with a broader `!/\s/.test(trimmed)`. Extremely unlikely in real usage. [`src/utils/validation.ts:isValidDomain`]
+- D3 (Low) — Concurrent `appendInternalDomain` calls share a read-modify-write pattern with no locking — second write overwrites first, silently losing a domain. Inherent file-system architecture constraint; CLI commands are not typically concurrent. [`src/services/member.service.ts:appendInternalDomain`]
+- D4 (Low) — `team.command.ts` remember-domain prompt fires unconditionally after a successful `addMember` call, even if the member already existed (no `result.created` guard) — pre-existing command-layer behavior; `printSuccess` also fires unconditionally. [`src/commands/team.command.ts:runAdd`]
+
+## Deferred from: code review of 9-5-relationship-frontmatter-all-profiles (2026-05-24)
+
+- W1 (Low) — `department: ""` orphan field in `EmailResolutionService` auto-create shim — pre-existing, no other profile type writes `department`; Dataview queries may pick it up as meaningful structure. [`src/services/email-resolution.service.ts:123`]
+- W2 (Low) — Auto-create shim hardcodes `relationship: "company-member"` for all auto-created profiles regardless of caller context — pre-existing design limitation; any contractor or leadership email resolved through this path gets the wrong relationship type. [`src/services/email-resolution.service.ts:126`]
+- W3 (Low) — Auto-create shim uses raw inline string instead of `gray-matter` — pre-existing technical debt already tracked by TODO(Story 3.2). [`src/services/email-resolution.service.ts`]
+- W4 (Low) — Quoting inconsistency: shim writes `relationship: "company-member"` (YAML-quoted) while `matter.stringify` profiles write unquoted values — harmless (both are valid YAML), depends on W3 shim refactor. [`src/services/email-resolution.service.ts:126`]
+- W5 (Low) — No typed frontmatter interface for member `relationship` field — `MemberService` builds frontmatter as `Record<string, unknown>` with no compile-time enforcement; a mis-spelled value reaches the vault silently. [`src/services/member.service.ts:111`]
+
+## Deferred from: code review of 9-8-email-similarity-warning (2026-05-25)
+
+- D1 (Medium) — SCAN_DIRS skips legacy `.md` files at dir root: entries like `user@co.com.md` get domain `co.com.md` after split, never matching the input domain. Affects pre-9.1 vaults that haven't fully migrated. [`src/utils/email-similarity.ts:findSimilarEmail`]
+- D2 (Low) — Archived members never scanned: `my-teams/archived/<year>/<email>/` is not in SCAN_DIRS, so typo warnings won't fire against archived profiles. Spec defines scan paths explicitly; extending requires intentional scope decision.
+- D3 (Low) — Workspace root fallback may point to wrong dir: if no `.tmr` sentinel exists, `getWorkspaceRoot()` falls back to `process.cwd()`; similarity scan hits wrong tree silently. Pre-existing issue with workspace detection.
+- D4 (Low) — Levenshtein missing length-delta early-exit: when `|a.length - b.length| > 2`, the result is guaranteed > 2; short-circuiting here would skip the full DP computation. Performance nit only — no correctness impact.
+- D5 (Low) — No test coverage for SCAN_DIRS `.md` suffix gap (follows D1).
+- D6 (Low) — `team add` email prompt validates length only (not format): `inquirer` validate checks `v.trim().length > 0`, not a full email regex. `findSimilarEmail` correctly returns null for non-emails; `addMember` throws `InvalidEmailError` after secondary prompts. Pre-existing.
+- D7 (Low) — `leadership add` CLI arg not validated before similarity guard: passing `notanemail` as CLI arg skips the prompt regex; the guard runs with a malformed email, returns null, and `addLeadership` may fail. Pre-existing validation gap.
+- D8 (Low) — Bulk link partial writes on mid-batch error: if `linkMember`/`linkStakeholder` throws after some emails are processed, earlier writes are not rolled back. Pre-existing service-layer atomicity issue.
+- D9 (Low) — Bulk link duplicate emails not deduped before similarity loop: `a@x.com,a@x.com` passes through the filter twice. Service-level dedup concern.
+- D10 (Low) — Bulk link per-email skip is silent: when user aborts for some emails in a batch, no per-email message is printed. Only "All emails were skipped" fires when none remain. Story has no spec for partial-skip feedback.
+- D12 (Low) — Non-interactive stdin may crash `inquirer.prompt` in `warnIfSimilarEmail`: CI/piped contexts can cause unhandled rejection. Pre-existing pattern across entire codebase.
+
+## Deferred from: code review of 9-11-member-add-1on1-subcommand (2026-05-26)
+
+- W1 — Fix `as unknown as Record<string, string>` cast to `{ proceed: boolean }` actual type in command test. Stylistic; works correctly at runtime.
+- W2 — Tighten `expect.any(Object)` in continue-path to also validate the `date` field. Deliberate loose choice; defer to avoid over-specification.
+- W3 — Add service test for 1on1 with no `date` option to exercise default date handling. Pre-existing coverage gap.
+- W4 — Guard for `EmailResolutionService.resolve()` returning `created: true` with a null `absolutePath`. Pre-existing service-layer edge case.
+
+## Deferred from: code review of 9-10-member-assessment-and-performance-review (2026-05-26)
+
+- W1 — Vault data backward compatibility: existing vault files named `YYYY-MM-review-<email>.md` now have broken wiki-links after the `fileSuffix` rename; no migration note or release changelog entry was included. Pre-existing data concern out of scope for this story.
+- W2 — Wrap 9.10 tests in a dedicated `describe` block: new tests are behind a comment banner but not an enforceable describe scope; other story tests use `describe('Story X.Y — ...')` for selective execution. Stylistic.
+- W3 — Standardize test dates across assessment/performance-review tests: existing tests use `2026-03-07`, new tests use `2026-05-22`; produces two expected year-month prefixes for the same behavior. Low priority.
+- W4 — Add flat profile branch test for auto-create: the auto-create test uses a nested profile only; the flat profile layout of `memberSubDirFromProfile` is never exercised in any auto-create test. Pre-existing coverage gap.
+
+## Deferred from: code review of 9-12-team-shared-folder-and-direct-report-frontmatter (2026-05-26)
+
+- W1 — Orphaned subdirs on write failure: if `createDirectory` succeeds for all 5 dirs but `writeFile` throws, the member folder exists with no profile; pre-existing pattern across all subdirs, not introduced by this story.
+- W2 — Duplicate test setup in 9.12 block: three new tests repeat identical `mockFS` boilerplate; could share a `beforeEach`; style only, no correctness impact.
+- W3 — Existing-member backfill gap: `<email>-shared/` and `relationship: direct-report` are never added to pre-9.12 profiles when `team add` is re-run for a second team; needs a separate migration story.
+- W4 — Flat `my-career/` manager resolution (Story 9.3 scope): `getManagerEmail()` uses `listDirectories()` on a now-flat folder and returns `null` on fresh vaults; TODO comments in the code are the explicit contract for Story 9.3 to fix.
+- W5 — `archiveMember` partial archive omits `<email>-shared/`: the date-range branch `subDirs` list has 4 entries and excludes `<email>-shared/`; low impact since shared-folder files are typically not date-prefixed; full archive is unaffected.
+
+## Deferred from: code review of 9-13-project-standup-date-flag-and-wikilink (2026-05-26)
+
+- D1 — Special characters in project name (e.g. `"`, `|`, `]]`) could corrupt YAML quoted scalar or wiki-link boundary; normalizeSlug scope predates this diff.
+- D2 — Quoted wiki-link `project: "[[...]]"` may not render in Obsidian graph or properties panel; product design decision — spec explicitly showed this form; document intended consumer (Obsidian vs Dataview) if it causes user confusion.
+- D3 — Path arithmetic (`formatWikiLink` call) now lives in `TemplateService` which is documented as pure template generation; mild separation-of-concerns debt; consider moving link computation to `ProjectService` in a future refactor.
+- D4 — No guard against silently overwriting an existing standup file; `addStandup` calls `writeFile` unconditionally; consider existence check + error or `--force` flag in a future story.
+- D5 — No CLI-layer Commander argument-parsing test for `--date` registration; all command tests bypass Commander and invoke handlers directly; pre-existing test architecture decision.
+- D6 — Third 9.13 service test (`9.13: standup with --date option uses specified date in filename and template`) partially redundant with pre-existing coverage; minor test noise, no correctness impact.
+
+## Deferred from: code review of 9-14-project-bidirectional-member-stakeholder-links (2026-05-26)
+
+- D1 — `_writeProjectBackLink` calls `_emailResolution.resolve()` twice per link-member/link-stakeholder invocation; first resolve already performed by the caller; redundant I/O, safe but wasteful.
+- D2 — CRLF mutation: `split('\n')` + `join('\n')` strips Windows carriage returns from any file it touches; pre-existing pattern across the codebase; low priority unless Windows vault users report line-ending corruption.
+- D3 — Service test `readFile` mock returns project overview content for all paths, including the member profile path used by `appendToSection`; inaccurate fixture but tests remain functional; idempotency and section-scoped behavior covered by `appendToSection` unit tests.
+- D4 — No service-level idempotency test: no test asserts that calling `linkMember` or `linkStakeholder` twice writes the back-link only once; covered implicitly by `appendToSection` unit tests.
+- D5 — No guard against falsy `resolved.absolutePath` from `EmailResolutionService.resolve()`; service contract guarantees a non-empty value but it is not validated defensively in `_writeProjectBackLink`.
+- D6 — `writeFile(overviewPath)` is not rolled back if `_writeProjectBackLink` rejects; project file receives forward link but member profile receives no back-link; pre-existing pattern — no atomic writes in codebase.
+- D7 — `appendToSection` accepts an unconstrained `entry` string; embedded newlines silently inject extra lines into the file; not realistic in current call sites.
+- D8 — "appends entry among existing entries in section" unit test does not verify section membership or insertion ordering; only checks `toContain`; weak signal for regression detection.
+
+## Deferred from: code review of 9-14-project-bidirectional-member-stakeholder-links (2026-05-27)
+
+- D1 — Race condition in `appendToSection`: read-modify-write on the same profile file is not atomic; concurrent calls (e.g., linking same email to two projects simultaneously) will silently overwrite each other; pre-existing pattern across codebase.
+- D2 — `linkMembers`/`linkStakeholders` batch commands do not invoke `writeProjectBackLink`; batch linking leaves member/stakeholder profiles without `## Projects` back-links while single-email commands work correctly; future story scope.
+- D3 — Multi-line `entry` argument to `appendToSection` bypasses the idempotency guard (`Array.includes` never matches a multi-line element) and corrupts the file on `splice`; unrealistic in current usage since wiki-links are single-line.
+
+## Deferred from: code review of 9-14-project-bidirectional-member-stakeholder-links Round 3 (2026-05-27)
+
+- D1 — Trailing whitespace on a heading line causes exact-match miss in `appendToSection`; the section is treated as absent and a duplicate `## Projects` is appended at EOF. Per-spec exact-match behavior; trailing whitespace on headings is uncommon in Obsidian. [`src/utils/markdown-section.ts:19`]
+- D2 — `#` (h1) headings are not recognized as a section boundary in the `insertAt` scan; only lines starting with `## ` stop the loop. Level-1 headings don't appear between `##` sections in Obsidian profiles in practice. [`src/utils/markdown-section.ts:24`]
+- D3 — Character-exact idempotency guard misses URL-encoded or whitespace variants of the same wiki-link. `formatWikiLink` output is deterministic so no variant arises in current usage. [`src/utils/markdown-section.ts:30`]
+- D4 — Back-link write failure in `writeProjectBackLink` propagates as a hard error after the primary overview write has already committed, leaving the caller with an error even though the project link succeeded. Consistent with the codebase's error-propagation pattern; no try/catch wraps write calls elsewhere. [`src/services/project.service.ts`]
+- D5 — `trimEnd()` in the section-absent branch silently strips intentional trailing whitespace from the entire file without documenting the side effect. Minor reformatting; profiles don't rely on trailing whitespace in practice. [`src/utils/markdown-section.ts:34`]
+- D6 — Blank-line formatting differs between the section-exists path (raw `splice`, no separator before new entry) and the section-absent path (`\n\n{entry}` with a blank line). Minor cosmetic inconsistency; list items don't require blank-line separators in Markdown. [`src/utils/markdown-section.ts:31,34`]
+- D7 — Integration test regex `/## Projects[\s\S]*\[\[/` does not verify exact wiki-link content or that `formatWikiLink` was used; any `[[` after `## Projects` satisfies the assertion. Behavioral testing is appropriate; `formatWikiLink` usage is verified by code review. [`tests/services/project.service.test.ts`]
+- D8 — Two divergent markdown-section insertion implementations coexist: `appendToHashSection` (private method, `#` headings, operates on a string) and `appendToSection` (free function, `##` headings, file I/O included), with no documented rationale for the divergence. Design concern; not actionable within 9.14 scope. [`src/services/project.service.ts`, `src/utils/markdown-section.ts`]
+- D9 — `appendToSection` takes `fs: FileSystemService` as a positional trailing parameter rather than via constructor injection, inconsistent with the rest of the service layer. Deliberate design choice for a utility function; the inconsistency grows as call sites multiply. [`src/utils/markdown-section.ts:12`]
+- D10 — When `content` is an empty string, `content.trimEnd() + '\n## ...'` produces a file starting with `\n` (a leading blank line). Harmless; profile files are never empty in the current workflow. [`src/utils/markdown-section.ts:34`]
+- D11 — If a profile has two `## Projects` sections, `findIndex` returns only the first; an entry already in the second section is invisible to the idempotency guard and a duplicate is appended to the first section. Malformed-file edge case; spec assumes well-formed input. [`src/utils/markdown-section.ts:20`]
+
+## Deferred from: code review of 9-15-show-self-profile-lookup-fix (2026-05-27)
+
+- D1 — Auto-create side effect: `resolve()` at step 5 ghost-creates `my-company/members/<email>/` directories and a profile for truly unknown emails before returning null. Tied to the D_NEEDED-1 ordering decision; this is pre-existing behavior of `EmailResolutionService.resolve()`. [`src/services/team.service.ts:452`]
+- D2 — TOCTOU: self/contractor file deleted between `resolve()` exists-check and `readFile()` causes raw ENOENT to propagate. Pre-existing codebase pattern (all exists + readFile combos share this risk). [`src/services/team.service.ts:457`]
+- D3 — TOCTOU race: a relationship profile created concurrently between `showProfile` step 4 check and step 5 `resolve()` call is invisible; `showProfile` returns null despite the file being on disk. Pre-existing architectural pattern. [`src/services/team.service.ts:448`]
+- D4 — No test for self-priority scenario (user email registered as both a team member and self); outcome depends on the D_NEEDED-1 ordering decision. [`tests/services/team.service.test.ts`]
+
+## Deferred from: code review of 9-16-myself-add-performance-review (2026-05-27)
+
+- D1 — No duplicate-file guard; running the command twice in the same month silently overwrites the existing review and appends a second wiki-link. Pre-existing pattern across all dated-file commands (member, leadership). [`src/services/myself.service.ts:53`]
+- D2 — `path.basename('.md', '.md')` returns empty string if a file named literally `.md` exists in `my-career/`. Unrealistic vault-corruption edge case. [`src/services/myself.service.ts:41`]
+- D3 — `writeFile` succeeds then `appendToFile` throws → review file created but wiki-link never appended; vault in inconsistent state. Pre-existing pattern across all service-layer write pairs. [`src/services/myself.service.ts:53-56`]
+- D4 — `todayIso()` calls `new Date()` directly with no injection point; default-date test asserts only `expect.any(String)`. Pre-existing pattern (identical in `member.service.ts`). [`src/services/myself.service.ts:8`]
+- D5 — Command error handler drops `TmrError.code` silently. Pre-existing pattern across all command error handlers. [`src/commands/myself.command.ts:15`]
+- D6 — `jest.unstable_mockModule` used without documenting its instability. Pre-existing pattern in every command test file.
+
+## Deferred from: code review of 9-17-doctor-granola-plugins-check (2026-05-27)
+
+- D1 — Hardcoded `REQUIRED_PLUGIN_IDS` in test mock (`jest.unstable_mockModule`) decouples test data from production constant. ESM architectural constraint; ideal fix would extract the constant to a lightweight file (no `fileSystemService` dependency) so the mock factory can import directly. [`tests/services/doctor.service.test.ts`]
+- D2 — `OBSIDIAN_PLUGINS` array elements no longer deeply readonly after explicit type annotation was added (`as const` removed). Internal private constant with zero public API exposure; practical risk is nil. [`src/services/obsidian-plugin.service.ts`]
+- D3 — One-directional compile-time drift: adding to `REQUIRED_PLUGIN_IDS` without updating `OBSIDIAN_PLUGINS` is not caught at compile time (the reverse direction IS caught via `RequiredPluginId` type constraint). [`src/services/obsidian-plugin.service.ts`]
+- D4 — No test for vault-configured-but-directory-absent branch of `checkCommunityPlugins`. Consistent gap with `checkGranolaSync` test pattern — neither service has this branch explicitly tested. [`tests/services/doctor.service.test.ts`]

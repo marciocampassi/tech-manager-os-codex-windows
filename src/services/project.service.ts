@@ -5,6 +5,7 @@ import { emailResolutionService, EmailResolutionService } from './email-resoluti
 import { getWorkspaceRoot as resolveWorkspaceRoot } from '../utils/workspace.js';
 import { normalizeSlug } from '../utils/normalization.js';
 import { formatWikiLink } from '../utils/wiki-link.js';
+import { appendToSection } from '../utils/markdown-section.js';
 import type {
   IBatchLinkResult,
   ILinkResult,
@@ -75,6 +76,25 @@ export class ProjectService {
   }
 
   // ── Private helpers ─────────────────────────────────────────────────────────
+
+  /**
+   * Writes a back-link entry under `## Projects` in the resolved entity's profile.
+   * Idempotent — skips if the link already exists.
+   */
+  private async writeProjectBackLink(
+    email: string,
+    projectName: string,
+    ws: string,
+  ): Promise<void> {
+    const resolved = await this._emailResolution.resolve(email, ws);
+    const ovPath = projectOverviewPath(ws, projectName);
+    const wikiLink = formatWikiLink(
+      ovPath,
+      resolved.absolutePath,
+      normalizeProjectName(projectName),
+    );
+    await appendToSection(resolved.absolutePath, 'Projects', `- ${wikiLink}`, this._fs);
+  }
 
   /**
    * Appends `line` to a `# sectionName` section in the content string.
@@ -156,9 +176,15 @@ export class ProjectService {
 
     const normalized = normalizeProjectName(name);
     const date = opts.date ?? todayIso();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      throw new Error(`Invalid date format '${date}'. Expected YYYY-MM-DD.`);
+    }
     const fileName = `${date}-${normalized}-standup.md`;
     const filePath = path.join(projectStandupsDir(ws, name), fileName);
-    await this._fs.writeFile(filePath, this._template.getStandupTemplate(date, normalized));
+    await this._fs.writeFile(
+      filePath,
+      this._template.getStandupTemplate(date, normalized, overviewPath, filePath),
+    );
 
     return { filePath };
   }
@@ -181,6 +207,8 @@ export class ProjectService {
     const updated = this.appendToHashSection(content, 'Team Members', wikiLink);
     await this._fs.writeFile(overviewPath, updated);
 
+    await this.writeProjectBackLink(normalizedEmail, name, ws);
+
     return { wikiLink, created: resolved.created };
   }
 
@@ -201,6 +229,8 @@ export class ProjectService {
     const content = await this._fs.readFile(overviewPath);
     const updated = this.appendToHashSection(content, 'Stakeholders', wikiLink);
     await this._fs.writeFile(overviewPath, updated);
+
+    await this.writeProjectBackLink(normalizedEmail, name, ws);
 
     return { wikiLink, created: resolved.created };
   }

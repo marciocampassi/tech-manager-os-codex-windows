@@ -5,9 +5,10 @@ import { join } from 'node:path';
 
 const mockWriteFile = jest.fn<(path: string, content: string) => Promise<void>>();
 const mockExists = jest.fn<(path: string) => Promise<boolean>>();
+const mockReadFile = jest.fn<(path: string) => Promise<string>>();
 
 jest.unstable_mockModule('../../src/services/file-system.service.js', () => ({
-  fileSystemService: { writeFile: mockWriteFile, exists: mockExists },
+  fileSystemService: { writeFile: mockWriteFile, exists: mockExists, readFile: mockReadFile },
 }));
 
 jest.unstable_mockModule('../../src/utils/logger.js', () => ({
@@ -55,6 +56,7 @@ describe('ObsidianPluginService', () => {
     jest.clearAllMocks();
     mockWriteFile.mockResolvedValue(undefined);
     mockExists.mockResolvedValue(false);
+    mockReadFile.mockResolvedValue('{}');
     originalFetch = globalThis.fetch;
     service = new ObsidianPluginService();
   });
@@ -112,6 +114,15 @@ describe('ObsidianPluginService', () => {
 
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('ECONNREFUSED'));
     });
+
+    it('does not log warn when optional=true and fetch throws', async () => {
+      const { logger } = await import('../../src/utils/logger.js');
+      globalThis.fetch = mockFetchThrows(new Error('ECONNREFUSED'));
+
+      await service.downloadPluginFile(PLUGIN_DIR, FILE_URL, 'styles.css', true);
+
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
   });
 
   // ── installPlugins ──────────────────────────────────────────────────────────
@@ -145,7 +156,7 @@ describe('ObsidianPluginService', () => {
       ]);
     });
 
-    it('writes app.json with {} when it does not exist', async () => {
+    it('writes app.json with showUnsupportedFiles:true when file does not exist', async () => {
       globalThis.fetch = mockFetchOk();
       mockExists.mockResolvedValue(false);
 
@@ -156,24 +167,29 @@ describe('ObsidianPluginService', () => {
         | [string, string]
         | undefined;
       expect(appJsonCall).toBeDefined();
-      expect(appJsonCall![1]).toBe('{}');
+      expect(JSON.parse(appJsonCall![1])).toEqual({ showUnsupportedFiles: true });
     });
 
-    it('does not write app.json when it already exists', async () => {
+    it('merges showUnsupportedFiles into existing app.json without losing other keys', async () => {
       globalThis.fetch = mockFetchOk();
       mockExists.mockResolvedValue(true);
+      mockReadFile.mockResolvedValue('{"existingKey":"existingValue"}');
 
       await service.installPlugins(WORKSPACE);
 
       const appJsonPath = join(WORKSPACE, '.obsidian', 'app.json');
-      const appJsonCall = mockWriteFile.mock.calls.find(([p]) => p === appJsonPath);
-      expect(appJsonCall).toBeUndefined();
+      const appJsonCall = mockWriteFile.mock.calls.find(([p]) => p === appJsonPath) as
+        | [string, string]
+        | undefined;
+      expect(appJsonCall).toBeDefined();
+      const parsed = JSON.parse(appJsonCall![1]);
+      expect(parsed).toMatchObject({ existingKey: 'existingValue', showUnsupportedFiles: true });
     });
 
     it('completes without throwing when all downloads fail (network unavailable)', async () => {
       globalThis.fetch = mockFetchThrows();
 
-      await expect(service.installPlugins(WORKSPACE)).resolves.toBeUndefined();
+      await expect(service.installPlugins(WORKSPACE)).resolves.toBeInstanceOf(Array);
     });
 
     it('still writes community-plugins.json and app.json even when all downloads fail', async () => {
@@ -248,6 +264,44 @@ describe('ObsidianPluginService', () => {
       expect(writtenPaths).toContain(granolaConfigPath);
     });
 
+    it('treats styles.css failure as optional — no warn emitted, debug logged', async () => {
+      const { logger } = await import('../../src/utils/logger.js');
+      globalThis.fetch = jest.fn().mockImplementation((url: unknown) => {
+        if ((url as string).endsWith('styles.css')) {
+          return Promise.resolve({ ok: false, status: 404 });
+        }
+        return Promise.resolve({ ok: true, arrayBuffer: async () => Buffer.from('x').buffer });
+      }) as unknown as typeof globalThis.fetch;
+
+      await service.installPlugins(WORKSPACE);
+
+      expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining('styles.css'));
+      expect(logger.debug).toHaveBeenCalledWith(expect.stringContaining('styles.css'));
+    });
+
+    it('returns fully-failed plugin ID when all required files fail (main.js + manifest.json)', async () => {
+      globalThis.fetch = jest.fn().mockImplementation((url: unknown) => {
+        const u = url as string;
+        if (u.includes('Vinzent03') && (u.endsWith('main.js') || u.endsWith('manifest.json'))) {
+          return Promise.resolve({ ok: false, status: 404 });
+        }
+        return Promise.resolve({ ok: true, arrayBuffer: async () => Buffer.from('x').buffer });
+      }) as unknown as typeof globalThis.fetch;
+
+      const result = await service.installPlugins(WORKSPACE);
+
+      expect(result).toContain('obsidian-git');
+      expect(result).not.toContain('granola-sync');
+    });
+
+    it('returns empty array when all plugins download successfully', async () => {
+      globalThis.fetch = mockFetchOk();
+
+      const result = await service.installPlugins(WORKSPACE);
+
+      expect(result).toEqual([]);
+    });
+
     it('resolves without throwing when granola-sync data.json write fails', async () => {
       globalThis.fetch = mockFetchOk();
       const granolaConfigPath = join(
@@ -261,7 +315,7 @@ describe('ObsidianPluginService', () => {
         if (p === granolaConfigPath) throw new Error('EACCES: permission denied');
       });
 
-      await expect(service.installPlugins(WORKSPACE)).resolves.toBeUndefined();
+      await expect(service.installPlugins(WORKSPACE)).resolves.toBeInstanceOf(Array);
     });
   });
 });

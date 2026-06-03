@@ -15,3 +15,17 @@ export function validateEmail(email: string): void {
     throw new InvalidEmailError(email);
   }
 }
+
+// ── Domain Validation ─────────────────────────────────────────────────────────
+
+/**
+ * Returns true if `value` is a well-formed domain: non-empty, contains a dot,
+ * no `@` character, and no whitespace.  Used to validate additional internal
+ * domains entered at `tmr init` or via the inline "remember domain" prompt.
+ */
+export function isValidDomain(value: string): boolean {
+  const trimmed = value.trim();
+  return (
+    trimmed.length > 0 && !trimmed.includes('@') && !trimmed.includes(' ') && trimmed.includes('.')
+  );
+}

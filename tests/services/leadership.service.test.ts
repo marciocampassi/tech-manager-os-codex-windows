@@ -156,6 +156,25 @@ describe('LeadershipService', () => {
       expect(writtenContent).toContain('## Notes');
     });
 
+    it('9.5: profile frontmatter contains relationship: leadership', async () => {
+      mockFS.exists.mockResolvedValue(false);
+
+      await svc.addLeadership(EMAIL, {}, WS);
+
+      const writtenContent = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
+      expect(writtenContent).toContain('relationship: leadership');
+    });
+
+    it('9.6: profile frontmatter contains location when provided', async () => {
+      mockFS.exists.mockResolvedValue(false);
+
+      await svc.addLeadership(EMAIL, { location: 'São Paulo, BR' }, WS);
+
+      const writtenContent = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
+      expect(writtenContent).toContain('location:');
+      expect(writtenContent).toContain('São Paulo, BR');
+    });
+
     it('places profile in my-leadership/{email}/ directory', async () => {
       mockFS.exists.mockResolvedValue(false);
 
@@ -184,7 +203,7 @@ describe('LeadershipService', () => {
       await svc.add1on1(EMAIL, { date: '2026-03-09' }, WS);
 
       expect(mockFS.writeFile).toHaveBeenCalledWith(
-        expect.stringContaining(`1on1s/2026-03-09-${EMAIL}-1on1.md`),
+        expect.stringContaining(`1on1s/2026-03-09-1on1-${EMAIL}.md`),
         expect.any(String),
       );
     });
@@ -212,16 +231,16 @@ describe('LeadershipService', () => {
       expect(mockParser.appendToFile).toHaveBeenCalledWith(
         PROFILE_PATH,
         '1on1s',
-        expect.stringContaining(`[[1on1s/2026-03-09-${EMAIL}-1on1.md]]`),
+        expect.stringContaining(`[[1on1s/2026-03-09-1on1-${EMAIL}.md]]`),
       );
     });
 
     it('returns filePath, profilePath, and wikiLink', async () => {
       const result = await svc.add1on1(EMAIL, { date: '2026-03-09' }, WS);
 
-      expect(result.filePath).toContain(`2026-03-09-${EMAIL}-1on1.md`);
+      expect(result.filePath).toContain(`2026-03-09-1on1-${EMAIL}.md`);
       expect(result.profilePath).toContain(`${EMAIL}.md`);
-      expect(result.wikiLink).toContain(`[[1on1s/2026-03-09-${EMAIL}-1on1.md]]`);
+      expect(result.wikiLink).toContain(`[[1on1s/2026-03-09-1on1-${EMAIL}.md]]`);
     });
   });
 

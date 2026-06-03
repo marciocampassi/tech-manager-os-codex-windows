@@ -155,6 +155,14 @@ describe('TemplateService', () => {
       expect(result).toContain('## Today');
       expect(result).toContain('## Blockers');
     });
+
+    it('9.13: embeds wiki-link in project frontmatter when paths are provided', () => {
+      const ovPath = '/ws/my-company/projects/platform-project/platform-project.md';
+      const fromPath =
+        '/ws/my-company/projects/platform-project/standups/2026-05-20-platform-project-standup.md';
+      const result = svc.getStandupTemplate(DATE, 'platform-project', ovPath, fromPath);
+      expect(result).toContain('project: "[[../platform-project.md|platform-project]]"');
+    });
   });
 
   it('substitutes different dates and emails correctly', () => {

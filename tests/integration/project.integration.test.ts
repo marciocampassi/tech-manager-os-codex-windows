@@ -137,7 +137,8 @@ describe('Project Integration', () => {
 
     const content = fs.readFileSync(expectedPath, 'utf8');
     expect(content).toContain('type: standup');
-    expect(content).toContain('project: platform-project');
+    // 9.13: project field is a complete wiki-link one level up from standups/
+    expect(content).toContain('project: "[[../platform-project.md|platform-project]]"');
     expect(content).toContain('## Yesterday');
     expect(content).toContain('## Today');
     expect(content).toContain('## Blockers');

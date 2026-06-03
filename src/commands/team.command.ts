@@ -2,8 +2,29 @@ import { Command } from 'commander';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { teamService, TeamService } from '../services/team.service.js';
-import { printError, printSuccess } from '../utils/display.js';
+import type { ProfileLocation } from '../types/team.types.js';
+import { memberService } from '../services/member.service.js';
+import { printError, printSuccess, printInfo, printWarning } from '../utils/display.js';
+import { findSimilarEmail } from '../utils/email-similarity.js';
 import { InvalidEmailError } from '../errors/tmr-error.js';
+
+// ── Shared guard ─────────────────────────────────────────────────────────────
+
+async function warnIfSimilarEmail(email: string, workspaceRoot: string): Promise<boolean> {
+  const similar = findSimilarEmail(email, workspaceRoot);
+  if (!similar) return true;
+
+  printWarning(`Similar email already exists: ${similar}`);
+  const { proceed } = await inquirer.prompt<{ proceed: boolean }>([
+    {
+      type: 'confirm',
+      name: 'proceed',
+      message: `Did you mean "${similar}"? (N = continue adding "${email}")`,
+      default: false,
+    },
+  ]);
+  return !proceed;
+}
 
 // ── Formatting helpers ────────────────────────────────────────────────────────
 
@@ -99,6 +120,11 @@ async function runAdd(
     email = email || answers.email.trim();
   }
 
+  const ws = svc.getWorkspaceRoot();
+
+  const shouldContinue = await warnIfSimilarEmail(email, ws);
+  if (!shouldContinue) return;
+
   // Secondary prompts for optional fields — always run, skip if pre-filled via flags
   const secondaryAnswers = await inquirer.prompt<{
     name: string;
@@ -119,7 +145,6 @@ async function runAdd(
   const gender = opts.gender?.trim() ?? secondaryAnswers.gender?.trim() ?? '';
   const location = opts.location?.trim() ?? secondaryAnswers.location?.trim() ?? '';
 
-  const ws = svc.getWorkspaceRoot();
   try {
     await svc.addMember(teamName, email, { name, role, gender, location }, ws);
   } catch (err) {
@@ -130,6 +155,31 @@ async function runAdd(
     throw err;
   }
   printSuccess(`Member "${email}" added to team "${teamName}"`);
+
+  // "Remember domain" offer — fires when the domain is external (not in org config)
+  const domain = email.split('@')[1]?.toLowerCase() ?? '';
+  if (domain) {
+    let internalDomains: string[] = [];
+    try {
+      internalDomains = await memberService.getInternalDomains(ws);
+    } catch {
+      // org.yaml unreadable — skip
+    }
+    if (internalDomains.length > 0 && !internalDomains.includes(domain)) {
+      const { remember } = await inquirer.prompt<{ remember: boolean }>([
+        {
+          type: 'confirm',
+          name: 'remember',
+          message: `Remember "${domain}" as an internal domain for future members?`,
+          default: false,
+        },
+      ]);
+      if (remember) {
+        await memberService.appendInternalDomain(domain, ws);
+        printInfo(`Domain "${domain}" added to config/organization.yaml`);
+      }
+    }
+  }
 }
 
 async function runList(svc: TeamService, teamNameArg: string | undefined): Promise<void> {
@@ -235,13 +285,15 @@ export async function runShow(email: string): Promise<void> {
     );
     return;
   }
-  const locationLabel: Record<string, string> = {
+  const locationLabel: Record<ProfileLocation, string> = {
     member: 'Active team member',
     archived: 'Archived member',
     leadership: 'Leadership',
-    relationship: 'Relationship',
+    relationship: 'Company member',
+    self: 'Self',
+    contractor: 'Contractor',
   };
-  process.stdout.write(`${chalk.dim(`[${locationLabel[result.location] ?? result.location}]`)}\n`);
+  process.stdout.write(`${chalk.dim(`[${locationLabel[result.location]}]`)}\n`);
   process.stdout.write(`${result.content}\n`);
 }
 

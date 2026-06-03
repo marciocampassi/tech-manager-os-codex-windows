@@ -118,7 +118,7 @@ describe('EmailResolutionService', () => {
       const result = await svc.resolve('me@co.com', WS);
 
       expect(result.type).toBe('self');
-      expect(result.absolutePath).toContain('my-career/me@co.com/me@co.com.md');
+      expect(result.absolutePath).toContain('my-career/me@co.com.md');
       expect(result.created).toBe(false);
     });
 
@@ -134,6 +134,22 @@ describe('EmailResolutionService', () => {
 
       expect(result.type).toBe('relationship');
       expect(result.absolutePath).toContain('my-company/members/partner@co.com/partner@co.com.md');
+      expect(result.created).toBe(false);
+    });
+
+    it('resolves to contractor when contractor profile exists (no team/leadership/self/relationship)', async () => {
+      mockFS.exists.mockImplementation(async (p: string) => {
+        if (p.includes('my-teams/members')) return false;
+        if (p.includes('my-leadership')) return false;
+        if (p.includes('my-career')) return false;
+        if (p.includes('my-company/members')) return false;
+        return p.includes('my-company/contractors');
+      });
+
+      const result = await svc.resolve('user@x.com', WS);
+
+      expect(result.type).toBe('contractor');
+      expect(result.absolutePath).toContain('my-company/contractors/user@x.com/user@x.com.md');
       expect(result.created).toBe(false);
     });
 
@@ -154,6 +170,16 @@ describe('EmailResolutionService', () => {
         expect.stringContaining(path.join('my-company', 'members', 'new@co.com', 'new@co.com.md')),
         expect.stringContaining('email: "new@co.com"'),
       );
+    });
+
+    it('9.5: auto-created profile writes relationship: company-member (not relationship_type)', async () => {
+      mockFS.exists.mockResolvedValue(false);
+
+      await svc.resolve('new@co.com', WS);
+
+      const [, content] = mockFS.writeFile.mock.calls[0] as [string, string];
+      expect(content).toContain('relationship: "company-member"');
+      expect(content).not.toContain('relationship_type');
     });
 
     it('throws Error with message matching /Invalid email/ for invalid email', async () => {

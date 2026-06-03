@@ -129,9 +129,12 @@ describe('TeamService', () => {
         expect.stringContaining('john@co.com/john@co.com.md'),
         expect.stringContaining('"john@co.com"'),
       );
-      // Subdirectories created
+      // Subdirectories created (including 9.12: <email>-shared)
       expect(mockFS.createDirectory).toHaveBeenCalledWith(expect.stringContaining('1on1s'));
       expect(mockFS.createDirectory).toHaveBeenCalledWith(expect.stringContaining('feedbacks'));
+      expect(mockFS.createDirectory).toHaveBeenCalledWith(
+        expect.stringContaining('john@co.com-shared'),
+      );
       // Wiki-link appended
       expect(mockFS.appendFile).toHaveBeenCalledWith(
         expect.stringContaining('alpha-members.md'),
@@ -340,6 +343,68 @@ describe('TeamService', () => {
         expect.any(String),
       );
     });
+
+    // ── 9.12 tests ──────────────────────────────────────────────────────────────
+
+    it('9.12: creates <email>-shared/ directory for new member', async () => {
+      mockFS.exists.mockImplementation(async (p: string) => {
+        if (p.includes('alpha-context.md')) return true;
+        return false;
+      });
+      mockFS.readFile.mockImplementation(async (p: string) => {
+        if (p.includes('alpha-members.md')) return '# Team Members\n';
+        return '';
+      });
+      mockFS.listDirectories.mockResolvedValue([]);
+
+      await svc.addMember('alpha', 'dev@co.com', {}, WORKSPACE);
+
+      expect(mockFS.createDirectory).toHaveBeenCalledWith(
+        expect.stringContaining('dev@co.com-shared'),
+      );
+    });
+
+    it('9.12: new member profile includes relationship: direct-report frontmatter', async () => {
+      mockFS.exists.mockImplementation(async (p: string) => {
+        if (p.includes('alpha-context.md')) return true;
+        return false;
+      });
+      mockFS.readFile.mockImplementation(async (p: string) => {
+        if (p.includes('alpha-members.md')) return '# Team Members\n';
+        return '';
+      });
+      mockFS.listDirectories.mockResolvedValue([]);
+
+      await svc.addMember('alpha', 'dev@co.com', {}, WORKSPACE);
+
+      const profileCall = (mockFS.writeFile.mock.calls as [string, string][]).find(([p]) =>
+        p.includes('dev@co.com/dev@co.com.md'),
+      );
+      expect(profileCall).toBeDefined();
+      expect(profileCall![1]).toContain('relationship: direct-report');
+    });
+
+    it('9.12: <email>-shared/ dir uses normalized (lowercase) email', async () => {
+      mockFS.exists.mockImplementation(async (p: string) => {
+        if (p.includes('alpha-context.md')) return true;
+        return false;
+      });
+      mockFS.readFile.mockImplementation(async (p: string) => {
+        if (p.includes('alpha-members.md')) return '# Team Members\n';
+        return '';
+      });
+      mockFS.listDirectories.mockResolvedValue([]);
+
+      await svc.addMember('alpha', 'DEV@CO.COM', {}, WORKSPACE);
+
+      // P1: assert lowercase form was used AND uppercase form was NOT
+      expect(mockFS.createDirectory).toHaveBeenCalledWith(
+        expect.stringContaining('dev@co.com-shared'),
+      );
+      expect(mockFS.createDirectory).not.toHaveBeenCalledWith(
+        expect.stringContaining('DEV@CO.COM-shared'),
+      );
+    });
   });
 
   // ── listTeams ────────────────────────────────────────────────────────────────
@@ -525,6 +590,45 @@ describe('TeamService', () => {
       mockFS.exists.mockResolvedValue(false);
       const result = await svc.showProfile('nobody@co.com', WORKSPACE);
       expect(result).toBeNull();
+    });
+
+    // ── 9.15 tests ──────────────────────────────────────────────────────────────
+
+    it('9.15: self profile takes priority over active team member when both exist', async () => {
+      const selfPath = `${WORKSPACE}/my-career/me@co.com.md`;
+      const memberPath = `${WORKSPACE}/my-teams/members/me@co.com/me@co.com.md`;
+      mockFS.exists.mockImplementation(async (p: string) => p === selfPath || p === memberPath);
+      mockFS.readFile.mockResolvedValue('self profile content');
+
+      const result = await svc.showProfile('me@co.com', WORKSPACE);
+
+      expect(result?.location).toBe('self');
+    });
+
+    it('9.15: returns self profile when my-career/<email>.md exists', async () => {
+      const selfPath = `${WORKSPACE}/my-career/me@co.com.md`;
+      mockFS.exists.mockImplementation(async (p: string) => p === selfPath);
+      mockFS.readFile.mockResolvedValue('self profile content');
+
+      const result = await svc.showProfile('me@co.com', WORKSPACE);
+
+      expect(result).not.toBeNull();
+      expect(result?.location).toBe('self');
+      expect(result?.filePath).toBe(selfPath);
+      expect(result?.content).toBe('self profile content');
+    });
+
+    it('9.15: returns contractor profile when my-company/contractors/<email>/<email>.md exists', async () => {
+      const contractorPath = `${WORKSPACE}/my-company/contractors/ext@vendor.com/ext@vendor.com.md`;
+      mockFS.exists.mockImplementation(async (p: string) => p === contractorPath);
+      mockFS.readFile.mockResolvedValue('contractor profile content');
+
+      const result = await svc.showProfile('ext@vendor.com', WORKSPACE);
+
+      expect(result).not.toBeNull();
+      expect(result?.location).toBe('contractor');
+      expect(result?.filePath).toBe(contractorPath);
+      expect(result?.content).toBe('contractor profile content');
     });
   });
 });

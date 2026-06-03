@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-27
-last_updated: 2026-05-19 (8-4 done after code review)
+last_updated: 2026-05-27 (story 9-16 review)
 project: tech-manager-os
 project_key: NOKEY
 tracking_system: file-system
@@ -95,3 +95,26 @@ development_status:
   8-3-domain-check-contractor-routing: done
   8-4-publish-tmr-project-impact-to-registry: done
   epic-8-retrospective: optional
+
+  # ── Epic 9: UAT Pre-Launch Polish ──
+  # Source: sprint-change-proposal-2026-05-22-uat-pre-launch-polish.md
+  epic-9: in-progress
+  9-1-unify-entity-resolution-and-folder-structure: done
+  9-2-workspace-anchoring-tmr-sentinel: done
+  9-3-my-career-flat-structure: done
+  9-4-organization-yaml-domain-inference-and-obsidian-config: done
+  9-5-relationship-frontmatter-all-profiles: done
+  9-6-leadership-location-and-1on1-subcommand: done
+  9-7-member-add-location-prompt-and-routing-integration: done
+  9-8-email-similarity-warning: done
+  9-9-member-feedback-fix: done
+  9-10-member-assessment-and-performance-review: done
+  9-11-member-add-1on1-subcommand: done
+  9-12-team-shared-folder-and-direct-report-frontmatter: done
+  9-13-project-standup-date-flag-and-wikilink: done
+  9-14-project-bidirectional-member-stakeholder-links: done
+  9-15-show-self-profile-lookup-fix: done
+  9-16-myself-add-performance-review: done
+  9-17-doctor-granola-plugins-check: done
+  9-18-init-scaffold-only-plugin-regression-version-art: done
+  epic-9-retrospective: optional

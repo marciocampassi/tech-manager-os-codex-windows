@@ -2,8 +2,28 @@ import { Command } from 'commander';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { leadershipService, LeadershipService } from '../services/leadership.service.js';
-import { printError } from '../utils/display.js';
+import { memberService } from '../services/member.service.js';
+import { printError, printInfo, printWarning } from '../utils/display.js';
+import { findSimilarEmail } from '../utils/email-similarity.js';
 import type { IAddLeadershipOptions } from '../types/leadership.types.js';
+
+// ── Shared guard ─────────────────────────────────────────────────────────────
+
+async function warnIfSimilarEmail(email: string, workspaceRoot: string): Promise<boolean> {
+  const similar = findSimilarEmail(email, workspaceRoot);
+  if (!similar) return true;
+
+  printWarning(`Similar email already exists: ${similar}`);
+  const { proceed } = await inquirer.prompt<{ proceed: boolean }>([
+    {
+      type: 'confirm',
+      name: 'proceed',
+      message: `Did you mean "${similar}"? (N = continue adding "${email}")`,
+      default: false,
+    },
+  ]);
+  return !proceed;
+}
 
 // ── Formatting helpers ────────────────────────────────────────────────────────
 
@@ -15,12 +35,19 @@ function padEnd(s: string, len: number): string {
 
 export async function runLeadershipAdd(
   svc: LeadershipService,
+  typeOrEmail: string | undefined,
   emailArg: string | undefined,
   opts: IAddLeadershipOptions,
 ): Promise<void> {
+  // Route: 1on1 subcommand — `tmr leadership add 1on1 <email>`
+  if (typeOrEmail?.trim().toLowerCase() === '1on1') {
+    await runLeadership1on1(svc, emailArg, opts);
+    return;
+  }
+
   const ws = svc.getWorkspaceRoot();
 
-  let email = emailArg?.trim().toLowerCase() ?? '';
+  let email = typeOrEmail?.trim().toLowerCase() ?? '';
 
   if (!email) {
     const { resolvedEmail } = await inquirer.prompt<{ resolvedEmail: string }>([
@@ -35,25 +62,60 @@ export async function runLeadershipAdd(
     email = resolvedEmail.trim().toLowerCase();
   }
 
-  // Secondary prompts — always run, skip individual prompts if pre-filled via flags
-  const secondaryAnswers = await inquirer.prompt<{ name: string; role: string; gender: string }>(
+  const shouldContinue = await warnIfSimilarEmail(email, ws);
+  if (!shouldContinue) return;
+
+  // Secondary prompts — skip individual prompts if pre-filled via flags
+  const secondaryAnswers = await inquirer.prompt<{
+    name: string;
+    role: string;
+    gender: string;
+    location: string;
+  }>(
     [
       !opts.name && { type: 'input', name: 'name', message: 'Name (optional):' },
       !opts.role && { type: 'input', name: 'role', message: 'Role (optional):' },
       !opts.gender && { type: 'input', name: 'gender', message: 'Gender (optional):' },
+      !opts.location && { type: 'input', name: 'location', message: 'Location (optional):' },
     ].filter(Boolean) as Parameters<typeof inquirer.prompt>[0],
   );
 
   const resolvedOpts: IAddLeadershipOptions = {
     ...opts,
-    name: opts.name?.trim() ?? secondaryAnswers.name?.trim() ?? '',
-    role: opts.role?.trim() ?? secondaryAnswers.role?.trim() ?? '',
-    gender: opts.gender?.trim() ?? secondaryAnswers.gender?.trim() ?? '',
+    name: opts.name?.trim() || secondaryAnswers.name?.trim() || '',
+    role: opts.role?.trim() || secondaryAnswers.role?.trim() || '',
+    gender: opts.gender?.trim() || secondaryAnswers.gender?.trim() || '',
+    location: opts.location?.trim() || secondaryAnswers.location?.trim() || '',
   };
 
   const result = await svc.addLeadership(email, resolvedOpts, ws);
   if (result.created) {
     process.stdout.write(`${chalk.green('✔')} Leadership "${email}" created\n`);
+
+    // "Remember domain" offer — fires when the domain is external (not in org config)
+    const domain = email.split('@')[1]?.toLowerCase() ?? '';
+    if (domain) {
+      let internalDomains: string[] = [];
+      try {
+        internalDomains = await memberService.getInternalDomains(ws);
+      } catch {
+        // org.yaml unreadable — skip
+      }
+      if (internalDomains.length > 0 && !internalDomains.includes(domain)) {
+        const { remember } = await inquirer.prompt<{ remember: boolean }>([
+          {
+            type: 'confirm',
+            name: 'remember',
+            message: `Remember "${domain}" as an internal domain for future members?`,
+            default: false,
+          },
+        ]);
+        if (remember) {
+          await memberService.appendInternalDomain(domain, ws);
+          printInfo(`Domain "${domain}" added to config/organization.yaml`);
+        }
+      }
+    }
   } else {
     process.stdout.write(`${chalk.dim('ℹ')} Leadership "${email}" already exists\n`);
   }
@@ -80,6 +142,10 @@ export async function runLeadership1on1(
   }
 
   const ws = svc.getWorkspaceRoot();
+
+  const shouldContinue = await warnIfSimilarEmail(email, ws);
+  if (!shouldContinue) return;
+
   let result;
   try {
     result = await svc.add1on1(email, opts, ws);
@@ -125,33 +191,39 @@ export function createLeadershipCommand(): Command {
   const cmd = new Command('leadership').description('manage leadership profiles');
 
   cmd
-    .command('add [email]')
-    .description('add a leadership contact')
+    .command('add <type-or-email> [email]')
+    .description(
+      'add a leadership contact, or create a 1on1 note (tmr leadership add 1on1 <email>)',
+    )
+    .option('--date <date>', 'date for the file (YYYY-MM-DD, defaults to today)')
     .option('--name <name>', 'contact name')
     .option('--role <role>', 'contact role')
     .option('--gender <gender>', 'contact gender')
+    .option('--location <location>', 'contact location')
     .option('--areas <areas>', 'areas of responsibility')
     .action(
       async (
+        typeOrEmail: string,
         emailArg: string | undefined,
-        opts: { name?: string; role?: string; gender?: string; areas?: string },
+        opts: {
+          date?: string;
+          name?: string;
+          role?: string;
+          gender?: string;
+          location?: string;
+          areas?: string;
+        },
       ) => {
-        await runLeadershipAdd(svc, emailArg, {
+        await runLeadershipAdd(svc, typeOrEmail, emailArg, {
+          date: opts.date,
           name: opts.name,
           role: opts.role,
           gender: opts.gender,
+          location: opts.location,
           areas_of_responsibility: opts.areas,
         });
       },
     );
-
-  cmd
-    .command('1on1 [email]')
-    .description('create a 1on1 note for a leadership contact')
-    .option('--date <date>', 'date for the file (YYYY-MM-DD), defaults to today')
-    .action(async (email: string | undefined, opts: { date?: string }) => {
-      await runLeadership1on1(svc, email, opts);
-    });
 
   cmd
     .command('list')

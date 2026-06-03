@@ -121,11 +121,38 @@ export class InitService {
   async scaffold(vaultPath: string): Promise<void> {
     await Promise.all(VAULT_DIRS.map((dir) => this._fs.createDirectory(path.join(vaultPath, dir))));
     await this._fs.writeFile(path.join(vaultPath, 'CLAUDE.md'), buildClaudeMdStub());
+    await this.writeSentinel(vaultPath);
   }
 
   /**
-   * Writes the user's own career profile to `my-career/<email>/<email>.md`.
-   * Creates the parent directory if it does not yet exist.
+   * Writes the .tmr sentinel file at the vault root.
+   * Makes the vault self-identifying — `getWorkspaceRoot()` walks up from cwd
+   * until it finds this file.
+   */
+  async writeSentinel(vaultPath: string): Promise<void> {
+    const content = JSON.stringify({ version: '1.0.0', created: todayIso() }, null, 2);
+    await this._fs.writeFile(path.join(vaultPath, '.tmr'), content);
+  }
+
+  /**
+   * Walks up the directory tree from `fromDir` looking for a `.tmr` sentinel file.
+   * Returns the vault root path if found, null otherwise.
+   * Synchronous — mirrors `getWorkspaceRoot()` walk-up logic.
+   */
+  findExistingVault(fromDir: string): string | null {
+    let dir = fromDir;
+    while (true) {
+      if (fs.existsSync(path.join(dir, '.tmr'))) return dir;
+      const parent = path.dirname(dir);
+      if (parent === dir) break; // reached filesystem root
+      dir = parent;
+    }
+    return null;
+  }
+
+  /**
+   * Writes the user's own career profile to `my-career/<email>.md` (flat — no subdirectory).
+   * `my-career/` is guaranteed to exist after `scaffold()`, so no directory creation is needed.
    * Throws on any file system failure.
    */
   async writeUserProfile(
@@ -133,9 +160,14 @@ export class InitService {
     opts: { email: string; name: string; role: string; leaderEmail?: string },
   ): Promise<void> {
     const email = opts.email.trim().toLowerCase();
-    const dir = path.join(vaultPath, 'my-career', email);
-    const filePath = path.join(dir, `${email}.md`);
-    const fm = { email, name: opts.name, role: opts.role, date_added: todayIso() };
+    const filePath = path.join(vaultPath, 'my-career', `${email}.md`);
+    const fm = {
+      email,
+      name: opts.name,
+      role: opts.role,
+      relationship: 'self',
+      date_added: todayIso(),
+    };
 
     let body = '\n# Career Profile\n\n## Notes\n\n## Goals\n';
 
@@ -147,7 +179,6 @@ export class InitService {
     }
 
     const content = matter.stringify(body, fm);
-    await this._fs.createDirectory(dir);
     await this._fs.writeFile(filePath, content);
   }
 
@@ -159,11 +190,11 @@ export class InitService {
    */
   async writeLeaderProfile(
     vaultPath: string,
-    opts: { email: string; name: string; role: string },
+    opts: { email: string; name: string; role: string; location?: string },
   ): Promise<void> {
     await this._leadership.addLeadership(
       opts.email,
-      { name: opts.name, role: opts.role },
+      { name: opts.name, role: opts.role, location: opts.location },
       vaultPath,
     );
   }
@@ -279,13 +310,29 @@ export class InitService {
   }
 
   /**
-   * Writes `config/organization.yaml` to the vault with the domain extracted from the
-   * manager's email address. The `config/` directory is guaranteed to exist after `scaffold()`.
+   * Writes `config/organization.yaml` to the vault with the domain inferred from the
+   * manager's email address, plus any additional validated domains collected at init.
+   * The `config/` directory is guaranteed to exist after `scaffold()`.
    * Throws on any file system failure — org config is vault-critical context.
    */
-  async writeOrgConfig(vaultPath: string, managerEmail: string): Promise<void> {
-    const domain = managerEmail.split('@')[1] ?? managerEmail;
-    const content = `internal_domains:\n  - ${domain}\n`;
+  async writeOrgConfig(
+    vaultPath: string,
+    managerEmail: string,
+    additionalDomains: string[] = [],
+  ): Promise<void> {
+    const inferred = (managerEmail.split('@')[1] ?? managerEmail).toLowerCase();
+    const uniqueDomains = [
+      inferred,
+      ...additionalDomains.map((d) => d.toLowerCase()).filter((d) => d !== inferred),
+    ];
+    const seen = new Set<string>();
+    const deduped = uniqueDomains.filter((d) => {
+      if (seen.has(d)) return false;
+      seen.add(d);
+      return true;
+    });
+    const lines = deduped.map((d) => `  - ${d}`).join('\n');
+    const content = `internal_domains:\n${lines}\n`;
     await this._fs.writeFile(path.join(vaultPath, 'config', 'organization.yaml'), content);
   }
 

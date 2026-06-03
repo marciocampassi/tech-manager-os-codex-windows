@@ -2,10 +2,30 @@ import { Command } from 'commander';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { memberService, MemberService } from '../services/member.service.js';
-import { printError, printSuccess } from '../utils/display.js';
+import { printError, printSuccess, printInfo, printWarning } from '../utils/display.js';
 import { InvalidEmailError } from '../errors/tmr-error.js';
+import { findSimilarEmail } from '../utils/email-similarity.js';
 import { validateEmail } from '../utils/validation.js';
+import { resolveSelfEmail } from '../utils/self-email.js';
 import type { FileType } from '../types/member.types.js';
+
+// ── Shared guard ─────────────────────────────────────────────────────────────
+
+async function warnIfSimilarEmail(email: string, workspaceRoot: string): Promise<boolean> {
+  const similar = findSimilarEmail(email, workspaceRoot);
+  if (!similar) return true;
+
+  printWarning(`Similar email already exists: ${similar}`);
+  const { proceed } = await inquirer.prompt<{ proceed: boolean }>([
+    {
+      type: 'confirm',
+      name: 'proceed',
+      message: `Did you mean "${similar}"? (N = continue adding "${email}")`,
+      default: false,
+    },
+  ]);
+  return !proceed;
+}
 
 // ── Type guard ────────────────────────────────────────────────────────────────
 
@@ -30,27 +50,38 @@ export async function runMemberAdd(
   svc: MemberService,
   typeArg: string,
   emailArg: string | undefined,
-  opts: { date?: string; team?: string; location?: string; contractor?: boolean },
+  opts: { date?: string; team?: string; location?: string; contractor?: boolean; from?: string },
 ): Promise<void> {
   // Routing: if first arg is a valid email → member-creation mode
   if (isEmail(typeArg)) {
     const email = typeArg.trim().toLowerCase();
 
-    const { name, gender, role } = await inquirer.prompt<{
+    const ws = svc.getWorkspaceRoot();
+
+    const shouldContinue = await warnIfSimilarEmail(email, ws);
+    if (!shouldContinue) return;
+
+    const { name, gender, role, location } = await inquirer.prompt<{
       name: string;
       gender: string;
       role: string;
-    }>([
-      { type: 'input', name: 'name', message: 'Name (optional):' },
-      { type: 'input', name: 'gender', message: 'Gender (optional):' },
-      { type: 'input', name: 'role', message: 'Role (optional):' },
-    ]);
-
-    const ws = svc.getWorkspaceRoot();
+      location?: string;
+    }>(
+      [
+        { type: 'input', name: 'name', message: 'Name (optional):' },
+        { type: 'input', name: 'gender', message: 'Gender (optional):' },
+        { type: 'input', name: 'role', message: 'Role (optional):' },
+        !opts.location?.trim() && {
+          type: 'input',
+          name: 'location',
+          message: 'Location (optional):',
+        },
+      ].filter(Boolean) as Parameters<typeof inquirer.prompt>[0],
+    );
 
     // ── Domain check (FR41) ───────────────────────────────────────────────────
     let isContractor = opts.contractor ?? false;
-    let companyName: string | undefined;
+    let externalDomainForRemember = '';
 
     if (!isContractor) {
       const domain = email.split('@')[1] ?? '';
@@ -74,14 +105,8 @@ export async function runMemberAdd(
           },
         ]);
         isContractor = routing === 'contractor';
+        if (!isContractor) externalDomainForRemember = domain;
       }
-    }
-
-    if (isContractor) {
-      const { collected } = await inquirer.prompt<{ collected: string }>([
-        { type: 'input', name: 'collected', message: 'Company name (optional):' },
-      ]);
-      companyName = collected.trim() || undefined;
     }
 
     // ── Create member profile ─────────────────────────────────────────────────
@@ -91,9 +116,8 @@ export async function runMemberAdd(
         email,
         {
           team: opts.team,
-          location: opts.location,
+          location: opts.location?.trim() || location?.trim() || undefined,
           contractor: isContractor,
-          company: companyName,
           name: name.trim() || undefined,
           gender: gender.trim() || undefined,
           role: role.trim() || undefined,
@@ -111,6 +135,20 @@ export async function runMemberAdd(
 
     if (result.created) {
       printSuccess(`Member profile created for "${email}"`);
+      if (externalDomainForRemember) {
+        const { remember } = await inquirer.prompt<{ remember: boolean }>([
+          {
+            type: 'confirm',
+            name: 'remember',
+            message: `Remember "${externalDomainForRemember}" as an internal domain for future members?`,
+            default: false,
+          },
+        ]);
+        if (remember) {
+          await svc.appendInternalDomain(externalDomainForRemember, ws);
+          printInfo(`Domain "${externalDomainForRemember}" added to config/organization.yaml`);
+        }
+      }
     } else {
       process.stdout.write(`${chalk.dim('ℹ')} Member profile for "${email}" already exists\n`);
     }
@@ -154,9 +192,71 @@ export async function runMemberAdd(
 
   const ws = svc.getWorkspaceRoot();
 
+  // P7: Warn immediately when --from is supplied for a type that ignores it
+  if (opts.from && typeArg !== 'feedback') {
+    printWarning(`--from has no effect for "${typeArg}" files and will be ignored.`);
+  }
+
+  // P12: Run similar-email guard before prompting for reviewer details
+  const shouldContinueTypePath = await warnIfSimilarEmail(email, ws);
+  if (!shouldContinueTypePath) return;
+
+  // ── Resolve reviewer email for feedback files ─────────────────────────────
+  let fromEmail: string | undefined;
+  if (typeArg === 'feedback') {
+    const rawFrom = opts.from?.trim().toLowerCase();
+    if (rawFrom) {
+      try {
+        validateEmail(rawFrom);
+      } catch (err) {
+        if (err instanceof InvalidEmailError) {
+          printError(`Invalid email address: ${rawFrom}`);
+          process.exitCode = 1;
+          return;
+        }
+        throw err; // P3: re-throw unexpected validation errors
+      }
+      fromEmail = rawFrom;
+    } else {
+      // P2: resolveSelfEmail catches all I/O/parsing errors internally — never throws
+      const selfEmail = await resolveSelfEmail(ws);
+      if (selfEmail) {
+        // P4: validate format before trusting the frontmatter value
+        try {
+          validateEmail(selfEmail);
+          fromEmail = selfEmail;
+        } catch {
+          printWarning(
+            `Email in my-career/ profile ("${selfEmail}") is not a valid address — please enter it manually.`,
+          );
+        }
+      }
+      if (!fromEmail) {
+        const { resolved } = await inquirer.prompt<{ resolved: string }>([
+          {
+            type: 'input',
+            name: 'resolved',
+            message: 'Reviewer email (--from):',
+            // P5: use validateEmail for the same rules as the --from flag path
+            validate: (v: string): boolean | string => {
+              try {
+                validateEmail(v.trim());
+                return true;
+              } catch (err) {
+                if (err instanceof InvalidEmailError) return err.message || 'Valid email required';
+                return 'Valid email required';
+              }
+            },
+          },
+        ]);
+        fromEmail = resolved.trim().toLowerCase();
+      }
+    }
+  }
+
   let result;
   try {
-    result = await svc.createMemberFile(email, typeArg, opts, ws);
+    result = await svc.createMemberFile(email, typeArg, { date: opts.date, fromEmail }, ws);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     printError(message, 'Check that the member exists: tmr team list');
@@ -188,11 +288,18 @@ export function createMemberCommand(): Command {
       '--contractor',
       'create profile in my-company/contractors/ for external/contractor members',
     )
+    .option('--from <email>', 'reviewer email for feedback files (defaults to your own email)')
     .action(
       async (
         typeOrEmail: string,
         email: string | undefined,
-        opts: { date?: string; team?: string; location?: string; contractor?: boolean },
+        opts: {
+          date?: string;
+          team?: string;
+          location?: string;
+          contractor?: boolean;
+          from?: string;
+        },
       ) => {
         await runMemberAdd(svc, typeOrEmail, email, opts);
       },

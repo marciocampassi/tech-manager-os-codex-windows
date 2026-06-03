@@ -1,4 +1,5 @@
 import type { FileType } from '../types/member.types.js';
+import { formatWikiLink } from '../utils/wiki-link.js';
 
 /**
  * Generates markdown file templates for member and relationship documents.
@@ -28,10 +29,12 @@ date_created: ${date}
 `;
   }
 
-  getStandupTemplate(date: string, name: string): string {
+  getStandupTemplate(date: string, name: string, overviewPath?: string, fromPath?: string): string {
+    const projectField =
+      overviewPath && fromPath ? `"${formatWikiLink(overviewPath, fromPath, name)}"` : name;
     return `---
 date: ${date}
-project: ${name}
+project: ${projectField}
 type: standup
 ---
 

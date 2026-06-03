@@ -1,6 +1,8 @@
 import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
 import path from 'node:path';
 import { homedir } from 'node:os';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
 import { InitService } from '../../src/services/init.service.js';
 import type { FileSystemService } from '../../src/services/file-system.service.js';
 import type { LeadershipService } from '../../src/services/leadership.service.js';
@@ -197,9 +199,9 @@ describe('InitService', () => {
       await expect(svc.scaffold(WS)).rejects.toThrow('no space left');
     });
 
-    it('calls writeFile exactly once (for CLAUDE.md) on happy path', async () => {
+    it('calls writeFile exactly twice (CLAUDE.md + .tmr sentinel) on happy path', async () => {
       await svc.scaffold(WS);
-      expect(mockFS.writeFile).toHaveBeenCalledTimes(1);
+      expect(mockFS.writeFile).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -208,18 +210,15 @@ describe('InitService', () => {
   describe('writeUserProfile', () => {
     const opts = { email: 'user@example.com', name: 'Test User', role: 'Manager' };
 
-    it('INIT-UNIT-004: creates the my-career/<email>/ directory', async () => {
+    it('INIT-UNIT-004: does NOT call createDirectory (my-career/ pre-exists from scaffold)', async () => {
       await svc.writeUserProfile(WS, opts);
-      const dirs = (mockFS.createDirectory.mock.calls as [string][]).map((c) => c[0]);
-      expect(dirs).toContain(path.join(WS, 'my-career', 'user@example.com'));
+      expect(mockFS.createDirectory).not.toHaveBeenCalled();
     });
 
-    it('INIT-UNIT-004: writes my-career/<email>/<email>.md', async () => {
+    it('INIT-UNIT-004: writes my-career/<email>.md (flat — no subdirectory)', async () => {
       await svc.writeUserProfile(WS, opts);
       const paths = (mockFS.writeFile.mock.calls as [string, string][]).map((c) => c[0]);
-      expect(paths).toContain(
-        path.join(WS, 'my-career', 'user@example.com', 'user@example.com.md'),
-      );
+      expect(paths).toContain(path.join(WS, 'my-career', 'user@example.com.md'));
     });
 
     it('INIT-UNIT-004: profile frontmatter contains email', async () => {
@@ -245,6 +244,14 @@ describe('InitService', () => {
         p.endsWith('user@example.com.md'),
       );
       expect(call![1]).toContain('Manager');
+    });
+
+    it('9.5: profile frontmatter contains relationship: self', async () => {
+      await svc.writeUserProfile(WS, opts);
+      const call = (mockFS.writeFile.mock.calls as [string, string][]).find(([p]) =>
+        p.endsWith('user@example.com.md'),
+      );
+      expect(call![1]).toContain('relationship: self');
     });
 
     it('lowercases the email before writing', async () => {
@@ -542,6 +549,26 @@ describe('InitService', () => {
       expect(call?.[1]).toContain('corp.internal.io');
     });
 
+    it('writes inferred domain plus all additional domains when supplied', async () => {
+      await svc.writeOrgConfig(WS, 'alice@example.com', ['example-eu.com', 'subsidiary.io']);
+      const call = (mockFS.writeFile.mock.calls as [string, string][]).find(([p]) =>
+        p.endsWith('organization.yaml'),
+      );
+      expect(call?.[1]).toContain('example.com');
+      expect(call?.[1]).toContain('example-eu.com');
+      expect(call?.[1]).toContain('subsidiary.io');
+    });
+
+    it('deduplicates additional domains matching the inferred domain', async () => {
+      await svc.writeOrgConfig(WS, 'alice@example.com', ['example.com', 'partner.io']);
+      const call = (mockFS.writeFile.mock.calls as [string, string][]).find(([p]) =>
+        p.endsWith('organization.yaml'),
+      );
+      const content = call?.[1] ?? '';
+      const domainLines = content.split('\n').filter((l) => l.trim().startsWith('- '));
+      expect(domainLines).toHaveLength(2); // example.com once + partner.io
+    });
+
     it('re-throws when writeFile rejects', async () => {
       mockFS.writeFile.mockRejectedValueOnce(new Error('no space left'));
       await expect(svc.writeOrgConfig(WS, 'alice@example.com')).rejects.toThrow('no space left');
@@ -597,6 +624,86 @@ describe('InitService', () => {
       svc.printPostInitSummary(WS, false);
       const output = (stdoutSpy.mock.calls as [string][]).map((c) => c[0]).join('');
       expect(output).toContain('Workspace created at');
+    });
+  });
+
+  // ── scaffold + sentinel ───────────────────────────────────────────────────
+
+  describe('scaffold — sentinel integration', () => {
+    it('INIT-UNIT-010: scaffold writes .tmr sentinel file at vault root', async () => {
+      await svc.scaffold(WS);
+      const writtenPaths = (mockFS.writeFile.mock.calls as [string, string][]).map((c) => c[0]);
+      expect(writtenPaths).toContain(path.join(WS, '.tmr'));
+    });
+
+    it('INIT-UNIT-010: .tmr sentinel content is valid JSON with version and created fields', async () => {
+      await svc.scaffold(WS);
+      const sentinelCall = (mockFS.writeFile.mock.calls as [string, string][]).find(([p]) =>
+        p.endsWith('.tmr'),
+      );
+      expect(sentinelCall).toBeDefined();
+      const parsed = JSON.parse(sentinelCall![1]) as Record<string, unknown>;
+      expect(parsed).toHaveProperty('version', '1.0.0');
+      expect(parsed).toHaveProperty('created');
+      expect(typeof parsed['created']).toBe('string');
+      expect(parsed['created']).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    });
+  });
+
+  // ── writeSentinel ─────────────────────────────────────────────────────────
+
+  describe('writeSentinel', () => {
+    it('INIT-UNIT-011: writes .tmr at the vault root path', async () => {
+      await svc.writeSentinel(WS);
+      const writtenPaths = (mockFS.writeFile.mock.calls as [string, string][]).map((c) => c[0]);
+      expect(writtenPaths).toContain(path.join(WS, '.tmr'));
+    });
+
+    it('INIT-UNIT-011: .tmr content has version 1.0.0', async () => {
+      await svc.writeSentinel(WS);
+      const call = (mockFS.writeFile.mock.calls as [string, string][]).find(([p]) =>
+        p.endsWith('.tmr'),
+      );
+      const parsed = JSON.parse(call![1]) as Record<string, unknown>;
+      expect(parsed['version']).toBe('1.0.0');
+    });
+
+    it('INIT-UNIT-011: re-throws when writeFile rejects', async () => {
+      mockFS.writeFile.mockRejectedValueOnce(new Error('disk full'));
+      await expect(svc.writeSentinel(WS)).rejects.toThrow('disk full');
+    });
+  });
+
+  // ── findExistingVault ─────────────────────────────────────────────────────
+  // Uses real temp directories — avoids ESM read-only property issues with jest.spyOn.
+
+  describe('findExistingVault', () => {
+    let tmpDir: string;
+
+    beforeEach(() => {
+      tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tmr-sentinel-test-'));
+    });
+
+    afterEach(() => {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    it('INIT-UNIT-012: returns the dir when .tmr exists in fromDir', () => {
+      fs.writeFileSync(path.join(tmpDir, '.tmr'), '{}');
+      expect(svc.findExistingVault(tmpDir)).toBe(tmpDir);
+    });
+
+    it('INIT-UNIT-012: returns parent dir when .tmr exists one level up', () => {
+      const childDir = path.join(tmpDir, 'subdir');
+      fs.mkdirSync(childDir);
+      fs.writeFileSync(path.join(tmpDir, '.tmr'), '{}');
+      expect(svc.findExistingVault(childDir)).toBe(tmpDir);
+    });
+
+    it('INIT-UNIT-012-NEG: returns null when no .tmr found anywhere', () => {
+      const deepDir = path.join(tmpDir, 'a', 'b', 'c');
+      fs.mkdirSync(deepDir, { recursive: true });
+      expect(svc.findExistingVault(deepDir)).toBeNull();
     });
   });
 });
