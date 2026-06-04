@@ -126,6 +126,7 @@ export async function runLeadership1on1(
   emailArg: string | undefined,
   opts: { date?: string; noEdit?: boolean },
 ): Promise<void> {
+  const ws = svc.getWorkspaceRoot();
   let email = emailArg?.trim().toLowerCase() ?? '';
 
   if (!email) {
@@ -140,8 +141,6 @@ export async function runLeadership1on1(
     ]);
     email = resolvedEmail.trim().toLowerCase();
   }
-
-  const ws = svc.getWorkspaceRoot();
 
   const shouldContinue = await warnIfSimilarEmail(email, ws);
   if (!shouldContinue) return;

@@ -65,6 +65,7 @@ function printMembersTable(
 // ── Sub-command handlers ──────────────────────────────────────────────────────
 
 async function runCreate(svc: TeamService, teamNameArg: string | undefined): Promise<void> {
+  const ws = svc.getWorkspaceRoot();
   let teamName = teamNameArg?.trim() ?? '';
   if (!teamName) {
     const { name } = await inquirer.prompt<{ name: string }>([
@@ -77,8 +78,6 @@ async function runCreate(svc: TeamService, teamNameArg: string | undefined): Pro
     ]);
     teamName = name.trim();
   }
-
-  const ws = svc.getWorkspaceRoot();
   try {
     await svc.createTeam(teamName, ws);
   } catch (err) {
@@ -96,6 +95,7 @@ async function runAdd(
   emailArg: string | undefined,
   opts: { name?: string; role?: string; gender?: string; location?: string },
 ): Promise<void> {
+  const ws = svc.getWorkspaceRoot();
   let teamName = teamNameArg?.trim() ?? '';
   let email = emailArg?.trim() ?? '';
 
@@ -119,8 +119,6 @@ async function runAdd(
     teamName = teamName || answers.teamName;
     email = email || answers.email.trim();
   }
-
-  const ws = svc.getWorkspaceRoot();
 
   const shouldContinue = await warnIfSimilarEmail(email, ws);
   if (!shouldContinue) return;
@@ -199,6 +197,7 @@ async function runArchive(
   emailArg: string | undefined,
   opts: { from?: string; to?: string },
 ): Promise<void> {
+  const ws = svc.getWorkspaceRoot();
   let teamName = teamNameArg?.trim() ?? '';
   let email = emailArg?.trim() ?? '';
 
@@ -222,8 +221,6 @@ async function runArchive(
     teamName = teamName || answers.teamName;
     email = email || answers.email;
   }
-
-  const ws = svc.getWorkspaceRoot();
   await svc.archiveMember(teamName, email, { from: opts.from, to: opts.to }, ws);
   process.stdout.write(`${chalk.green('✔')} Member "${email}" archived from team "${teamName}"\n`);
 }
@@ -233,6 +230,7 @@ async function runFire(
   teamNameArg: string | undefined,
   emailArg: string | undefined,
 ): Promise<void> {
+  const ws = svc.getWorkspaceRoot();
   let teamName = teamNameArg?.trim() ?? '';
   let email = emailArg?.trim() ?? '';
 
@@ -265,8 +263,6 @@ async function runFire(
     },
   ]);
   const note = terminationNote.trim() || undefined;
-
-  const ws = svc.getWorkspaceRoot();
   await svc.fireMember(teamName, email, ws, note);
   process.stdout.write(
     `${chalk.green('✔')} Member "${email}" terminated and archived from team "${teamName}"\n`,

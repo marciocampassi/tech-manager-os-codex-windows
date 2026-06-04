@@ -37,6 +37,7 @@ export async function runProjectAdd(
   nameArg: string | undefined,
   _opts: IProjectFileOptions,
 ): Promise<void> {
+  const ws = svc.getWorkspaceRoot();
   let name = nameArg?.trim() ?? '';
 
   if (!name) {
@@ -51,8 +52,6 @@ export async function runProjectAdd(
     ]);
     name = resolvedName.trim();
   }
-
-  const ws = svc.getWorkspaceRoot();
   const result = await svc.addProject(name, ws);
 
   if (result.created) {
