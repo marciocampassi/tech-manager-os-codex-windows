@@ -1,7 +1,7 @@
 # Story 9.19 — Fix Obsidian Plugin Installation Accuracy
 
 **Epic:** 9 — UAT Pre-Launch Polish  
-**Status:** Ready for dev  
+**Status:** done  
 **Added:** 2026-06-04 via Sprint Change Proposal (V2 post-UAT bugs)  
 **Source:** `sprint-change-proposal-2026-06-04-v2-post-uat-bugs.md`
 
@@ -140,6 +140,47 @@ Import `REQUIRED_PLUGIN_IDS` from `obsidian-plugin.service.js` in `init.command.
 - Unit: all downloads succeed → `community-plugins.json` has all 4 IDs
 - Unit: `installPlugins()` pre-creates `.obsidian/plugins/` dir before any fetch
 - Integration: no regression on `--scaffold-only` (plugin install path not reached)
+
+---
+
+## Dev Agent Record
+
+### Implementation Notes
+
+- Pre-creates `.obsidian/plugins/` via `fileSystemService.createDirectory()` before any download attempt.
+- Changed `community-plugins.json` to only include successfully installed plugin IDs (filtered via `fullyFailedPlugins`).
+- Changed failure threshold from `failed === requiredCount` (ALL required files fail) to `failed > 0` (ANY required file fails), matching the AC: "if `main.js` OR `manifest.json` fails → exclude from JSON".
+- Removed the now-unused `requiredCount` variable.
+- Updated `init.command.ts` to import `REQUIRED_PLUGIN_IDS` and show `N/4` count in spinner message; warning message updated to include remediation URL.
+- Updated `tests/commands/init.command.test.ts` and `tests/integration/init.integration.test.ts` mocks to expose `REQUIRED_PLUGIN_IDS` (required after named import was added to `InitCommand`).
+- Added 3 new unit tests in `tests/services/obsidian-plugin.service.test.ts` covering: pre-create dir, partial-failure exclusion, full-failure empty array.
+
+### Files Modified
+
+- `src/services/obsidian-plugin.service.ts`
+- `src/commands/init.command.ts`
+- `tests/services/obsidian-plugin.service.test.ts`
+- `tests/commands/init.command.test.ts`
+- `tests/integration/init.integration.test.ts`
+
+### Validation
+
+- `npm run validate` — exit 0 (lint ✓, typecheck ✓, 1185 tests passed ✓, build ✓)
+
+---
+
+## Review Findings
+
+- [x] [Review][Decision] Spinner succeeds with "0/4" when all plugins fail — resolved: use `pluginSpinner.warn()` when `installedCount === 0`; added `warn()` to `SpinnerHandle` interface and both plain/ora implementations. [`src/commands/init.command.ts`, `src/utils/display.ts`]
+- [x] [Review][Patch] No try/catch around `installPlugins()` in `InitCommand` — fixed: wrapped plugin block in try/catch; `pluginSpinner.fail()` called on error. [`src/commands/init.command.ts`]
+- [x] [Review][Patch] Removed aggregate per-plugin failure log — fixed: restored `logger.warn` inside plugin loop when `failed > 0`. [`src/services/obsidian-plugin.service.ts`]
+- [x] [Review][Patch] "Excludes failed plugin" test missing return-value assertion — fixed: test now captures return value and asserts `result.toContain('obsidian-git')`. [`tests/services/obsidian-plugin.service.test.ts`]
+- [x] [Review][Patch] No test for `manifest.json`-specific failure path — fixed: added symmetric test for `manifest.json` 404. [`tests/services/obsidian-plugin.service.test.ts`]
+- [x] [Review][Defer] `REQUIRED_PLUGIN_IDS` vs `OBSIDIAN_PLUGINS` drift — spinner count uses `REQUIRED_PLUGIN_IDS.length` while `successfulIds` is built from `OBSIDIAN_PLUGINS`; adding a plugin to one without the other silently misreports the N/4 ratio. Already tracked as D3 in `deferred-work.md` (code review of 9-17). — deferred, pre-existing
+- [x] [Review][Defer] Hardcoded plugin IDs in test mocks — `REQUIRED_PLUGIN_IDS: ['obsidian-git','granola-sync','terminal','dataview']` is duplicated in mocks; drift risk when the real constant changes. ESM architectural constraint; already tracked as D1 in `deferred-work.md` (code review of 9-17). — deferred, pre-existing
+- [x] [Review][Defer] Post-init summary always says "plugins are ready" regardless of actual install count — `printPostInitSummary()` hardcodes all four names; contradicts partial-install warnings printed above it. Pre-existing; already tracked in `deferred-work.md` (code review of 2-4). — deferred, pre-existing
+- [x] [Review][Defer] Granola `data.json` written when `granola-sync` download fails — `writeGranolaConfig()` runs unconditionally outside the download loop; if `granola-sync` ends up in `fullyFailedPlugins`, its config file still lands on disk, creating a mismatch with `community-plugins.json` and confusing `tmr doctor`. [`src/services/obsidian-plugin.service.ts`] — deferred, pre-existing design
+- [x] [Review][Defer] Orphan plugin files after partial download — if one required file succeeds (`writeFile` runs) but another fails, the partial files remain in `.obsidian/plugins/<id>/`; Obsidian won't load the plugin (correct) but leftover files are not cleaned up. [`src/services/obsidian-plugin.service.ts`] — deferred, pre-existing pattern
 
 ---
 

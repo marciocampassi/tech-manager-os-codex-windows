@@ -89,6 +89,7 @@ const mockInstallPlugins = jest
 
 jest.unstable_mockModule('../../src/services/obsidian-plugin.service.js', () => ({
   obsidianPluginService: { installPlugins: mockInstallPlugins },
+  REQUIRED_PLUGIN_IDS: ['obsidian-git', 'granola-sync', 'terminal', 'dataview'],
 }));
 
 jest.unstable_mockModule('../../src/services/config.service.js', () => ({

@@ -334,6 +334,14 @@ The following items were surfaced by the pre-launch AC audit (Epics 1–5) and a
 - D5 — Command error handler drops `TmrError.code` silently. Pre-existing pattern across all command error handlers. [`src/commands/myself.command.ts:15`]
 - D6 — `jest.unstable_mockModule` used without documenting its instability. Pre-existing pattern in every command test file.
 
+## Deferred from: code review of 9-19-obsidian-plugin-install-accuracy (2026-06-04)
+
+- `REQUIRED_PLUGIN_IDS` vs `OBSIDIAN_PLUGINS` count drift — spinner shows N/`REQUIRED_PLUGIN_IDS.length` but `successfulIds` is derived from `OBSIDIAN_PLUGINS`; adding a plugin to one list without the other silently misreports the ratio. Already tracked as D3 below (9-17). `src/services/obsidian-plugin.service.ts`.
+- Hardcoded plugin IDs in test mocks (`['obsidian-git','granola-sync','terminal','dataview']`) duplicated across three test files; ESM module-mocking constraint prevents re-using the real constant. Already tracked as D1 below (9-17). `tests/commands/init.command.test.ts`, `tests/integration/init.integration.test.ts`, `tests/services/doctor.service.test.ts`.
+- Post-init summary always says "plugins are ready" regardless of actual install count — `printPostInitSummary()` hardcodes all four plugin names; contradicts partial-install warnings printed above it. Pre-existing; already tracked in 2-4 deferred. `src/services/init.service.ts`.
+- Granola `data.json` written when `granola-sync` download fails — `writeGranolaConfig()` runs unconditionally; if `granola-sync` is in `fullyFailedPlugins`, its config file still lands on disk while its ID is absent from `community-plugins.json`, creating a mismatch that confuses `tmr doctor`. `src/services/obsidian-plugin.service.ts`.
+- Orphan plugin files after partial download — if one required file (`main.js` or `manifest.json`) writes before the other fails, the partial files remain in `.obsidian/plugins/<id>/`; Obsidian won't load the plugin (correct) but leftover files are not cleaned up and can confuse manual repair. `src/services/obsidian-plugin.service.ts`.
+
 ## Deferred from: code review of 9-17-doctor-granola-plugins-check (2026-05-27)
 
 - D1 — Hardcoded `REQUIRED_PLUGIN_IDS` in test mock (`jest.unstable_mockModule`) decouples test data from production constant. ESM architectural constraint; ideal fix would extract the constant to a lightweight file (no `fileSystemService` dependency) so the mock factory can import directly. [`tests/services/doctor.service.test.ts`]

@@ -15,7 +15,7 @@ import {
   promptMemberEmail,
   promptMemberDetails,
 } from '../workflows/onboarding.prompts.js';
-import { obsidianPluginService } from '../services/obsidian-plugin.service.js';
+import { obsidianPluginService, REQUIRED_PLUGIN_IDS } from '../services/obsidian-plugin.service.js';
 import { generateClaudeMd } from '../services/claude-md.generator.js';
 import { generateTaskFileTemplate } from '../templates/onboarding.templates.js';
 import { startSpinner, printError, printInfo, printWarning } from '../utils/display.js';
@@ -223,12 +223,25 @@ export class InitCommand {
 
     if (!this.scaffoldOnly) {
       const pluginSpinner = startSpinner('Downloading Obsidian plugins', this.plain);
-      const failedPlugins = await obsidianPluginService.installPlugins(workspacePath);
-      pluginSpinner.succeed('Obsidian plugins installed');
-      for (const id of failedPlugins) {
-        printWarning(
-          `All required files failed for plugin "${id}" — install manually from https://obsidian.md/plugins`,
-          this.plain,
+      try {
+        const failedPlugins = await obsidianPluginService.installPlugins(workspacePath);
+        const installedCount = REQUIRED_PLUGIN_IDS.length - failedPlugins.length;
+        if (installedCount === 0) {
+          pluginSpinner.warn(`Obsidian plugins installed (0/${REQUIRED_PLUGIN_IDS.length})`);
+        } else {
+          pluginSpinner.succeed(
+            `Obsidian plugins installed (${installedCount}/${REQUIRED_PLUGIN_IDS.length})`,
+          );
+        }
+        for (const id of failedPlugins) {
+          printWarning(
+            `Plugin "${id}" download failed — install manually: https://obsidian.md/plugins`,
+            this.plain,
+          );
+        }
+      } catch (err) {
+        pluginSpinner.fail(
+          `Plugin installation failed: ${err instanceof Error ? err.message : String(err)}`,
         );
       }
 
