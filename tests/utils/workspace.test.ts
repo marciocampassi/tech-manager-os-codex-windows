@@ -37,7 +37,9 @@ jest.unstable_mockModule('../../src/utils/display.js', () => ({
   printInfo: jest.fn(),
   printWarning: jest.fn(),
   printJson: jest.fn(),
-  startSpinner: jest.fn().mockReturnValue({ succeed: jest.fn(), fail: jest.fn(), stop: jest.fn() }),
+  startSpinner: jest
+    .fn()
+    .mockReturnValue({ succeed: jest.fn(), fail: jest.fn(), warn: jest.fn(), stop: jest.fn() }),
 }));
 
 // Top-level await — all modules share the same singleton after mocks are in place.
@@ -90,12 +92,53 @@ describe('getWorkspaceRoot', () => {
 
   // ── Config fallback ───────────────────────────────────────────────────────
 
-  it('WS-004: returns configured path when no sentinel found but config is set', () => {
+  it('WS-004: returns configured path when no sentinel and CWD equals configured vault', () => {
+    jest.spyOn(process, 'cwd').mockReturnValue('/configured/workspace');
     mockExistsSync.mockReturnValue(false);
     jest.spyOn(configService, 'getWorkspacePath').mockReturnValue('/configured/workspace');
 
     expect(getWorkspaceRoot()).toBe('/configured/workspace');
     expect(mockPrintError).not.toHaveBeenCalled();
+  });
+
+  it('WS-004b: returns configured path when no sentinel and CWD is a subdirectory of configured vault', () => {
+    jest.spyOn(process, 'cwd').mockReturnValue('/configured/workspace/my-teams');
+    mockExistsSync.mockReturnValue(false);
+    jest.spyOn(configService, 'getWorkspacePath').mockReturnValue('/configured/workspace');
+
+    expect(getWorkspaceRoot()).toBe('/configured/workspace');
+    expect(mockPrintError).not.toHaveBeenCalled();
+  });
+
+  it('WS-004c: prints contextual error when no sentinel and CWD is outside the configured vault', () => {
+    jest.spyOn(process, 'cwd').mockReturnValue('/projects/vault2');
+    mockExistsSync.mockReturnValue(false);
+    jest.spyOn(configService, 'getWorkspacePath').mockReturnValue('/configured/workspace');
+
+    const result = getWorkspaceRoot();
+
+    expect(mockPrintError).toHaveBeenCalledWith(
+      'No tmr vault found in this directory or any parent.',
+      "Your configured vault is at /configured/workspace — cd into it, or run 'tmr init' to create a vault here.",
+    );
+    expect(process.exitCode).toBe(1);
+    expect(result).toBe('/projects/vault2');
+  });
+
+  it('WS-004d: does not allow a path that is a prefix of configured vault (without separator) to pass the guard', () => {
+    // /configured/workspaceExtra should NOT be treated as inside /configured/workspace
+    jest.spyOn(process, 'cwd').mockReturnValue('/configured/workspaceExtra');
+    mockExistsSync.mockReturnValue(false);
+    jest.spyOn(configService, 'getWorkspacePath').mockReturnValue('/configured/workspace');
+
+    const result = getWorkspaceRoot();
+
+    expect(mockPrintError).toHaveBeenCalledWith(
+      'No tmr vault found in this directory or any parent.',
+      "Your configured vault is at /configured/workspace — cd into it, or run 'tmr init' to create a vault here.",
+    );
+    expect(process.exitCode).toBe(1);
+    expect(result).toBe('/configured/workspaceExtra');
   });
 
   // ── No vault found ────────────────────────────────────────────────────────

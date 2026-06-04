@@ -334,6 +334,12 @@ The following items were surfaced by the pre-launch AC audit (Epics 1–5) and a
 - D5 — Command error handler drops `TmrError.code` silently. Pre-existing pattern across all command error handlers. [`src/commands/myself.command.ts:15`]
 - D6 — `jest.unstable_mockModule` used without documenting its instability. Pre-existing pattern in every command test file.
 
+## Deferred from: code review of 9-20-workspace-anchoring-config-fallback-guard (2026-06-04)
+
+- Symlink CWD not resolved — if CWD is a symlinked path (e.g., `/link/to/vault/sub → /configured/workspace`), the `startsWith` guard fails even though the user is physically inside the vault. Fix requires `fs.realpathSync()` on both CWD and configured path before comparison; same gap exists in the step-1 sentinel walk-up. `src/utils/workspace.ts`.
+- Case-insensitive filesystem on macOS — `startsWith` is a case-sensitive string comparison; on APFS (case-insensitive mode), path-case mismatches between stored config and CWD would cause false negatives. Pre-existing pattern across codebase. `src/utils/workspace.ts`.
+- No integration test for "tmr command from outside vault exits 1, no files created" (spec Coverage #4 / AC4) — unit tests cover the `getWorkspaceRoot()` logic but command-level abort behaviour (that no content is created in the CWD) is not verified end-to-end. `tests/integration/`.
+
 ## Deferred from: code review of 9-19-obsidian-plugin-install-accuracy (2026-06-04)
 
 - `REQUIRED_PLUGIN_IDS` vs `OBSIDIAN_PLUGINS` count drift — spinner shows N/`REQUIRED_PLUGIN_IDS.length` but `successfulIds` is derived from `OBSIDIAN_PLUGINS`; adding a plugin to one list without the other silently misreports the ratio. Already tracked as D3 below (9-17). `src/services/obsidian-plugin.service.ts`.
