@@ -46,7 +46,7 @@ Key decisions locked:
 **All 20 stories written. Sprint Change Proposals produced.**
 
 - Initial proposal: `_bmad-output/planning-artifacts/sprint-change-proposal-2026-05-22-uat-pre-launch-polish.md`
-- V2 post-UAT: `_bmad-output/planning-artifacts/sprint-change-proposal-2026-06-04-v2-post-uat-bugs.md` (stories 9.19–9.20 added 2026-06-04)
+- V2 post-UAT: `_bmad-output/planning-artifacts/sprint-change-proposal-2026-06-04-v2-post-uat-bugs.md` (stories 9.19–9.20 added 2026-06-04; story 9.21 added 2026-06-04 via UAT regression on 9.20)
 
 ---
 
@@ -73,7 +73,8 @@ Key decisions locked:
 | 9.17 | `tmr doctor` — granola plugins check | **Written** | `9-17-doctor-granola-plugins-check.md` |
 | 9.18 | `tmr init` — `--scaffold-only` flag, fix terminal plugin regression, update version art | **Written** | `9-18-init-scaffold-only-plugin-regression-version-art.md` |
 | 9.19 | Fix Obsidian plugin installation accuracy — filter `community-plugins.json` to installed-only | **Ready for dev** | `9-19-obsidian-plugin-install-accuracy.md` |
-| 9.20 | Fix workspace anchoring — restrict config-path fallback with CWD-inside-vault guard | **Ready for dev** | `9-20-workspace-anchoring-config-fallback-guard.md` |
+| 9.20 | Fix workspace anchoring — restrict config-path fallback with CWD-inside-vault guard | **Done** | `9-20-workspace-anchoring-config-fallback-guard.md` |
+| 9.21 | Abort command execution when no vault found — throw `VaultNotFoundError` instead of silently continuing | **Done** | `9-21-vault-not-found-abort-on-missing-vault.md` |
 
 ---
 

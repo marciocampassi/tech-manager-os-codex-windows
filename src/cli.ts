@@ -1,6 +1,7 @@
 import { Command, CommanderError } from 'commander';
 import { createRequire } from 'module';
 import { printError } from './utils/display.js';
+import { VaultNotFoundError } from './errors/tmr-error.js';
 // Lightweight commands — imported statically (file-I/O only, no AI SDKs or heavy deps)
 import { createConfigCommand } from './commands/config.command.js';
 import { createDoctorCommand } from './commands/doctor.command.js';
@@ -171,10 +172,12 @@ export async function run(argv = process.argv): Promise<void> {
     const opts = program.opts<GlobalOptions>();
     const plain = opts.plain ?? false;
     const msg = err instanceof Error ? err.message : String(err);
+    const hint =
+      err instanceof VaultNotFoundError ? err.hint : "Run 'tmr --help' for usage information.";
     if (opts.verbose && err instanceof Error) {
-      printError(`${msg}\n${err.stack ?? ''}`, undefined, plain);
+      printError(`${msg}\n${err.stack ?? ''}`, hint, plain);
     } else {
-      printError(msg, "Run 'tmr --help' for usage information.", plain);
+      printError(msg, hint, plain);
     }
     process.exit(1);
   }

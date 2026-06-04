@@ -348,6 +348,15 @@ The following items were surfaced by the pre-launch AC audit (Epics 1–5) and a
 - Granola `data.json` written when `granola-sync` download fails — `writeGranolaConfig()` runs unconditionally; if `granola-sync` is in `fullyFailedPlugins`, its config file still lands on disk while its ID is absent from `community-plugins.json`, creating a mismatch that confuses `tmr doctor`. `src/services/obsidian-plugin.service.ts`.
 - Orphan plugin files after partial download — if one required file (`main.js` or `manifest.json`) writes before the other fails, the partial files remain in `.obsidian/plugins/<id>/`; Obsidian won't load the plugin (correct) but leftover files are not cleaned up and can confuse manual repair. `src/services/obsidian-plugin.service.ts`.
 
+## Deferred from: code review of 9-21-vault-not-found-abort-on-missing-vault (2026-06-04)
+
+- D1 — Prompts appear before vault guard in arg-less command paths (`tmr team create`, `tmr team add`, `tmr leadership add 1on1`, `tmr project add` without email arg). Vault check IS first for argument-passing invocations; restructuring arg-less flows requires touching multiple command handlers — out of 9.21 scope. [`src/commands/team.command.ts`, `leadership.command.ts`, `project.command.ts`]
+- D2 — `myself.command.ts` has a local catch block that intercepts `VaultNotFoundError` before the CLI global handler, printing only `err.message` without `err.hint` and without the `plain` flag. Pre-existing catch pattern. [`src/commands/myself.command.ts`]
+- D3 — `--json` flag not respected in `cli.ts` global catch block; vault errors always print via `printError` even when `--json` is set on the root command. Pre-existing gap. [`src/cli.ts`]
+- D4 — Subcommand-level `--plain` (e.g. `tmr today --plain`, `tmr this-week --plain`) does not reach the global vault error handler — root `program.opts().plain` returns `false`. Pre-existing architectural gap in `task-view` commands. [`src/commands/task-view.command.ts`]
+- D5 — Missing integration/E2E test for full CLI abort: run command from outside vault, assert no prompts and exit code 1. Workspace + CLI unit tests provide sufficient coverage for now.
+- D6 — `myself.command.ts` success output uses raw chalk without `plain` flag (unrelated to vault errors). Pre-existing. [`src/commands/myself.command.ts`]
+
 ## Deferred from: code review of 9-17-doctor-granola-plugins-check (2026-05-27)
 
 - D1 — Hardcoded `REQUIRED_PLUGIN_IDS` in test mock (`jest.unstable_mockModule`) decouples test data from production constant. ESM architectural constraint; ideal fix would extract the constant to a lightweight file (no `fileSystemService` dependency) so the mock factory can import directly. [`tests/services/doctor.service.test.ts`]
