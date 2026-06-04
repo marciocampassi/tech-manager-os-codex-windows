@@ -43,9 +43,10 @@ Key decisions locked:
 
 ## Current Position
 
-**All 18 stories written. Sprint Change Proposal produced.**
+**All 20 stories written. Sprint Change Proposals produced.**
 
-File: `_bmad-output/planning-artifacts/sprint-change-proposal-2026-05-22-uat-pre-launch-polish.md`
+- Initial proposal: `_bmad-output/planning-artifacts/sprint-change-proposal-2026-05-22-uat-pre-launch-polish.md`
+- V2 post-UAT: `_bmad-output/planning-artifacts/sprint-change-proposal-2026-06-04-v2-post-uat-bugs.md` (stories 9.19–9.20 added 2026-06-04)
 
 ---
 
@@ -71,6 +72,8 @@ File: `_bmad-output/planning-artifacts/sprint-change-proposal-2026-05-22-uat-pre
 | 9.16 | `tmr myself add performance-review` CLI command | **Written** | `9-16-myself-add-performance-review.md` |
 | 9.17 | `tmr doctor` — granola plugins check | **Written** | `9-17-doctor-granola-plugins-check.md` |
 | 9.18 | `tmr init` — `--scaffold-only` flag, fix terminal plugin regression, update version art | **Written** | `9-18-init-scaffold-only-plugin-regression-version-art.md` |
+| 9.19 | Fix Obsidian plugin installation accuracy — filter `community-plugins.json` to installed-only | **Ready for dev** | `9-19-obsidian-plugin-install-accuracy.md` |
+| 9.20 | Fix workspace anchoring — restrict config-path fallback with CWD-inside-vault guard | **Ready for dev** | `9-20-workspace-anchoring-config-fallback-guard.md` |
 
 ---
 
