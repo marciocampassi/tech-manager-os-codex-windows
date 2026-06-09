@@ -4,11 +4,17 @@ import { join } from 'node:path';
 // ── Mock declarations (must precede dynamic imports) ──────────────────────────
 
 const mockWriteFile = jest.fn<(path: string, content: string) => Promise<void>>();
+const mockCreateDirectory = jest.fn<(path: string) => Promise<void>>();
 const mockExists = jest.fn<(path: string) => Promise<boolean>>();
 const mockReadFile = jest.fn<(path: string) => Promise<string>>();
 
 jest.unstable_mockModule('../../src/services/file-system.service.js', () => ({
-  fileSystemService: { writeFile: mockWriteFile, exists: mockExists, readFile: mockReadFile },
+  fileSystemService: {
+    writeFile: mockWriteFile,
+    createDirectory: mockCreateDirectory,
+    exists: mockExists,
+    readFile: mockReadFile,
+  },
 }));
 
 jest.unstable_mockModule('../../src/utils/logger.js', () => ({
@@ -55,6 +61,7 @@ describe('ObsidianPluginService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockWriteFile.mockResolvedValue(undefined);
+    mockCreateDirectory.mockResolvedValue(undefined);
     mockExists.mockResolvedValue(false);
     mockReadFile.mockResolvedValue('{}');
     originalFetch = globalThis.fetch;
@@ -316,6 +323,88 @@ describe('ObsidianPluginService', () => {
       });
 
       await expect(service.installPlugins(WORKSPACE)).resolves.toBeInstanceOf(Array);
+    });
+
+    // ── Story 9.19: Plugin installation accuracy ──────────────────────────────
+
+    it('pre-creates .obsidian/plugins/ directory before initiating any downloads', async () => {
+      let dirCreatedBeforeFetch = false;
+      mockCreateDirectory.mockImplementation(async () => {
+        dirCreatedBeforeFetch = true;
+      });
+      const fetchMock = jest.fn<() => Promise<unknown>>();
+      fetchMock.mockImplementation(async () => {
+        expect(dirCreatedBeforeFetch).toBe(true);
+        return { ok: true, arrayBuffer: async () => Buffer.from('x').buffer };
+      });
+      globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+
+      await service.installPlugins(WORKSPACE);
+
+      expect(mockCreateDirectory).toHaveBeenCalledWith(join(WORKSPACE, '.obsidian', 'plugins'));
+    });
+
+    it('excludes failed plugin from community-plugins.json when main.js returns 404', async () => {
+      globalThis.fetch = jest.fn().mockImplementation((url: unknown) => {
+        const u = url as string;
+        if (u.includes('Vinzent03') && u.endsWith('main.js')) {
+          return Promise.resolve({ ok: false, status: 404 });
+        }
+        return Promise.resolve({ ok: true, arrayBuffer: async () => Buffer.from('x').buffer });
+      }) as unknown as typeof globalThis.fetch;
+
+      const result = await service.installPlugins(WORKSPACE);
+
+      const communityPluginsPath = join(WORKSPACE, '.obsidian', 'community-plugins.json');
+      const call = mockWriteFile.mock.calls.find(([p]) => p === communityPluginsPath) as
+        | [string, string]
+        | undefined;
+      expect(call).toBeDefined();
+      const ids = JSON.parse(call![1]) as string[];
+      expect(ids).not.toContain('obsidian-git');
+      expect(ids).toContain('granola-sync');
+      expect(ids).toContain('terminal');
+      expect(ids).toContain('dataview');
+      expect(result).toContain('obsidian-git');
+      expect(result).not.toContain('granola-sync');
+    });
+
+    it('excludes failed plugin from community-plugins.json when manifest.json returns 404', async () => {
+      globalThis.fetch = jest.fn().mockImplementation((url: unknown) => {
+        const u = url as string;
+        if (u.includes('Vinzent03') && u.endsWith('manifest.json')) {
+          return Promise.resolve({ ok: false, status: 404 });
+        }
+        return Promise.resolve({ ok: true, arrayBuffer: async () => Buffer.from('x').buffer });
+      }) as unknown as typeof globalThis.fetch;
+
+      const result = await service.installPlugins(WORKSPACE);
+
+      const communityPluginsPath = join(WORKSPACE, '.obsidian', 'community-plugins.json');
+      const call = mockWriteFile.mock.calls.find(([p]) => p === communityPluginsPath) as
+        | [string, string]
+        | undefined;
+      expect(call).toBeDefined();
+      const ids = JSON.parse(call![1]) as string[];
+      expect(ids).not.toContain('obsidian-git');
+      expect(ids).toContain('granola-sync');
+      expect(ids).toContain('terminal');
+      expect(ids).toContain('dataview');
+      expect(result).toContain('obsidian-git');
+      expect(result).not.toContain('granola-sync');
+    });
+
+    it('writes empty array to community-plugins.json when all plugins fail to download', async () => {
+      globalThis.fetch = mockFetchThrows();
+
+      await service.installPlugins(WORKSPACE);
+
+      const communityPluginsPath = join(WORKSPACE, '.obsidian', 'community-plugins.json');
+      const call = mockWriteFile.mock.calls.find(([p]) => p === communityPluginsPath) as
+        | [string, string]
+        | undefined;
+      expect(call).toBeDefined();
+      expect(JSON.parse(call![1])).toEqual([]);
     });
   });
 });

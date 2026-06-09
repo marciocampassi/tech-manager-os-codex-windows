@@ -91,6 +91,18 @@ export class ProjectNotFoundError extends TmrError {
   }
 }
 
+/** Thrown when no tmr vault is found for the current working directory. */
+export class VaultNotFoundError extends TmrError {
+  constructor(
+    public readonly hint: string,
+    code = 'TMR_E201',
+  ) {
+    super('No tmr vault found in this directory or any parent.', code);
+    this.name = 'VaultNotFoundError';
+    Object.setPrototypeOf(this, VaultNotFoundError.prototype);
+  }
+}
+
 /** Thrown when an email address fails validation. */
 export class InvalidEmailError extends TmrError {
   constructor(email: string, code = 'TMR_E103') {

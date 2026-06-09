@@ -176,6 +176,7 @@ export async function runMemberAdd(
     return;
   }
 
+  const ws = svc.getWorkspaceRoot();
   let email = emailArg?.trim().toLowerCase() ?? '';
   if (!email) {
     const { resolvedEmail } = await inquirer.prompt<{ resolvedEmail: string }>([
@@ -189,8 +190,6 @@ export async function runMemberAdd(
     ]);
     email = resolvedEmail.trim().toLowerCase();
   }
-
-  const ws = svc.getWorkspaceRoot();
 
   // P7: Warn immediately when --from is supplied for a type that ignores it
   if (opts.from && typeArg !== 'feedback') {

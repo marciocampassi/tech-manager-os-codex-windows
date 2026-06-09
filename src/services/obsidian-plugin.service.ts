@@ -53,7 +53,8 @@ export class ObsidianPluginService {
     const obsidianDir = join(workspacePath, '.obsidian');
     const OPTIONAL_FILES = new Set(['styles.css']);
     const fullyFailedPlugins: string[] = [];
-    const requiredCount = PLUGIN_FILES.length - OPTIONAL_FILES.size;
+
+    await fileSystemService.createDirectory(join(obsidianDir, 'plugins'));
 
     await Promise.all(
       OBSIDIAN_PLUGINS.map(async (plugin) => {
@@ -78,17 +79,19 @@ export class ObsidianPluginService {
         );
 
         const failed = fileResults.filter((ok) => !ok).length;
-        if (failed === requiredCount) {
+        if (failed > 0) {
+          logger.warn(`${failed} required file(s) failed for plugin "${plugin.id}"`);
           fullyFailedPlugins.push(plugin.id);
-        } else if (failed > 0) {
-          logger.warn(`${failed}/${PLUGIN_FILES.length} files failed for plugin "${plugin.id}"`);
         }
       }),
     );
 
+    const successfulIds = OBSIDIAN_PLUGINS.filter((p) => !fullyFailedPlugins.includes(p.id)).map(
+      (p) => p.id,
+    );
     await fileSystemService.writeFile(
       join(obsidianDir, 'community-plugins.json'),
-      JSON.stringify(OBSIDIAN_PLUGINS.map((p) => p.id)),
+      JSON.stringify(successfulIds),
     );
 
     const appJsonPath = join(obsidianDir, 'app.json');

@@ -67,6 +67,7 @@ const mockInstallPlugins = jest.fn<(workspacePath: string) => Promise<string[]>>
 
 jest.unstable_mockModule('../../src/services/obsidian-plugin.service.js', () => ({
   obsidianPluginService: { installPlugins: mockInstallPlugins },
+  REQUIRED_PLUGIN_IDS: ['obsidian-git', 'granola-sync', 'terminal', 'dataview'],
 }));
 
 const mockConfigInitialize = jest.fn<() => void>();
