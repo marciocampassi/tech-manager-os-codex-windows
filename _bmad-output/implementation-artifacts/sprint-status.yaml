@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-27
-last_updated: 2026-06-09 (9-24 done)
+last_updated: 2026-06-09 (9-26 through 9-36 added — frontmatter relationships)
 project: tech-manager-os
 project_key: NOKEY
 tracking_system: file-system
@@ -122,4 +122,19 @@ development_status:
   9-23-my-career-performance-review-subfolder: done
   9-24-email-similarity-shared-utility-and-fix: done
   9-25-obsidian-open-hint-post-init-summary: done
+  # ── Added 2026-06-09 via sprint-change-proposal-2026-06-09-frontmatter-relationships.md ──
+  # Wave 1 (foundation — blockers for Wave 2):
+  9-26-frontmatter-relations-shared-utility: backlog
+  9-27-relation-types-and-project-context-rule: backlog
+  # Wave 2 (parallel command fixes — depend on Wave 1):
+  9-28-member-add-team-updates-team-members-frontmatter: backlog
+  9-29-relationship-frontmatter-vocabulary-on-all-entity-profiles: backlog
+  9-30-leadership-add-bidirectional-reciprocal-frontmatter: backlog
+  9-31-dated-artifact-frontmatter-plus-body-wikilink-plus-last-scalar: backlog
+  9-32-myself-add-performance-review-body-wikilink-plus-frontmatter-scalar: backlog
+  9-33-project-link-member-stakeholder-frontmatter-both-sides: backlog
+  9-34-team-fire-archive-frontmatter-cleanup-plus-manager-history: backlog
+  # Wave 3 (onboarding + migration):
+  9-35-init-frontmatter-native-self-and-leader-profiles-plus-tasks-goals: backlog
+  9-36-tmr-doctor-fix-frontmatter-migration: backlog
   epic-9-retrospective: optional
