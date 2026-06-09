@@ -4,28 +4,10 @@ import chalk from 'chalk';
 import { memberService, MemberService } from '../services/member.service.js';
 import { printError, printSuccess, printInfo, printWarning } from '../utils/display.js';
 import { InvalidEmailError } from '../errors/tmr-error.js';
-import { findSimilarEmail } from '../utils/email-similarity.js';
+import { resolveEmailWithSimilarCheck } from '../utils/email-guard.js';
 import { validateEmail } from '../utils/validation.js';
 import { resolveSelfEmail } from '../utils/self-email.js';
 import type { FileType } from '../types/member.types.js';
-
-// ── Shared guard ─────────────────────────────────────────────────────────────
-
-async function warnIfSimilarEmail(email: string, workspaceRoot: string): Promise<boolean> {
-  const similar = findSimilarEmail(email, workspaceRoot);
-  if (!similar) return true;
-
-  printWarning(`Similar email already exists: ${similar}`);
-  const { proceed } = await inquirer.prompt<{ proceed: boolean }>([
-    {
-      type: 'confirm',
-      name: 'proceed',
-      message: `Did you mean "${similar}"? (N = continue adding "${email}")`,
-      default: false,
-    },
-  ]);
-  return !proceed;
-}
 
 // ── Type guard ────────────────────────────────────────────────────────────────
 
@@ -54,12 +36,11 @@ export async function runMemberAdd(
 ): Promise<void> {
   // Routing: if first arg is a valid email → member-creation mode
   if (isEmail(typeArg)) {
-    const email = typeArg.trim().toLowerCase();
+    let email = typeArg.trim().toLowerCase();
 
     const ws = svc.getWorkspaceRoot();
 
-    const shouldContinue = await warnIfSimilarEmail(email, ws);
-    if (!shouldContinue) return;
+    email = await resolveEmailWithSimilarCheck(email, ws);
 
     const { name, gender, role, location } = await inquirer.prompt<{
       name: string;
@@ -197,8 +178,7 @@ export async function runMemberAdd(
   }
 
   // P12: Run similar-email guard before prompting for reviewer details
-  const shouldContinueTypePath = await warnIfSimilarEmail(email, ws);
-  if (!shouldContinueTypePath) return;
+  email = await resolveEmailWithSimilarCheck(email, ws);
 
   // ── Resolve reviewer email for feedback files ─────────────────────────────
   let fromEmail: string | undefined;

@@ -370,6 +370,14 @@ The following items were surfaced by the pre-launch AC audit (Epics 1–5) and a
 - Working tree mixes 9-23/9-24 changes unrelated to this story — branch hygiene, not a 9-22 code defect.
 - `promptRoleAndCompany` role field not trimmed on return (whitespace padding) — pre-existing; inconsistent with other prompts but not introduced by this story.
 
+## Deferred from: code review of 9-24-email-similarity-shared-utility-and-fix (2026-06-09)
+
+- Dead `filteredEmails.length === 0` guard in `runProjectLinkMembers` / `runProjectLinkStakeholders` — unreachable after 9.24 because `resolveEmailWithSimilarCheck` always returns a string; story dev notes explicitly leave it harmless. [`src/commands/project.command.ts:140,230`]
+- No dedicated unit test for `email-guard.ts` inquirer Y/N branches — command tests mock the guard at module boundary per AC8/story spec; integration coverage deferred to a future test-hardening pass. [`src/utils/email-guard.ts`]
+- `inquirer.prompt` throws in non-TTY / SIGINT contexts propagate unhandled from guard call sites — pre-existing CLI pattern across all interactive commands (9-8 deferred D12). [`src/utils/email-guard.ts`, all command call sites]
+- Batch link commands (`runProjectLinkMembers`, `runProjectLinkStakeholders`) prompt sequentially per email with no dedup — pre-existing 9-8 behavior; not introduced by 9.24. [`src/commands/project.command.ts`]
+- Leadership decline-path test uses default mock passthrough rather than explicit N simulation — acceptable given mock design; does not block story acceptance. [`tests/commands/leadership.command.test.ts:248`]
+
 ## Deferred from: code review of 9-23-my-career-performance-review-subfolder (2026-06-09)
 
 - No migration for pre-9.23 flat performance-review files in `my-career/` — story intentionally supersedes 9.16 flat layout; old files remain flat with old wiki-link format; new reviews go to `performance-reviews/` subfolder. Out of story scope.

@@ -34,11 +34,11 @@ jest.unstable_mockModule('../../src/services/member.service.js', () => ({
   memberService: mockMemberServiceInstance,
 }));
 
-const mockFindSimilarEmail = jest
-  .fn<(email: string, ws: string) => string | null>()
-  .mockReturnValue(null);
-jest.unstable_mockModule('../../src/utils/email-similarity.js', () => ({
-  findSimilarEmail: mockFindSimilarEmail,
+const mockResolveEmailWithSimilarCheck = jest
+  .fn<(email: string, ws: string) => Promise<string>>()
+  .mockImplementation((email: string) => Promise.resolve(email));
+jest.unstable_mockModule('../../src/utils/email-guard.js', () => ({
+  resolveEmailWithSimilarCheck: mockResolveEmailWithSimilarCheck,
 }));
 
 const mockPrompt = jest.fn<() => Promise<Record<string, string>>>();
@@ -76,7 +76,7 @@ describe('member command', () => {
     stderrSpy = jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
     exitCodeSpy = jest.spyOn(process, 'exitCode', 'set').mockImplementation(() => {});
     jest.clearAllMocks();
-    mockFindSimilarEmail.mockReturnValue(null);
+    mockResolveEmailWithSimilarCheck.mockImplementation((email: string) => Promise.resolve(email));
     mockGetWorkspaceRoot.mockReturnValue('/fake/ws');
     mockCreateMemberFile.mockResolvedValue({
       filePath: '/fake/ws/my-teams/members/john@co.com/1on1s/2026-03-07-1on1-john@co.com.md',
@@ -414,37 +414,35 @@ describe('member command', () => {
     });
   });
 
-  // ── Story 9.8 — email similarity warning ─────────────────────────────────────
+  // ── Story 9.24 — email similarity guard (shared utility) ─────────────────────
 
-  describe('9.8: email similarity warning', () => {
-    it('9.8: aborts and skips addMember when user confirms similar email (Y)', async () => {
-      mockFindSimilarEmail.mockReturnValueOnce('newuser@co.com');
-      mockPrompt.mockResolvedValueOnce({ proceed: true } as unknown as Record<string, string>); // Y = "yes I meant that" → abort
+  describe('9.24: email similarity guard', () => {
+    it('9.24: uses corrected email when resolveEmailWithSimilarCheck returns similar (Y)', async () => {
+      mockResolveEmailWithSimilarCheck.mockResolvedValueOnce('newuser@co.com'); // guard returns corrected email
+      mockPrompt.mockResolvedValueOnce({ name: '', gender: '', role: '', location: '' });
 
       await runMemberAdd(mockMemberServiceInstance as never, 'newusr@co.com', undefined, {});
 
-      expect(mockAddMember).not.toHaveBeenCalled();
+      expect(mockAddMember).toHaveBeenCalledWith('newuser@co.com', expect.any(Object), '/fake/ws');
     });
 
-    it('9.8: continues with original email when user declines similar (N)', async () => {
-      mockFindSimilarEmail.mockReturnValueOnce('newuser@co.com');
-      mockPrompt
-        .mockResolvedValueOnce({ proceed: false } as unknown as Record<string, string>) // N = "continue with my email"
-        .mockResolvedValueOnce({ name: '', gender: '', role: '', location: '' });
+    it('9.24: continues with original email when user declines similar (N)', async () => {
+      // Default mock returns original email unchanged
+      mockPrompt.mockResolvedValueOnce({ name: '', gender: '', role: '', location: '' });
 
       await runMemberAdd(mockMemberServiceInstance as never, 'newusr@co.com', undefined, {});
 
       expect(mockAddMember).toHaveBeenCalledWith('newusr@co.com', expect.any(Object), '/fake/ws');
     });
 
-    it('9.8: proceeds without warning when no similar email exists', async () => {
-      mockFindSimilarEmail.mockReturnValueOnce(null);
+    it('9.24: proceeds without extra prompt when no similar email exists', async () => {
+      // Default mock returns original email — resolveEmailWithSimilarCheck is a no-op
       mockPrompt.mockResolvedValueOnce({ name: '', gender: '', role: '', location: '' });
 
       await runMemberAdd(mockMemberServiceInstance as never, 'unique@co.com', undefined, {});
 
       expect(mockAddMember).toHaveBeenCalledWith('unique@co.com', expect.any(Object), '/fake/ws');
-      // Prompt should only be called once (name/gender/role/location) — no similarity prompt
+      // Only one prompt call (name/gender/role/location) — resolveEmailWithSimilarCheck is mocked
       expect(mockPrompt).toHaveBeenCalledTimes(1);
     });
   });
@@ -557,29 +555,25 @@ describe('member command', () => {
     });
   });
 
-  // ── Story 9.11 — 1on1 similarity check ordering ──────────────────────────────
+  // ── Story 9.24 — similarity check ordering (type-first path) ────────────────
 
-  describe('9.11: similarity check fires before 1on1 creation (type-first path)', () => {
-    // NOTE: `proceed: true` = abort. The prompt message is "Did you mean <similar>?"
-    // so answering Y (true) means "yes, I meant the similar email" → abort the current one.
-    // `proceed: false` = "no, continue with my original email" → createMemberFile is called.
-
-    it('9.11: abort on similar email prevents createMemberFile call', async () => {
-      mockFindSimilarEmail.mockReturnValueOnce('user1@co.com');
-      mockPrompt.mockResolvedValueOnce({ proceed: true } as unknown as Record<string, string>);
+  describe('9.24: similarity check fires before file creation (type-first path)', () => {
+    it('9.24: uses corrected email and creates 1on1 file when similar found', async () => {
+      mockResolveEmailWithSimilarCheck.mockResolvedValueOnce('user1@co.com'); // guard returns corrected email
 
       await runMemberAdd(mockMemberServiceInstance as never, '1on1', 'usr1@co.com', {});
 
-      // P2: verify the check was invoked with the correct args
-      expect(mockFindSimilarEmail).toHaveBeenCalledWith('usr1@co.com', '/fake/ws');
-      // P3: verify the user was shown the warning prompt
-      expect(mockPrompt).toHaveBeenCalled();
-      expect(mockCreateMemberFile).not.toHaveBeenCalled();
+      expect(mockResolveEmailWithSimilarCheck).toHaveBeenCalledWith('usr1@co.com', '/fake/ws');
+      expect(mockCreateMemberFile).toHaveBeenCalledWith(
+        'user1@co.com',
+        '1on1',
+        expect.any(Object),
+        '/fake/ws',
+      );
     });
 
-    it('9.11: continuing past similar-email warning still creates the 1on1 file', async () => {
-      mockFindSimilarEmail.mockReturnValueOnce('user1@co.com');
-      mockPrompt.mockResolvedValueOnce({ proceed: false } as unknown as Record<string, string>);
+    it('9.24: original email used and 1on1 file created when user declines similar', async () => {
+      // Default mock returns original email unchanged
 
       await runMemberAdd(mockMemberServiceInstance as never, '1on1', 'usr1@co.com', {});
 
@@ -591,13 +585,12 @@ describe('member command', () => {
       );
     });
 
-    // P4: happy-path — no similar email found → no prompt, file created immediately
-    it('9.11: no similar email found → createMemberFile called without prompt', async () => {
-      mockFindSimilarEmail.mockReturnValueOnce(null);
+    it('9.24: no similar email → createMemberFile called without prompt', async () => {
+      // Default mock returns original email — no prompt involved
 
       await runMemberAdd(mockMemberServiceInstance as never, '1on1', 'john@co.com', {});
 
-      expect(mockFindSimilarEmail).toHaveBeenCalledWith('john@co.com', '/fake/ws');
+      expect(mockResolveEmailWithSimilarCheck).toHaveBeenCalledWith('john@co.com', '/fake/ws');
       expect(mockPrompt).not.toHaveBeenCalled();
       expect(mockCreateMemberFile).toHaveBeenCalledWith(
         'john@co.com',

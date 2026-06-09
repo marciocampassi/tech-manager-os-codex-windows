@@ -2,27 +2,9 @@ import { Command } from 'commander';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { projectService, ProjectService } from '../services/project.service.js';
-import { printError, printWarning } from '../utils/display.js';
-import { findSimilarEmail } from '../utils/email-similarity.js';
+import { printError } from '../utils/display.js';
+import { resolveEmailWithSimilarCheck } from '../utils/email-guard.js';
 import type { IProjectFileOptions } from '../types/project.types.js';
-
-// ── Shared guard ─────────────────────────────────────────────────────────────
-
-async function warnIfSimilarEmail(email: string, workspaceRoot: string): Promise<boolean> {
-  const similar = findSimilarEmail(email, workspaceRoot);
-  if (!similar) return true;
-
-  printWarning(`Similar email already exists: ${similar}`);
-  const { proceed } = await inquirer.prompt<{ proceed: boolean }>([
-    {
-      type: 'confirm',
-      name: 'proceed',
-      message: `Did you mean "${similar}"? (N = continue adding "${email}")`,
-      default: false,
-    },
-  ]);
-  return !proceed;
-}
 
 // ── Formatting helpers ────────────────────────────────────────────────────────
 
@@ -95,7 +77,7 @@ export async function runProjectLinkMember(
   emailArg: string | undefined,
 ): Promise<void> {
   const name = nameArg?.trim() ?? '';
-  const email = emailArg?.trim().toLowerCase() ?? '';
+  let email = emailArg?.trim().toLowerCase() ?? '';
 
   if (!name || !email) {
     printError(
@@ -108,8 +90,7 @@ export async function runProjectLinkMember(
 
   const ws = svc.getWorkspaceRoot();
 
-  const shouldContinue = await warnIfSimilarEmail(email, ws);
-  if (!shouldContinue) return;
+  email = await resolveEmailWithSimilarCheck(email, ws);
 
   let result;
   try {
@@ -152,9 +133,8 @@ export async function runProjectLinkMembers(
   const ws = svc.getWorkspaceRoot();
 
   const filteredEmails: string[] = [];
-  for (const email of emails) {
-    const shouldContinue = await warnIfSimilarEmail(email, ws);
-    if (shouldContinue) filteredEmails.push(email);
+  for (const rawEmail of emails) {
+    filteredEmails.push(await resolveEmailWithSimilarCheck(rawEmail, ws));
   }
 
   if (filteredEmails.length === 0) {
@@ -187,7 +167,7 @@ export async function runProjectLinkStakeholder(
   emailArg: string | undefined,
 ): Promise<void> {
   const name = nameArg?.trim() ?? '';
-  const email = emailArg?.trim().toLowerCase() ?? '';
+  let email = emailArg?.trim().toLowerCase() ?? '';
 
   if (!name || !email) {
     printError(
@@ -200,8 +180,7 @@ export async function runProjectLinkStakeholder(
 
   const ws = svc.getWorkspaceRoot();
 
-  const shouldContinue = await warnIfSimilarEmail(email, ws);
-  if (!shouldContinue) return;
+  email = await resolveEmailWithSimilarCheck(email, ws);
 
   let result;
   try {
@@ -244,9 +223,8 @@ export async function runProjectLinkStakeholders(
   const ws = svc.getWorkspaceRoot();
 
   const filteredEmails: string[] = [];
-  for (const email of emails) {
-    const shouldContinue = await warnIfSimilarEmail(email, ws);
-    if (shouldContinue) filteredEmails.push(email);
+  for (const rawEmail of emails) {
+    filteredEmails.push(await resolveEmailWithSimilarCheck(rawEmail, ws));
   }
 
   if (filteredEmails.length === 0) {

@@ -3,27 +3,9 @@ import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { leadershipService, LeadershipService } from '../services/leadership.service.js';
 import { memberService } from '../services/member.service.js';
-import { printError, printInfo, printWarning } from '../utils/display.js';
-import { findSimilarEmail } from '../utils/email-similarity.js';
+import { printError, printInfo } from '../utils/display.js';
+import { resolveEmailWithSimilarCheck } from '../utils/email-guard.js';
 import type { IAddLeadershipOptions } from '../types/leadership.types.js';
-
-// ── Shared guard ─────────────────────────────────────────────────────────────
-
-async function warnIfSimilarEmail(email: string, workspaceRoot: string): Promise<boolean> {
-  const similar = findSimilarEmail(email, workspaceRoot);
-  if (!similar) return true;
-
-  printWarning(`Similar email already exists: ${similar}`);
-  const { proceed } = await inquirer.prompt<{ proceed: boolean }>([
-    {
-      type: 'confirm',
-      name: 'proceed',
-      message: `Did you mean "${similar}"? (N = continue adding "${email}")`,
-      default: false,
-    },
-  ]);
-  return !proceed;
-}
 
 // ── Formatting helpers ────────────────────────────────────────────────────────
 
@@ -62,8 +44,7 @@ export async function runLeadershipAdd(
     email = resolvedEmail.trim().toLowerCase();
   }
 
-  const shouldContinue = await warnIfSimilarEmail(email, ws);
-  if (!shouldContinue) return;
+  email = await resolveEmailWithSimilarCheck(email, ws);
 
   // Secondary prompts — skip individual prompts if pre-filled via flags
   const secondaryAnswers = await inquirer.prompt<{
@@ -142,8 +123,7 @@ export async function runLeadership1on1(
     email = resolvedEmail.trim().toLowerCase();
   }
 
-  const shouldContinue = await warnIfSimilarEmail(email, ws);
-  if (!shouldContinue) return;
+  email = await resolveEmailWithSimilarCheck(email, ws);
 
   let result;
   try {
