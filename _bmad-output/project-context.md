@@ -273,15 +273,15 @@ Every member entity type uses the **nested folder pattern**: `<scope>/<email>/<e
 
 | Scope | Profile path | Subdirs created alongside profile |
 |---|---|---|
-| Self | `my-career/<email>.md` | *(flat, no subdir — single profile, no subdirs)* |
+| Self | `my-career/<email>.md` | `performance-reviews/` |
 | Direct report | `my-teams/members/<email>/<email>.md` | `1on1s/`, `feedbacks/`, `assessments/`, `performance-reviews/`, `<email>-shared/` |
 | Leadership | `my-leadership/<email>/<email>.md` | `1on1s/` |
 | Company member | `my-company/members/<email>/<email>.md` | `1on1s/`, `feedbacks/`, `assessments/`, `performance-reviews/` |
 | Contractor | `my-company/contractors/<email>/<email>.md` | `1on1s/`, `feedbacks/`, `assessments/`, `performance-reviews/` |
 
-All scopes (except Self and Leadership) get the full set of four subdirs. Contractors are treated identically to Company members for subdir scaffolding — no exceptions.
+All scopes (except Leadership) get typed subdirs for dated documents. Direct reports, company members, and contractors get the full set of four subdirs. Self gets `performance-reviews/` only. Contractors are treated identically to Company members for subdir scaffolding — no exceptions.
 
-- **`my-career/` is flat** — `my-career/<email>.md` only, no subfolder. This is the only exception.
+- **`my-career/` self-profile stays flat** — the profile lives at `my-career/<email>.md` (not nested). Dated performance reviews go in `my-career/performance-reviews/`. Do not move the profile into a nested folder.
 - NEVER write a profile as a flat `<email>.md` alongside other profiles in the same scope folder. The nested pattern is the enforced standard.
 
 ### Required Frontmatter Field: `relationship`

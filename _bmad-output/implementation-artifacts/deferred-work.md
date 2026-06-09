@@ -369,3 +369,8 @@ The following items were surfaced by the pre-launch AC audit (Epics 1–5) and a
 - Stale `{ role, company }` mocks in `tests/fixtures/init-prompts.ts` and `init.integration.test.ts` — outside 4-file story scope; behavior still works because `company: inferredDomain` overrides spread.
 - Working tree mixes 9-23/9-24 changes unrelated to this story — branch hygiene, not a 9-22 code defect.
 - `promptRoleAndCompany` role field not trimmed on return (whitespace padding) — pre-existing; inconsistent with other prompts but not introduced by this story.
+
+## Deferred from: code review of 9-23-my-career-performance-review-subfolder (2026-06-09)
+
+- No migration for pre-9.23 flat performance-review files in `my-career/` — story intentionally supersedes 9.16 flat layout; old files remain flat with old wiki-link format; new reviews go to `performance-reviews/` subfolder. Out of story scope.
+- `resolveSelfEmail` / `_resolveManagerLink` lack dated-file filter when flat review files exist in `my-career/` — pre-existing from 9.16; 9.23 improves forward path by writing new reviews to subfolder (invisible to flat `readdir`). Already tracked as D2 in 9-3 deferred work; harden in a dedicated follow-up story.

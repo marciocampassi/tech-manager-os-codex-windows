@@ -1,6 +1,10 @@
+---
+baseline_commit: edfbcb36d70ac2eefc2342f0cf1b8fc1da0d2156
+---
+
 # Story 9.23: `my-career` performance-review subfolder
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -17,17 +21,23 @@ so that `my-career/` stays clean and follows the same typed-subdirectory convent
 
 ## Tasks / Subtasks
 
-- [ ] Add `my-career/performance-reviews` to `VAULT_DIRS` in `init.service.ts` (AC: #1)
-  - [ ] Insert `'my-career/performance-reviews'` directly after the `'my-career'` entry in `VAULT_DIRS`
-- [ ] Update `MyselfService.addPerformanceReview()` — fix `filePath` (AC: #2)
-  - [ ] Change `path.join(careerRoot, fileName)` → `path.join(careerRoot, 'performance-reviews', fileName)`
-- [ ] Update `MyselfService.addPerformanceReview()` — fix `wikiLink` (AC: #3)
-  - [ ] Change `` `- [[${fileName}]]` `` → `` `- [[performance-reviews/${fileName}]]` ``
-- [ ] Update `tests/services/myself.service.test.ts` — fix all path assertions that assume flat `my-career/` layout
-  - [ ] Update regex in `'creates a performance-review file...'` test to match `/my-career/performance-reviews/`
-  - [ ] Rename and invert the `'writes file into my-career/ (flat — no subdirectory)'` test — it must now assert the `performance-reviews/` subfolder IS present
-  - [ ] Update `'falls back to current month...'` test regex to match `/my-career/performance-reviews/`
-  - [ ] Update the wiki-link assertion in `'appends wiki-link...'` test to expect `- [[performance-reviews/YYYY-MM-performance-review-<email>.md]]`
+- [x] Add `my-career/performance-reviews` to `VAULT_DIRS` in `init.service.ts` (AC: #1)
+  - [x] Insert `'my-career/performance-reviews'` directly after the `'my-career'` entry in `VAULT_DIRS`
+- [x] Update `MyselfService.addPerformanceReview()` — fix `filePath` (AC: #2)
+  - [x] Change `path.join(careerRoot, fileName)` → `path.join(careerRoot, 'performance-reviews', fileName)`
+- [x] Update `MyselfService.addPerformanceReview()` — fix `wikiLink` (AC: #3)
+  - [x] Change `` `- [[${fileName}]]` `` → `` `- [[performance-reviews/${fileName}]]` ``
+- [x] Update `tests/services/myself.service.test.ts` — fix all path assertions that assume flat `my-career/` layout
+  - [x] Update regex in `'creates a performance-review file...'` test to match `/my-career/performance-reviews/`
+  - [x] Rename and invert the `'writes file into my-career/ (flat — no subdirectory)'` test — it must now assert the `performance-reviews/` subfolder IS present
+  - [x] Update `'falls back to current month...'` test regex to match `/my-career/performance-reviews/`
+  - [x] Update the wiki-link assertion in `'appends wiki-link...'` test to expect `- [[performance-reviews/YYYY-MM-performance-review-<email>.md]]`
+
+### Review Findings
+
+- [x] [Review][Patch] Update `project-context.md` vault structure docs [`_bmad-output/project-context.md`:276,284]
+- [x] [Review][Defer] No migration for pre-9.23 flat performance-review files in `my-career/` — deferred, out of story scope (intentional supersede of 9.16 flat layout)
+- [x] [Review][Defer] `resolveSelfEmail` / `_resolveManagerLink` lack dated-file filter when flat review files exist — deferred, pre-existing from 9.16; 9.23 improves forward path by writing new reviews to subfolder
 
 ## Dev Notes
 
@@ -217,6 +227,27 @@ claude-sonnet-4-5
 
 ### Debug Log References
 
+- Windows path separator issue: `path.join` on Windows produces backslashes; the 4 test assertions from the story spec used forward-slash literals. Fixed by using `[\/\\]` character class in regex patterns and rewriting the `toContain` check as a single `.toMatch` regex. This also corrected a pre-existing Windows path bug in those same tests from story 9.16.
+- Pre-existing test failure `INIT-UNIT-006` (init.service.test.ts): expects `'tmr project add'` in `printPostInitSummary` output, but story 9.25 rewrote that function and the test was not updated. Not in scope for story 9.23.
+
 ### Completion Notes List
 
+- Added `'my-career/performance-reviews'` to `VAULT_DIRS` — vault scaffold now creates this directory on `tmr init` (AC #1).
+- Updated `MyselfService.addPerformanceReview()`: `filePath` now uses `path.join(careerRoot, 'performance-reviews', fileName)` and `wikiLink` now reads `- [[performance-reviews/${fileName}]]` (AC #2, #3).
+- Self-profile (`my-career/<email>.md`) is untouched — only dated review files move to the subfolder (AC #4).
+- Updated 4 test assertions in `myself.service.test.ts` to match new path/wikilink; made path regexes cross-platform with `[\/\\]` character classes.
+- Updated `init.service.test.ts`: directory count 14→15 and added `my-career/performance-reviews` to INIT-UNIT-001 required-dirs list.
+- All 11 `myself.service.test.ts` tests pass. Lint, typecheck, and build all pass.
+
 ### File List
+
+- `src/services/init.service.ts`
+- `src/services/myself.service.ts`
+- `tests/services/myself.service.test.ts`
+- `tests/services/init.service.test.ts`
+- `_bmad-output/project-context.md`
+
+## Change Log
+
+- 2026-06-09: Implemented story 9.23 — moved `tmr myself add performance-review` output from `my-career/<file>` to `my-career/performance-reviews/<file>`; added `my-career/performance-reviews` to vault scaffold; updated wiki-link prefix; updated 4 test assertions cross-platform. Pre-existing test failure (INIT-UNIT-006) noted and not in scope.
+- 2026-06-09: Code review — updated `project-context.md` vault structure docs for `my-career/performance-reviews/` subdir; story marked done.

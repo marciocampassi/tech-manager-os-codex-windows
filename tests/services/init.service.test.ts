@@ -119,7 +119,7 @@ describe('InitService', () => {
   describe('scaffold', () => {
     // ── INIT-UNIT-001 ──────────────────────────────────────────────────────────
 
-    it('INIT-UNIT-001: creates all 12 required directories (positive set)', async () => {
+    it('INIT-UNIT-001: creates all required directories (positive set)', async () => {
       await svc.scaffold(WS);
 
       const dirs = (mockFS.createDirectory.mock.calls as [string][]).map((c) =>
@@ -136,6 +136,7 @@ describe('InitService', () => {
         path.join('my-company', 'projects'),
         'my-leadership',
         'my-career',
+        path.join('my-career', 'performance-reviews'),
         'knowledge-base',
         path.join('.claude', 'skills'),
         path.join('.cursor', 'rules', 'tmr'),
@@ -158,9 +159,9 @@ describe('InitService', () => {
       expect(dirs).not.toContain(path.join(WS, 'my-teams', 'feedback-templates'));
     });
 
-    it('creates exactly 14 directories — no extra ones', async () => {
+    it('creates exactly 15 directories — no extra ones', async () => {
       await svc.scaffold(WS);
-      expect(mockFS.createDirectory).toHaveBeenCalledTimes(14);
+      expect(mockFS.createDirectory).toHaveBeenCalledTimes(15);
     });
 
     // ── INIT-UNIT-007 ──────────────────────────────────────────────────────────

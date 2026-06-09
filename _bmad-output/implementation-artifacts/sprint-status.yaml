@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-27
-last_updated: 2026-06-09 (9-22 done)
+last_updated: 2026-06-09 (9-23 done)
 project: tech-manager-os
 project_key: NOKEY
 tracking_system: file-system
@@ -119,7 +119,7 @@ development_status:
   9-18-init-scaffold-only-plugin-regression-version-art: done
   # ── Added 2026-06-09 via sprint-change-proposal-2026-06-09-post-uat-bugs-3.md ──
   9-22-remove-duplicate-company-domain-prompt: done
-  9-23-my-career-performance-review-subfolder: ready-for-dev
+  9-23-my-career-performance-review-subfolder: done
   9-24-email-similarity-shared-utility-and-fix: ready-for-dev
   9-25-obsidian-open-hint-post-init-summary: done
   epic-9-retrospective: optional

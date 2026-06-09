@@ -25,6 +25,7 @@ const VAULT_DIRS = [
   'my-company/projects',
   'my-leadership',
   'my-career',
+  'my-career/performance-reviews',
   'knowledge-base',
   'config',
   '.claude/skills',

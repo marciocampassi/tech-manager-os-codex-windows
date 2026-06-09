@@ -73,12 +73,12 @@ export class MyselfService {
     const datePrefix = rawDate.slice(0, 7);
 
     const fileName = `${datePrefix}-performance-review-${ownEmail}.md`;
-    const filePath = path.join(careerRoot, fileName);
+    const filePath = path.join(careerRoot, 'performance-reviews', fileName);
 
     const content = this._template.getTemplate('performance-review', datePrefix, ownEmail);
     await this._fs.writeFile(filePath, content);
 
-    const wikiLink = `- [[${fileName}]]`;
+    const wikiLink = `- [[performance-reviews/${fileName}]]`;
     await this._sectionParser.appendToFile(profilePath, 'Performance Reviews', wikiLink);
 
     return { filePath, profilePath };

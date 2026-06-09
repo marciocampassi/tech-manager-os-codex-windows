@@ -109,7 +109,9 @@ describe('MyselfService', () => {
         '# Performance Review template',
       );
       expect(result.filePath).toContain(`-performance-review-${OWN_EMAIL}.md`);
-      expect(result.filePath).toMatch(/\/my-career\/\d{4}-\d{2}-performance-review-/);
+      expect(result.filePath).toMatch(
+        /[\/\\]my-career[\/\\]performance-reviews[\/\\]\d{4}-\d{2}-performance-review-/,
+      );
     });
 
     it('uses provided --date YYYY-MM as filename prefix and passes it to template', async () => {
@@ -148,7 +150,7 @@ describe('MyselfService', () => {
       expect(mockSectionParser.appendToFile).toHaveBeenCalledWith(
         PROFILE_PATH,
         'Performance Reviews',
-        `- [[${expectedFileName}]]`,
+        `- [[performance-reviews/${expectedFileName}]]`,
       );
     });
 
@@ -161,13 +163,11 @@ describe('MyselfService', () => {
       );
     });
 
-    it('writes file into my-career/ (flat — no subdirectory)', async () => {
+    it('writes file into my-career/performance-reviews/ subdirectory', async () => {
       await svc.addPerformanceReview({ date: '2026-05' }, WORKSPACE);
 
       const [[writtenPath]] = mockFS.writeFile.mock.calls as [string, string][];
-      expect(writtenPath).toContain(`/my-career/`);
-      const relativeToCareer = writtenPath.replace(`${CAREER_ROOT}/`, '');
-      expect(relativeToCareer).not.toContain('/');
+      expect(writtenPath).toMatch(/[\/\\]my-career[\/\\]performance-reviews[\/\\]/);
     });
 
     it('uses resolve() canonical absolutePath as profilePath even if listFiles returns different path', async () => {
@@ -195,7 +195,9 @@ describe('MyselfService', () => {
     it('falls back to current month when --date is empty string', async () => {
       const result = await svc.addPerformanceReview({ date: '' }, WORKSPACE);
 
-      expect(result.filePath).toMatch(/\/my-career\/\d{4}-\d{2}-performance-review-/);
+      expect(result.filePath).toMatch(
+        /[\/\\]my-career[\/\\]performance-reviews[\/\\]\d{4}-\d{2}-performance-review-/,
+      );
     });
 
     it('skips dated files when selecting profile from multiple my-career/ entries', async () => {
