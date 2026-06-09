@@ -15,12 +15,11 @@
 ```bash
 npm install -g @marlonvidal/tech-manager-os
 tmr init          # Guided setup: vault, your profile, leader, teams, members
-tmr config        # Set your AI provider and API key
 tmr doctor        # Verify your environment is ready
-tmr process       # AI-route your inbox files
 ```
 
-`tmr init` automatically installs the `tmr-inbox`, `tmr-project-impact`, and `tmr-myself-config` skills. Run `/tmr-myself-config` in Claude Code after init for personalized AI context.
+`tmr init` automatically installs the `tmr-inbox`, `tmr-project-impact`, and `tmr-myself-config` skills. 
+Run `/tmr-myself-config` in Claude Code after init for personalized AI context and `/tmr-inbox` to process the raw notes from your inbox folder.
 
 For a full walkthrough, see [docs/project-overview.md](docs/project-overview.md).
 
@@ -36,12 +35,7 @@ For a full walkthrough, see [docs/project-overview.md](docs/project-overview.md)
 | `tmr --version` | Show version |
 | `tmr init` | Guided vault setup — profile, leader, teams, members, skills |
 | `tmr init --scaffold-only` | Create files and folders only — skip network operations (offline / CI) |
-| `tmr config` | Configure AI provider and API key |
 | `tmr doctor` | Check environment health: Node.js, Obsidian, Granola, vault, plugins |
-| `tmr process` | AI-powered inbox processing (requires API key) |
-| `tmr process --dry-run` | Preview routing decisions without moving files |
-| `tmr watch` | Auto-process inbox on file changes |
-| `tmr install <skill>` | Install a Claude Code skill into `.claude/skills/` |
 | `tmr update` | Update all installed skills to latest versions |
 | `tmr show <email>` | Display profile for any email (self, team, leadership, company, contractor) |
 
@@ -190,11 +184,8 @@ See `examples/sample-vault/` for a realistic starter vault.
 
 - **Node.js 18+** (20.17.0 LTS recommended)
 - **npm** (or use `npx @marlonvidal/tech-manager-os` without installing globally)
-- **AI API key** — OpenAI, Anthropic (Claude), or Google Gemini — required for `tmr process`
-- **Claude Code** (optional) — required for skill-based workflows (`/tmr-inbox`, `/tmr-project-impact`, `/tmr-myself-config`)
-- **Obsidian + Granola** (optional) — recommended for automatic meeting note sync; configured automatically by `tmr init`
-
-See [SECURITY.md](SECURITY.md) for API key storage and best practices.
+- **Claude Code** — required for skill-based workflows (`/tmr-inbox`, `/tmr-project-impact`, `/tmr-myself-config`)
+- **Obsidian + Granola** — recommended for automatic meeting note sync; configured automatically by `tmr init`
 
 ---
 
