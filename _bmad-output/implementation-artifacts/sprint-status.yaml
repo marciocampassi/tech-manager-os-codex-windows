@@ -1,5 +1,5 @@
 # generated: 2026-04-27
-# last_updated: 2026-04-27
+# last_updated: 2026-06-09
 # project: tech-manager-os
 # project_key: NOKEY
 # tracking_system: file-system
@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-27
-last_updated: 2026-06-09 (stories 9-22 through 9-25 added)
+last_updated: 2026-06-09 (stories 9-22 through 9-25 added; 9-23 and 9-24 ready-for-dev)
 project: tech-manager-os
 project_key: NOKEY
 tracking_system: file-system
@@ -118,8 +118,8 @@ development_status:
   9-17-doctor-granola-plugins-check: done
   9-18-init-scaffold-only-plugin-regression-version-art: done
   # ── Added 2026-06-09 via sprint-change-proposal-2026-06-09-post-uat-bugs-3.md ──
-  9-22-remove-duplicate-company-domain-prompt: backlog
-  9-23-my-career-performance-review-subfolder: backlog
-  9-24-email-similarity-shared-utility-and-fix: backlog
-  9-25-obsidian-open-hint-post-init-summary: backlog
+  9-22-remove-duplicate-company-domain-prompt: ready-for-dev
+  9-23-my-career-performance-review-subfolder: ready-for-dev
+  9-24-email-similarity-shared-utility-and-fix: ready-for-dev
+  9-25-obsidian-open-hint-post-init-summary: done
   epic-9-retrospective: optional
