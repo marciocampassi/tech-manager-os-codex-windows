@@ -30,6 +30,7 @@ const {
   promptGoogleDriveSetup,
   promptMemberEmail,
   promptMemberDetails,
+  promptRoleAndCompany,
 } = await import('../../src/workflows/onboarding.prompts.js');
 
 // ── Suite ─────────────────────────────────────────────────────────────────────
@@ -370,6 +371,32 @@ describe('onboarding.prompts', () => {
       type Q = { validate: (v: string) => unknown };
       const validate = (mockPrompt.mock.calls[0] as unknown as [Q[]])[0][0].validate;
       expect(validate('alice@example.com')).toBe(true);
+    });
+  });
+
+  // ── promptRoleAndCompany ──────────────────────────────────────────────────
+
+  describe('promptRoleAndCompany', () => {
+    it('returns only role field (no company)', async () => {
+      mockPrompt.mockResolvedValueOnce({ role: 'Engineering Manager' });
+      const result = await promptRoleAndCompany();
+      expect(result).toEqual({ role: 'Engineering Manager' });
+      expect('company' in result).toBe(false);
+    });
+
+    it('calls inquirer.prompt exactly once', async () => {
+      mockPrompt.mockResolvedValueOnce({ role: 'Lead' });
+      await promptRoleAndCompany();
+      expect(mockPrompt).toHaveBeenCalledTimes(1);
+    });
+
+    it('prompt message asks for role/title', async () => {
+      mockPrompt.mockResolvedValueOnce({ role: 'EM' });
+      await promptRoleAndCompany();
+      const calls = mockPrompt.mock.calls as unknown[][];
+      const questions = calls[0][0] as { name: string; message: string }[];
+      expect(questions).toHaveLength(1);
+      expect(questions[0].name).toBe('role');
     });
   });
 

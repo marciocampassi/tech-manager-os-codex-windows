@@ -78,6 +78,7 @@ export class InitCommand {
     const answers: { name: string; email: string; role: string; company: string } = {
       ...nameEmail,
       ...roleCompany,
+      company: inferredDomain.toLowerCase(),
     };
     const leader = await promptLeaderDetails();
     const teamCount = await promptTeamCount();

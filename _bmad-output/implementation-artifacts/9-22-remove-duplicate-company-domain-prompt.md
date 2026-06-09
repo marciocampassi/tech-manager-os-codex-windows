@@ -1,6 +1,10 @@
+---
+baseline_commit: c171979c3392a6b7cc20d6527cb005e4a64aefdf
+---
+
 # Story 9.22: Remove Duplicate Company Domain Prompt from `tmr init`
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -18,25 +22,25 @@ And all downstream consumers of `answers.company` (`configService.set('company_d
 
 ## Tasks / Subtasks
 
-- [ ] Task 1 — Shrink `RoleAndCompanyAnswers` + `promptRoleAndCompany` (AC: 1)
-  - [ ] Remove `company: string` from `RoleAndCompanyAnswers` interface in `src/workflows/onboarding.prompts.ts`
-  - [ ] Remove the `company` prompt question from the `inquirer.prompt` array in `promptRoleAndCompany()`
-  - [ ] Return type stays `Promise<RoleAndCompanyAnswers>` — just the slimmed interface
+- [x] Task 1 — Shrink `RoleAndCompanyAnswers` + `promptRoleAndCompany` (AC: 1)
+  - [x] Remove `company: string` from `RoleAndCompanyAnswers` interface in `src/workflows/onboarding.prompts.ts`
+  - [x] Remove the `company` prompt question from the `inquirer.prompt` array in `promptRoleAndCompany()`
+  - [x] Return type stays `Promise<RoleAndCompanyAnswers>` — just the slimmed interface
 
-- [ ] Task 2 — Derive `company` from `inferredDomain` in `InitCommand.run()` (AC: 1)
-  - [ ] In `src/commands/init.command.ts`, update the `answers` construction to add `company: inferredDomain` explicitly
-  - [ ] `inferredDomain` is ALREADY computed on the line before (`nameEmail.email.split('@')[1] ?? ''`) — do NOT recompute it
+- [x] Task 2 — Derive `company` from `inferredDomain` in `InitCommand.run()` (AC: 1)
+  - [x] In `src/commands/init.command.ts`, update the `answers` construction to add `company: inferredDomain` explicitly
+  - [x] `inferredDomain` is ALREADY computed on the line before (`nameEmail.email.split('@')[1] ?? ''`) — do NOT recompute it
 
-- [ ] Task 3 — Update `init.command.test.ts` mocks (AC: 1)
-  - [ ] In `setupMinimalHappyPath()`: change mock call #4 from `{ role: '...', company: '...' }` to `{ role: '...' }` (remove `company` field)
-  - [ ] In `setupScaffoldFailure()`: same change to its mock call #4
-  - [ ] Update the comment on line 287 to remove "company" from the per-call description if it's listed
+- [x] Task 3 — Update `init.command.test.ts` mocks (AC: 1)
+  - [x] In `setupMinimalHappyPath()`: change mock call #4 from `{ role: '...', company: '...' }` to `{ role: '...' }` (remove `company` field)
+  - [x] In `setupScaffoldFailure()`: same change to its mock call #4
+  - [x] Update the comment on line 287 to remove "company" from the per-call description if it's listed
 
-- [ ] Task 4 — Add `promptRoleAndCompany` unit tests to `onboarding.prompts.test.ts` (AC: 1)
-  - [ ] Import `promptRoleAndCompany` in the dynamic import block
-  - [ ] Add a describe block: verifies the function returns `{ role }` only
-  - [ ] Add a test: the mock is called once
-  - [ ] Add a test: verifies there is no `company` field in the result
+- [x] Task 4 — Add `promptRoleAndCompany` unit tests to `onboarding.prompts.test.ts` (AC: 1)
+  - [x] Import `promptRoleAndCompany` in the dynamic import block
+  - [x] Add a describe block: verifies the function returns `{ role }` only
+  - [x] Add a test: the mock is called once
+  - [x] Add a test: verifies there is no `company` field in the result
 
 ## Dev Notes
 
@@ -223,4 +227,33 @@ claude-sonnet-4-5
 
 ### Completion Notes List
 
+- Removed `company: string` from `RoleAndCompanyAnswers` interface — interface now has only `role`.
+- Removed the "Your company / domain" inquirer question from `promptRoleAndCompany()` — function now asks for role only.
+- `answers.company` in `InitCommand.run()` is now derived from the already-computed `inferredDomain` (email domain), eliminating the duplicate prompt.
+- Updated both `setupMinimalHappyPath()` and `setupScaffoldFailure()` mock call #4 to return `{ role: 'Engineering Manager' }` only.
+- Added 3 new unit tests for `promptRoleAndCompany` in `onboarding.prompts.test.ts` — all pass.
+- `promptMinimalOnboarding()` left untouched (separate legacy function with its own `company` field).
+- No regressions introduced. 11 pre-existing failures in `init.command.test.ts` (about file writes and stdout content) confirmed pre-dating this story (last touched at story-9.19).
+
 ### File List
+
+- src/workflows/onboarding.prompts.ts
+- src/commands/init.command.ts
+- tests/commands/init.command.test.ts
+- tests/workflows/onboarding.prompts.test.ts
+- _bmad-output/implementation-artifacts/9-22-remove-duplicate-company-domain-prompt.md
+- _bmad-output/implementation-artifacts/sprint-status.yaml
+
+### Review Findings
+
+- [x] [Review][Patch] Stale JSDoc on `promptRoleAndCompany` still says "role and company" and "domain prompt fires immediately after email collection" [`src/workflows/onboarding.prompts.ts:317-320`]
+- [x] [Review][Patch] No test asserts `configService.set('company_domain', …)` receives inferred email domain [`tests/commands/init.command.test.ts`]
+- [x] [Review][Patch] `answers.company` uses raw email-domain casing while `writeOrgConfig` lowercases the same domain — `company_domain` / CLAUDE.md can disagree with `organization.yaml` on casing [`src/commands/init.command.ts:75-81`]
+- [x] [Review][Defer] Stale `{ role, company }` mocks in `tests/fixtures/init-prompts.ts` and integration tests — deferred, pre-existing, outside 4-file story scope
+- [x] [Review][Defer] Working tree mixes 9-23/9-24 changes unrelated to this story — deferred, branch hygiene
+- [x] [Review][Defer] `promptRoleAndCompany` role field not trimmed on return (whitespace padding) — deferred, pre-existing
+
+## Change Log
+
+- 2026-06-09: Removed duplicate company/domain prompt from `tmr init`; `answers.company` now derived from email-inferred domain. Added `promptRoleAndCompany` unit tests.
+- 2026-06-09: Code review — AC1 implementation passes; 3 patch items applied, 3 deferred.

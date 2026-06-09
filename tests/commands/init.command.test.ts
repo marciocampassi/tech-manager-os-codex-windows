@@ -125,7 +125,7 @@ function setupMinimalHappyPath(): void {
     // 3. promptAdditionalDomains — skip (press Enter)
     .mockResolvedValueOnce({ raw: '' })
     // 4. promptRoleAndCompany
-    .mockResolvedValueOnce({ role: 'Engineering Manager', company: 'example.com' })
+    .mockResolvedValueOnce({ role: 'Engineering Manager' })
     // 5. promptLeaderDetails
     .mockResolvedValueOnce({
       name: 'Bob Director',
@@ -254,6 +254,12 @@ describe('InitCommand', () => {
       const claudeCall = claudeWrites[claudeWrites.length - 1];
       expect(claudeCall).toBeDefined();
       expect(claudeCall[1]).toContain('example.com');
+    });
+
+    it('sets company_domain config from inferred email domain', async () => {
+      setupMinimalHappyPath();
+      await new InitCommand().run();
+      expect(mockConfigSet).toHaveBeenCalledWith('company_domain', 'example.com');
     });
 
     it('writes config/organization.yaml', async () => {
@@ -444,7 +450,7 @@ describe('InitCommand', () => {
         // 3. promptAdditionalDomains — skip
         .mockResolvedValueOnce({ raw: '' })
         // 4. promptRoleAndCompany
-        .mockResolvedValueOnce({ role: 'Engineering Manager', company: 'example.com' })
+        .mockResolvedValueOnce({ role: 'Engineering Manager' })
         // 5. promptLeaderDetails
         .mockResolvedValueOnce({
           name: 'Bob Director',

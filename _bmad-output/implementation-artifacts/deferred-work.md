@@ -363,3 +363,9 @@ The following items were surfaced by the pre-launch AC audit (Epics 1–5) and a
 - D2 — `OBSIDIAN_PLUGINS` array elements no longer deeply readonly after explicit type annotation was added (`as const` removed). Internal private constant with zero public API exposure; practical risk is nil. [`src/services/obsidian-plugin.service.ts`]
 - D3 — One-directional compile-time drift: adding to `REQUIRED_PLUGIN_IDS` without updating `OBSIDIAN_PLUGINS` is not caught at compile time (the reverse direction IS caught via `RequiredPluginId` type constraint). [`src/services/obsidian-plugin.service.ts`]
 - D4 — No test for vault-configured-but-directory-absent branch of `checkCommunityPlugins`. Consistent gap with `checkGranolaSync` test pattern — neither service has this branch explicitly tested. [`tests/services/doctor.service.test.ts`]
+
+## Deferred from: code review of 9-22-remove-duplicate-company-domain-prompt (2026-06-09)
+
+- Stale `{ role, company }` mocks in `tests/fixtures/init-prompts.ts` and `init.integration.test.ts` — outside 4-file story scope; behavior still works because `company: inferredDomain` overrides spread.
+- Working tree mixes 9-23/9-24 changes unrelated to this story — branch hygiene, not a 9-22 code defect.
+- `promptRoleAndCompany` role field not trimmed on return (whitespace padding) — pre-existing; inconsistent with other prompts but not introduced by this story.
