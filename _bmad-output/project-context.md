@@ -209,6 +209,12 @@ they drop below.
 
 ### Anti-Patterns to Avoid
 
+- **DO NOT** duplicate interactive guard functions across command files. Any `async function`
+  that uses `inquirer.prompt` and appears in more than one command file MUST be extracted to
+  `src/utils/` and imported. If you find a copy-pasted guard (e.g. the old `warnIfSimilarEmail`),
+  extract it immediately. The canonical shared guard is `resolveEmailWithSimilarCheck` in
+  `src/utils/email-guard.ts`.
+
 - **DO NOT** add new fields to the AI categorization JSON schema without updating the
   response parser and the strict system prompt — schema drift silently breaks routing.
 - **DO NOT** use `chalk` directly in commands or services — always go through `display.ts`

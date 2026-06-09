@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-27
-last_updated: 2026-05-27 (story 9-16 review)
+last_updated: 2026-06-09 (stories 9-22 through 9-25 added)
 project: tech-manager-os
 project_key: NOKEY
 tracking_system: file-system
@@ -76,20 +76,20 @@ development_status:
   epic-5-retrospective: optional
 
   # ── Epic 6: Self Profile & AI Context Personalization (tmr-myself-config) ──
-  epic-6: in-progress
+  epic-6: done
   6-1-tmr-myself-config-skill-setup-flow: done
   6-2-tmr-myself-config-update-delta-review-mode: done
   epic-6-retrospective: optional
 
   # ── Epic 7: Zero-Friction Setup ──
-  epic-7: in-progress
+  epic-7: done
   7-1-bootstrap-install-scripts: done
   7-2-tmr-doctor-environment-health-check: done
   epic-7-retrospective: optional
 
   # ── Epic 8: UAT Bug Fixes ──
   # Source: sprint-change-proposal-2026-05-19-uat-bug-fixes.md
-  epic-8: in-progress
+  epic-8: done
   8-1-wire-jest-md-transformer: done
   8-2-scaffold-deps-yaml-on-project-add: done
   8-3-domain-check-contractor-routing: done
@@ -117,4 +117,9 @@ development_status:
   9-16-myself-add-performance-review: done
   9-17-doctor-granola-plugins-check: done
   9-18-init-scaffold-only-plugin-regression-version-art: done
+  # ── Added 2026-06-09 via sprint-change-proposal-2026-06-09-post-uat-bugs-3.md ──
+  9-22-remove-duplicate-company-domain-prompt: backlog
+  9-23-my-career-performance-review-subfolder: backlog
+  9-24-email-similarity-shared-utility-and-fix: backlog
+  9-25-obsidian-open-hint-post-init-summary: backlog
   epic-9-retrospective: optional
