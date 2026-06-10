@@ -1,5 +1,12 @@
 # Deferred Work
 
+## Deferred from: code review of 9-26-frontmatter-relations-shared-utility (2026-06-10)
+
+- Corrupt frontmatter type mismatches (scalar in array key) silently coerced to `[]` on add — `addRelation`/`removeRelation` use `Array.isArray(data[key]) ? ... : []` without error. Acceptable for v1 utility; Story 9.36 doctor migration should detect and repair malformed relation fields.
+- Concurrent read-modify-write on same file can lose updates — no file-lock pattern exists in the codebase; single-user CLI assumption holds for now. Re-examine if parallel command execution is introduced.
+- Malformed YAML frontmatter throws uncaught gray-matter parse error — utility does not wrap `matter()` in try/catch. Callers receive the raw exception; acceptable for v1; doctor story may add validation.
+- File rewritten even when relation data unchanged — duplicate `addRelation`, no-op `removeRelation`, and matching scalar overwrites still call `writeFile`. Optimization not required by spec; reduces git noise in a future pass.
+
 ## Deferred from: Epic 1 readiness review (2026-05-09)
 
 - `normalizeSlug` does not strip leading or trailing hyphens from the result — e.g. `normalizeSlug('-team-')` returns `'-team-'`. The `-+` collapse regex fires only on runs of multiple hyphens, not on boundary positions. Could produce file paths with a leading hyphen. Add a `.replace(/^-+|-+$/g, '')` step, or validate at the command layer before this is called from Epic 2/3 interactive flows.
