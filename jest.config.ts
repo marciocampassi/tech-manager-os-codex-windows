@@ -22,6 +22,7 @@ const config: Config = {
   collectCoverageFrom: ['src/**/*.ts', '!src/**/*.d.ts'],
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'clover'],
+  maxWorkers: '25%',
   coverageThreshold: {
     global: {
       branches: 60,
