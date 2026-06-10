@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-27
-last_updated: 2026-06-10 (9-26 done)
+last_updated: 2026-06-10 (9-27 done)
 project: tech-manager-os
 project_key: NOKEY
 tracking_system: file-system
@@ -125,7 +125,7 @@ development_status:
   # ── Added 2026-06-09 via sprint-change-proposal-2026-06-09-frontmatter-relationships.md ──
   # Wave 1 (foundation — blockers for Wave 2):
   9-26-frontmatter-relations-shared-utility: done
-  9-27-relation-types-and-project-context-rule: backlog
+  9-27-relation-types-and-project-context-rule: done
   # Wave 2 (parallel command fixes — depend on Wave 1):
   9-28-member-add-team-updates-team-members-frontmatter: backlog
   9-29-relationship-frontmatter-vocabulary-on-all-entity-profiles: backlog

@@ -1,5 +1,12 @@
 # Deferred Work
 
+## Deferred from: code review of 9-27-relation-types-and-project-context-rule (2026-06-10)
+
+- Hard cutover read paths without migration fallback — `project-context.md` mandates frontmatter-only reads and points to `tmr doctor --fix-frontmatter` (Story 9.36). No fallback read path in this story; pre-migration vaults may show empty relationships until doctor runs.
+- `last_*` scalar desync from body artifact lists — Dated lists stay in body while `last_1on1`/`last_feedback`/etc. live in frontmatter. Keeping them in sync is Story 9.31 scope, not this types/docs story.
+- RelationKey vs interface dual maintenance — `relations.types.ts` profile shapes complement `RelationKey`/`ScalarKey` in `frontmatter-relations.ts` per Dev Notes. Key drift risk acknowledged; shared codegen or exported unions deferred to Wave 2 integration.
+- Read-path YAML type coercion at cast sites — Interfaces are cast targets only; gray-matter may yield scalars where arrays expected, string booleans, or YAML null. Normalization guards belong in Wave 2 read/write stories (9.28–9.34), not this interface file.
+
 ## Deferred from: code review of 9-26-frontmatter-relations-shared-utility (2026-06-10)
 
 - Corrupt frontmatter type mismatches (scalar in array key) silently coerced to `[]` on add — `addRelation`/`removeRelation` use `Array.isArray(data[key]) ? ... : []` without error. Acceptable for v1 utility; Story 9.36 doctor migration should detect and repair malformed relation fields.

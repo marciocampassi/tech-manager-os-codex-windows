@@ -358,6 +358,34 @@ The `--from` flag on `tmr member add feedback` is optional. When omitted, the re
 - `EmailResolutionService._doResolve` step 4 now writes a company-scoped member profile inline (ISSUE-m1 shim). This shim is intentionally temporary — **Story 3.2** must replace it with `MemberService.addMember(email)`.
 - All three relationship test files have been deleted (`tests/commands/relationship.command.test.ts`, `tests/services/relationship.service.test.ts`, `tests/integration/relationship.integration.test.ts`).
 
+### Frontmatter-Native Relationship Model
+
+- **ALL structural entity-to-entity wiki-links MUST be written to frontmatter fields, not body sections.**
+  Canonical types are defined in `src/types/relations.types.ts` (`IEntityRelations`, `ITeamRelations`,
+  `IProjectRelations`, `ISelfRelations`).
+- All structural relationship mutations MUST use `src/utils/frontmatter-relations.ts`
+  (`addRelation`, `removeRelation`, `setScalar`) — never inline `matter.stringify()` for
+  relationship changes.
+- **Exception — dated artifact lists stay in body** (decision #2): `## 1on1s`, `## Feedbacks`,
+  `## Assessments`, `## Performance Reviews` body sections are retained for their unbounded
+  wiki-link lists. Only the `last_<type>` scalars (`last_1on1`, `last_feedback`,
+  `last_assessment`, `last_performance_review`) live in frontmatter.
+- Read paths use frontmatter only (hard cutover). Users with pre-migration vaults must run
+  `tmr doctor --fix-frontmatter` (Story 9.36).
+
+### Anti-Pattern (Critical — Body Link Regression)
+
+**DO NOT** call `SectionParserService.appendToFile(profilePath, sectionName, wikiLink)` or
+`appendToHashSection(content, sectionName, '- [[...]]')` for any **structural** relationship.
+Use `addRelation()` from `src/utils/frontmatter-relations.ts` instead.
+
+**Structural relationships (→ frontmatter):** `current_manager`, `previous_manager`,
+`direct_reports`, `leadership`, `other_leaderships`, `teams`, `projects`, `members`, `stakeholders`,
+`tasks`, `today`, `this_week`, `this_month`, `this_quarter`.
+
+**Dated artifact lists (→ body via `SectionParserService.appendToFile`, correct as-is):**
+`## 1on1s`, `## Feedbacks`, `## Assessments`, `## Performance Reviews`.
+
 ---
 
 ## Usage Guidelines
