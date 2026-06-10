@@ -18,6 +18,7 @@ const config: Config = {
     '\\.md$': '<rootDir>/jest-md-transformer.cjs',
   },
   testMatch: ['**/tests/**/*.test.ts'],
+  setupFilesAfterEnv: ['<rootDir>/tests/setup/jest.setup.ts'],
   testTimeout: 30000,
   collectCoverageFrom: ['src/**/*.ts', '!src/**/*.d.ts'],
   coverageDirectory: 'coverage',

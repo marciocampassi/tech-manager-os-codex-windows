@@ -367,7 +367,7 @@ describe('Group 4 — Self-Profile, Doctor & Init (9.15–9.18)', () => {
     const profile = await teamService.showProfile('dave@vendor.io', WS);
     expect(profile).not.toBeNull();
     expect(profile!.location).toBe('contractor');
-    expect(profile!.filePath).toContain('my-company/contractors');
+    expect(profile!.filePath.replace(/\\/g, '/')).toContain('my-company/contractors');
   });
 
   it('T-24 (9.16): myself add performance-review creates my-career/YYYY-MM-performance-review-<email>.md', async () => {

@@ -271,7 +271,9 @@ describe('Member Integration', () => {
 
       expect(fs.existsSync(result.filePath)).toBe(true);
       // Routed to the nested team profile
-      expect(result.profilePath).toContain('my-teams/members/joao@company.com/joao@company.com.md');
+      expect(result.profilePath.replace(/\\/g, '/')).toContain(
+        'my-teams/members/joao@company.com/joao@company.com.md',
+      );
       const profileContent = fs.readFileSync(result.profilePath, 'utf8');
       expect(profileContent).toContain('[[feedbacks/');
     });
@@ -291,7 +293,7 @@ describe('Member Integration', () => {
       const profileContent = fs.readFileSync(result.profilePath, 'utf8');
       expect(profileContent).toContain('## Feedbacks');
       expect(profileContent).toContain('[[feedbacks/');
-      expect(result.profilePath).toContain(
+      expect(result.profilePath.replace(/\\/g, '/')).toContain(
         'my-company/members/joao@company.com/joao@company.com.md',
       );
     });
@@ -340,7 +342,9 @@ describe('Member Integration', () => {
       expect(entries).toContain('joao@company.com');
       expect(entries).not.toContain('JOAO@COMPANY.COM');
       // Feedback appended to the correct nested profile (feedbacks/ subdir)
-      expect(result.profilePath).toContain('joao@company.com/joao@company.com.md');
+      expect(result.profilePath.replace(/\\/g, '/')).toContain(
+        'joao@company.com/joao@company.com.md',
+      );
       const profileContent = fs.readFileSync(result.profilePath, 'utf8');
       expect(profileContent).toContain('[[feedbacks/');
     });

@@ -1,4 +1,5 @@
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
+import path from 'node:path';
 import matter from 'gray-matter';
 import { LeadershipService } from '../../src/services/leadership.service.js';
 import type { FileSystemService } from '../../src/services/file-system.service.js';
@@ -43,7 +44,7 @@ function createMockSectionParser(): MockSectionParser {
 
 const WS = '/fake/workspace';
 const EMAIL = 'boss@co.com';
-const PROFILE_PATH = `${WS}/my-leadership/${EMAIL}/${EMAIL}.md`;
+const PROFILE_PATH = path.join(WS, 'my-leadership', EMAIL, `${EMAIL}.md`);
 
 function buildProfileContent(email: string): string {
   return matter.stringify('\n# Leadership\n\n## Notes\n\n## 1on1s\n', {
@@ -181,7 +182,7 @@ describe('LeadershipService', () => {
       await svc.addLeadership(EMAIL, {}, WS);
 
       expect(mockFS.writeFile).toHaveBeenCalledWith(
-        expect.stringContaining(`my-leadership/${EMAIL}/${EMAIL}.md`),
+        expect.stringContaining(path.join('my-leadership', EMAIL, `${EMAIL}.md`)),
         expect.any(String),
       );
     });
@@ -203,7 +204,7 @@ describe('LeadershipService', () => {
       await svc.add1on1(EMAIL, { date: '2026-03-09' }, WS);
 
       expect(mockFS.writeFile).toHaveBeenCalledWith(
-        expect.stringContaining(`1on1s/2026-03-09-1on1-${EMAIL}.md`),
+        expect.stringContaining(path.join('1on1s', `2026-03-09-1on1-${EMAIL}.md`)),
         expect.any(String),
       );
     });

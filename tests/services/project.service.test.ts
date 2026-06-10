@@ -131,10 +131,12 @@ describe('ProjectService', () => {
       mockFS.exists.mockResolvedValue(false);
       await svc.addProject(NAME, WS);
 
-      expect(mockFS.writeFile).toHaveBeenCalledWith(
-        expect.stringContaining(`my-company/projects/${NORMALIZED}/${NORMALIZED}.md`),
-        expect.any(String),
+      const paths = (mockFS.writeFile.mock.calls as [string, string][]).map(([p]) =>
+        p.replace(/\\/g, '/'),
       );
+      expect(
+        paths.some((p) => p.includes(`my-company/projects/${NORMALIZED}/${NORMALIZED}.md`)),
+      ).toBe(true);
     });
 
     it('normalizes project name by appending -project suffix', async () => {
@@ -162,7 +164,9 @@ describe('ProjectService', () => {
       const allWriteCalls = mockFS.writeFile.mock.calls as [string, string][];
       const depsCall = allWriteCalls.find(([p]) => p.endsWith('deps.yaml'));
       expect(depsCall).toBeDefined();
-      expect(depsCall?.[0]).toContain(`my-company/projects/${NORMALIZED}/deps.yaml`);
+      expect(depsCall?.[0]?.replace(/\\/g, '/')).toContain(
+        `my-company/projects/${NORMALIZED}/deps.yaml`,
+      );
       expect(depsCall?.[1]).toContain('sources: {}');
       expect(depsCall?.[1]).toContain('tmr-project-impact');
       expect(depsCall?.[1]).toContain('deps.yaml — project dependency manifest');
@@ -182,10 +186,11 @@ describe('ProjectService', () => {
       mockFS.exists.mockResolvedValue(true);
       await svc.addStandup(NAME, { date: '2026-03-09' }, WS);
 
-      expect(mockFS.writeFile).toHaveBeenCalledWith(
-        expect.stringContaining(`standups/2026-03-09-${NORMALIZED}-standup.md`),
-        expect.stringContaining('type: standup'),
+      const standupCall = mockFS.writeFile.mock.calls[0] as [string, string];
+      expect(standupCall[0].replace(/\\/g, '/')).toContain(
+        `standups/2026-03-09-${NORMALIZED}-standup.md`,
       );
+      expect(standupCall[1]).toContain('type: standup');
     });
 
     it('includes standup template sections', async () => {
@@ -223,10 +228,11 @@ describe('ProjectService', () => {
       mockFS.exists.mockResolvedValue(true);
       await svc.addStandup(NAME, { date: '2026-05-20' }, WS);
 
-      expect(mockFS.writeFile).toHaveBeenCalledWith(
-        expect.stringContaining('standups/2026-05-20-platform-project-standup.md'),
-        expect.stringContaining('date: 2026-05-20'),
+      const standupCall = mockFS.writeFile.mock.calls[0] as [string, string];
+      expect(standupCall[0].replace(/\\/g, '/')).toContain(
+        'standups/2026-05-20-platform-project-standup.md',
       );
+      expect(standupCall[1]).toContain('date: 2026-05-20');
     });
   });
 
@@ -248,7 +254,11 @@ describe('ProjectService', () => {
 
       await svc.linkMember(NAME, 'alice@co.com', WS);
 
-      expect(mockFS.writeFile).toHaveBeenCalledWith(OVERVIEW_PATH, expect.stringContaining('[['));
+      const overviewWrite = (mockFS.writeFile.mock.calls as [string, string][]).find(
+        ([p]) => p.replace(/\\/g, '/') === OVERVIEW_PATH,
+      );
+      expect(overviewWrite).toBeDefined();
+      expect(overviewWrite?.[1]).toContain('[[');
     });
 
     it('normalizes email to lowercase before calling resolve', async () => {

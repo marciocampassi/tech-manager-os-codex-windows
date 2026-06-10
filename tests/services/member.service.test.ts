@@ -96,7 +96,7 @@ describe('MemberService', () => {
     it('returns nested profile path when member exists', async () => {
       mockFS.exists.mockResolvedValue(true);
       const result = await svc.findMember(EMAIL, WS);
-      expect(result).toBe(PROFILE_PATH);
+      expect(result?.replace(/\\/g, '/')).toBe(PROFILE_PATH);
     });
 
     it('returns null when member does not exist', async () => {
@@ -132,9 +132,10 @@ describe('MemberService', () => {
     it('memberSubDirFromProfile: nested profile uses parentDir as subdir root', async () => {
       await svc.createMemberFile(EMAIL, '1on1', { date: '2026-01-15' }, WS);
 
-      expect(mockFS.createDirectory).toHaveBeenCalledWith(
-        expect.stringMatching(/my-teams\/members\/john@co\.com\/1on1s$/),
+      const dirCalls = (mockFS.createDirectory.mock.calls as [string][]).map(([p]) =>
+        p.replace(/\\/g, '/'),
       );
+      expect(dirCalls.some((p) => /my-teams\/members\/john@co\.com\/1on1s$/.test(p))).toBe(true);
     });
 
     it('auto-creates company-scoped profile when member does not exist (FR24)', async () => {
@@ -162,10 +163,9 @@ describe('MemberService', () => {
       const opts = { date: '2026-03-07' };
       await svc.createMemberFile(EMAIL, '1on1', opts, WS);
 
-      expect(mockFS.writeFile).toHaveBeenCalledWith(
-        expect.stringContaining('1on1s/2026-03-07-1on1-john@co.com.md'),
-        expect.stringContaining('type: 1on1'),
-      );
+      const [writtenPath, writtenContent] = mockFS.writeFile.mock.calls[0] as [string, string];
+      expect(writtenPath.replace(/\\/g, '/')).toContain('1on1s/2026-03-07-1on1-john@co.com.md');
+      expect(writtenContent).toContain('type: 1on1');
     });
 
     it('creates the feedback file at correct path (year-month, feedbacks/ subdir, reviewer email)', async () => {
@@ -176,10 +176,11 @@ describe('MemberService', () => {
         WS,
       );
 
-      expect(mockFS.writeFile).toHaveBeenCalledWith(
-        expect.stringContaining('feedbacks/2026-03-feedback-reviewer@co.com-john@co.com.md'),
-        expect.stringContaining('type: feedback'),
+      const [writtenPath, writtenContent] = mockFS.writeFile.mock.calls[0] as [string, string];
+      expect(writtenPath.replace(/\\/g, '/')).toContain(
+        'feedbacks/2026-03-feedback-reviewer@co.com-john@co.com.md',
       );
+      expect(writtenContent).toContain('type: feedback');
     });
 
     it('throws when fromEmail is omitted for feedback type', async () => {
@@ -192,10 +193,11 @@ describe('MemberService', () => {
       await svc.createMemberFile(EMAIL, 'assessment', { date: '2026-03-07' }, WS);
 
       expect(mockFS.createDirectory).toHaveBeenCalledWith(expect.stringContaining('assessments'));
-      expect(mockFS.writeFile).toHaveBeenCalledWith(
-        expect.stringContaining('assessments/2026-03-assessment-john@co.com.md'),
-        expect.stringContaining('type: assessment'),
+      const [writtenPath, writtenContent] = mockFS.writeFile.mock.calls[0] as [string, string];
+      expect(writtenPath.replace(/\\/g, '/')).toContain(
+        'assessments/2026-03-assessment-john@co.com.md',
       );
+      expect(writtenContent).toContain('type: assessment');
       expect(mockParser.appendToFile).toHaveBeenCalledWith(
         PROFILE_PATH,
         'Assessments',
@@ -209,10 +211,11 @@ describe('MemberService', () => {
       expect(mockFS.createDirectory).toHaveBeenCalledWith(
         expect.stringContaining('performance-reviews'),
       );
-      expect(mockFS.writeFile).toHaveBeenCalledWith(
-        expect.stringContaining('performance-reviews/2026-03-performance-review-john@co.com.md'),
-        expect.stringContaining('type: performance-review'),
+      const [writtenPath, writtenContent] = mockFS.writeFile.mock.calls[0] as [string, string];
+      expect(writtenPath.replace(/\\/g, '/')).toContain(
+        'performance-reviews/2026-03-performance-review-john@co.com.md',
       );
+      expect(writtenContent).toContain('type: performance-review');
       expect(mockParser.appendToFile).toHaveBeenCalledWith(
         PROFILE_PATH,
         'Performance Reviews',
@@ -278,10 +281,9 @@ describe('MemberService', () => {
       await svc.createMemberFile(EMAIL, '1on1', { date: '2026-05-22' }, WS);
 
       expect(mockFS.createDirectory).toHaveBeenCalledWith(expect.stringContaining('1on1s'));
-      expect(mockFS.writeFile).toHaveBeenCalledWith(
-        expect.stringContaining('1on1s/2026-05-22-1on1-john@co.com.md'),
-        expect.stringContaining('type: 1on1'),
-      );
+      const [writtenPath, writtenContent] = mockFS.writeFile.mock.calls[0] as [string, string];
+      expect(writtenPath.replace(/\\/g, '/')).toContain('1on1s/2026-05-22-1on1-john@co.com.md');
+      expect(writtenContent).toContain('type: 1on1');
       expect(mockParser.appendToFile).toHaveBeenCalledWith(
         PROFILE_PATH,
         '1on1s',
@@ -301,10 +303,9 @@ describe('MemberService', () => {
       await svc.createMemberFile(newEmail, '1on1', { date: '2026-05-22' }, WS);
 
       expect(mockFS.createDirectory).toHaveBeenCalledWith(expect.stringContaining('1on1s'));
-      expect(mockFS.writeFile).toHaveBeenCalledWith(
-        expect.stringContaining(`1on1s/2026-05-22-1on1-${newEmail}.md`),
-        expect.stringContaining('type: 1on1'),
-      );
+      const [writtenPath, writtenContent] = mockFS.writeFile.mock.calls[0] as [string, string];
+      expect(writtenPath.replace(/\\/g, '/')).toContain(`1on1s/2026-05-22-1on1-${newEmail}.md`);
+      expect(writtenContent).toContain('type: 1on1');
       expect(mockParser.appendToFile).toHaveBeenCalledWith(
         autoCreatedProfile,
         '1on1s',
@@ -373,18 +374,18 @@ describe('MemberService', () => {
     it('MEM-UNIT-001: company scope — writes to my-company/members/<email>/<email>.md', async () => {
       await svc.addMember('joao@company.com', {}, WS);
 
-      expect(mockFS.writeFile).toHaveBeenCalledWith(
+      const writtenPath = (mockFS.writeFile.mock.calls[0] as [string, string])[0];
+      expect(writtenPath.replace(/\\/g, '/')).toBe(
         `${WS}/my-company/members/joao@company.com/joao@company.com.md`,
-        expect.any(String),
       );
     });
 
     it('MEM-UNIT-002: team scope — writes to my-teams/members/<email>/<email>.md', async () => {
       await svc.addMember('joao@company.com', { team: 'backend' }, WS);
 
-      expect(mockFS.writeFile).toHaveBeenCalledWith(
+      const writtenPath = (mockFS.writeFile.mock.calls[0] as [string, string])[0];
+      expect(writtenPath.replace(/\\/g, '/')).toBe(
         `${WS}/my-teams/members/joao@company.com/joao@company.com.md`,
-        expect.any(String),
       );
     });
 
@@ -465,9 +466,9 @@ describe('MemberService', () => {
     it('MEM-UNIT-012: contractor flag routes to my-company/contractors/ path', async () => {
       await svc.addMember('ext@agency.com', { contractor: true }, WS);
 
-      expect(mockFS.writeFile).toHaveBeenCalledWith(
-        expect.stringContaining('my-company/contractors/ext@agency.com/ext@agency.com.md'),
-        expect.any(String),
+      const writtenPath = (mockFS.writeFile.mock.calls[0] as [string, string])[0];
+      expect(writtenPath.replace(/\\/g, '/')).toContain(
+        'my-company/contractors/ext@agency.com/ext@agency.com.md',
       );
     });
 
@@ -505,31 +506,40 @@ describe('MemberService', () => {
       await svc.addMember('joao@company.com', {}, WS);
 
       const entityDir = `${WS}/my-company/members/joao@company.com`;
-      expect(mockFS.createDirectory).toHaveBeenCalledWith(`${entityDir}/1on1s`);
-      expect(mockFS.createDirectory).toHaveBeenCalledWith(`${entityDir}/feedbacks`);
-      expect(mockFS.createDirectory).toHaveBeenCalledWith(`${entityDir}/assessments`);
-      expect(mockFS.createDirectory).toHaveBeenCalledWith(`${entityDir}/performance-reviews`);
+      const dirCalls = (mockFS.createDirectory.mock.calls as [string][]).map(([p]) =>
+        p.replace(/\\/g, '/'),
+      );
+      expect(dirCalls).toContain(`${entityDir}/1on1s`);
+      expect(dirCalls).toContain(`${entityDir}/feedbacks`);
+      expect(dirCalls).toContain(`${entityDir}/assessments`);
+      expect(dirCalls).toContain(`${entityDir}/performance-reviews`);
     });
 
     it('MEM-UNIT-015: team scope — creates four subdirs plus <email>-shared', async () => {
       await svc.addMember('joao@company.com', { team: 'backend' }, WS);
 
       const entityDir = `${WS}/my-teams/members/joao@company.com`;
-      expect(mockFS.createDirectory).toHaveBeenCalledWith(`${entityDir}/1on1s`);
-      expect(mockFS.createDirectory).toHaveBeenCalledWith(`${entityDir}/feedbacks`);
-      expect(mockFS.createDirectory).toHaveBeenCalledWith(`${entityDir}/assessments`);
-      expect(mockFS.createDirectory).toHaveBeenCalledWith(`${entityDir}/performance-reviews`);
-      expect(mockFS.createDirectory).toHaveBeenCalledWith(`${entityDir}/joao@company.com-shared`);
+      const dirCalls = (mockFS.createDirectory.mock.calls as [string][]).map(([p]) =>
+        p.replace(/\\/g, '/'),
+      );
+      expect(dirCalls).toContain(`${entityDir}/1on1s`);
+      expect(dirCalls).toContain(`${entityDir}/feedbacks`);
+      expect(dirCalls).toContain(`${entityDir}/assessments`);
+      expect(dirCalls).toContain(`${entityDir}/performance-reviews`);
+      expect(dirCalls).toContain(`${entityDir}/joao@company.com-shared`);
     });
 
     it('MEM-UNIT-016: contractor scope — creates four subdirs', async () => {
       await svc.addMember('ext@agency.com', { contractor: true }, WS);
 
       const entityDir = `${WS}/my-company/contractors/ext@agency.com`;
-      expect(mockFS.createDirectory).toHaveBeenCalledWith(`${entityDir}/1on1s`);
-      expect(mockFS.createDirectory).toHaveBeenCalledWith(`${entityDir}/feedbacks`);
-      expect(mockFS.createDirectory).toHaveBeenCalledWith(`${entityDir}/assessments`);
-      expect(mockFS.createDirectory).toHaveBeenCalledWith(`${entityDir}/performance-reviews`);
+      const dirCalls = (mockFS.createDirectory.mock.calls as [string][]).map(([p]) =>
+        p.replace(/\\/g, '/'),
+      );
+      expect(dirCalls).toContain(`${entityDir}/1on1s`);
+      expect(dirCalls).toContain(`${entityDir}/feedbacks`);
+      expect(dirCalls).toContain(`${entityDir}/assessments`);
+      expect(dirCalls).toContain(`${entityDir}/performance-reviews`);
     });
 
     it('MEM-UNIT-017: team scope — adds member to team-members frontmatter when file exists', async () => {

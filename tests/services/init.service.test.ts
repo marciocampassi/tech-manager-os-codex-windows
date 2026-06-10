@@ -609,10 +609,12 @@ describe('InitService', () => {
       expect(stdoutSpy).toHaveBeenCalled();
     });
 
-    it('INIT-UNIT-006: output contains "tmr project add"', () => {
+    it('INIT-UNIT-006: output contains "tmr --help"', () => {
       svc.printPostInitSummary(WS, false);
       const output = (stdoutSpy.mock.calls as [string][]).map((c) => c[0]).join('');
-      expect(output).toContain('tmr project add');
+      // `printPostInitSummary` lists `tmr --help` as the command-discovery next
+      // step; the older `tmr project add` guidance now lives in the README only.
+      expect(output).toContain('tmr --help');
     });
 
     it('INIT-UNIT-006: output contains "tmr-inbox"', () => {

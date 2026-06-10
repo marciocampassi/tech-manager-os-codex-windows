@@ -24,6 +24,9 @@ function createMockFS(): MockFS {
 const WS = '/fake/workspace';
 const INBOX_FILE = `${WS}/inbox/note.md`;
 
+// Normalize OS-native separators so POSIX-style expectations hold on Windows too.
+const norm = (p: string): string => p.replace(/\\/g, '/');
+
 function makeInboxFile(overrides: Partial<InboxFile> = {}): InboxFile {
   return {
     filepath: INBOX_FILE,
@@ -58,11 +61,11 @@ describe('FileOrganizationService', () => {
     expect(r.success).toBe(true);
     if (!r.success) return;
     expect(r.data.mode).toBe('moved');
-    expect(mockFS.createDirectory).toHaveBeenCalledWith(`${WS}/my-teams/m1`);
-    expect(mockFS.moveFile).toHaveBeenCalledWith(
-      INBOX_FILE,
-      expect.stringContaining(`${WS}/my-teams/m1`),
-    );
+    const dirs = mockFS.createDirectory.mock.calls.map(([p]) => norm(p as string));
+    expect(dirs.some((p) => p.endsWith(`${WS}/my-teams/m1`))).toBe(true);
+    const moveCall = mockFS.moveFile.mock.calls[0] as [string, string];
+    expect(moveCall[0]).toBe(INBOX_FILE);
+    expect(norm(moveCall[1])).toContain(`${WS}/my-teams/m1`);
     expect(mockFS.writeFile).not.toHaveBeenCalled();
   });
 
@@ -74,14 +77,11 @@ describe('FileOrganizationService', () => {
     expect(r.data.mode).toBe('copied');
     expect(r.data.pathsWritten).toHaveLength(2);
     expect(mockFS.writeFile).toHaveBeenCalledTimes(2);
-    expect(mockFS.writeFile).toHaveBeenCalledWith(
-      expect.stringContaining(`${WS}/my-teams/a`),
-      '# Hello',
+    const writes = (mockFS.writeFile.mock.calls as [string, string][]).map(
+      ([p, c]) => [norm(p), c] as [string, string],
     );
-    expect(mockFS.writeFile).toHaveBeenCalledWith(
-      expect.stringContaining(`${WS}/my-teams/b`),
-      '# Hello',
-    );
+    expect(writes.some(([p, c]) => p.includes(`${WS}/my-teams/a`) && c === '# Hello')).toBe(true);
+    expect(writes.some(([p, c]) => p.includes(`${WS}/my-teams/b`) && c === '# Hello')).toBe(true);
     expect(mockFS.removeFile).toHaveBeenCalledWith(INBOX_FILE);
     expect(mockFS.moveFile).not.toHaveBeenCalled();
   });
@@ -93,7 +93,8 @@ describe('FileOrganizationService', () => {
     if (!r.success) return;
     expect(r.data.mode).toBe('archived');
     expect(r.data.archivePath).toBeDefined();
-    expect(mockFS.createDirectory).toHaveBeenCalledWith(`${WS}/archive`);
+    const dirs = mockFS.createDirectory.mock.calls.map(([p]) => norm(p as string));
+    expect(dirs.some((p) => p.endsWith(`${WS}/archive`))).toBe(true);
     expect(mockFS.moveFile).toHaveBeenCalledWith(INBOX_FILE, expect.any(String));
   });
 
@@ -120,6 +121,7 @@ describe('FileOrganizationService', () => {
     const r = await svc.organizeFile(file, WS, ['my-teams/m1/notes.md']);
     expect(r.success).toBe(true);
     if (!r.success) return;
-    expect(mockFS.createDirectory).toHaveBeenCalledWith(`${WS}/my-teams/m1`);
+    const dirs = mockFS.createDirectory.mock.calls.map(([p]) => norm(p as string));
+    expect(dirs.some((p) => p.endsWith(`${WS}/my-teams/m1`))).toBe(true);
   });
 });

@@ -45,6 +45,10 @@ describe('TeamService', () => {
   let mockFS: MockFS;
 
   beforeEach(() => {
+    // gray-matter caches parsed results by input string and returns a shared
+    // mutable object; addRelation() mutates that cache, leaking members across
+    // tests. Clear it for isolation (OS-independent contamination, not a path bug).
+    (matter as unknown as { clearCache: () => void }).clearCache();
     mockFS = createMockFS();
     svc = new TeamService(mockFS as unknown as FileSystemService);
   });
@@ -80,14 +84,14 @@ describe('TeamService', () => {
 
       await svc.createTeam('Backend Team', WORKSPACE);
 
-      expect(mockFS.writeFile).toHaveBeenCalledWith(
-        expect.stringContaining('teams/backend-team/backend-team-context.md'),
-        expect.any(String),
+      const ctxCall = (mockFS.writeFile.mock.calls as [string, string][]).find(([p]) =>
+        p.replace(/\\/g, '/').includes('teams/backend-team/backend-team-context.md'),
       );
-      expect(mockFS.writeFile).toHaveBeenCalledWith(
-        expect.stringContaining('teams/backend-team/backend-team-members.md'),
-        expect.any(String),
+      expect(ctxCall).toBeDefined();
+      const membersCall = (mockFS.writeFile.mock.calls as [string, string][]).find(([p]) =>
+        p.replace(/\\/g, '/').includes('teams/backend-team/backend-team-members.md'),
       );
+      expect(membersCall).toBeDefined();
     });
 
     it('TEAM-UNIT-002: normalizes "FRONTEND" → creates files under "frontend" slug', async () => {
@@ -95,10 +99,10 @@ describe('TeamService', () => {
 
       await svc.createTeam('FRONTEND', WORKSPACE);
 
-      expect(mockFS.writeFile).toHaveBeenCalledWith(
-        expect.stringContaining('teams/frontend/frontend-context.md'),
-        expect.any(String),
+      const ctxCall = (mockFS.writeFile.mock.calls as [string, string][]).find(([p]) =>
+        p.replace(/\\/g, '/').includes('teams/frontend/frontend-context.md'),
       );
+      expect(ctxCall).toBeDefined();
     });
   });
 
@@ -126,10 +130,11 @@ describe('TeamService', () => {
       );
 
       // Email normalized to lowercase
-      expect(mockFS.writeFile).toHaveBeenCalledWith(
-        expect.stringContaining('john@co.com/john@co.com.md'),
-        expect.stringContaining('john@co.com'),
+      const profileCall = (mockFS.writeFile.mock.calls as [string, string][]).find(([p]) =>
+        p.replace(/\\/g, '/').includes('john@co.com/john@co.com.md'),
       );
+      expect(profileCall).toBeDefined();
+      expect(profileCall![1]).toContain('john@co.com');
       // Subdirectories created (including 9.12: <email>-shared)
       expect(mockFS.createDirectory).toHaveBeenCalledWith(expect.stringContaining('1on1s'));
       expect(mockFS.createDirectory).toHaveBeenCalledWith(expect.stringContaining('feedbacks'));
@@ -209,10 +214,10 @@ describe('TeamService', () => {
       await svc.addMember('newteam', 'x@co.com', {}, WORKSPACE);
 
       // Team context file should be created
-      expect(mockFS.writeFile).toHaveBeenCalledWith(
-        expect.stringContaining('teams/newteam/newteam-context.md'),
-        expect.any(String),
+      const ctxCall = (mockFS.writeFile.mock.calls as [string, string][]).find(([p]) =>
+        p.replace(/\\/g, '/').includes('teams/newteam/newteam-context.md'),
       );
+      expect(ctxCall).toBeDefined();
     });
 
     it('9.29: no action-items file created for new member (AC6)', async () => {
@@ -362,10 +367,10 @@ describe('TeamService', () => {
 
       await svc.addMember('alpha', 'valid@company.com', {}, WORKSPACE);
 
-      expect(mockFS.writeFile).toHaveBeenCalledWith(
-        expect.stringContaining('my-teams/members/valid@company.com/valid@company.com.md'),
-        expect.any(String),
+      const profileCall = (mockFS.writeFile.mock.calls as [string, string][]).find(([p]) =>
+        p.replace(/\\/g, '/').includes('my-teams/members/valid@company.com/valid@company.com.md'),
       );
+      expect(profileCall).toBeDefined();
     });
 
     // ── 9.12 tests ──────────────────────────────────────────────────────────────
@@ -716,7 +721,7 @@ describe('TeamService', () => {
   describe('showProfile', () => {
     it('returns profile content when member exists in members', async () => {
       mockFS.exists.mockImplementation(async (p: string) =>
-        p.includes('my-teams/members/john@co.com/john@co.com.md'),
+        p.replace(/\\/g, '/').includes('my-teams/members/john@co.com/john@co.com.md'),
       );
       mockFS.readFile.mockResolvedValue('profile content');
 
@@ -729,7 +734,7 @@ describe('TeamService', () => {
 
     it('normalizes email to lowercase before searching', async () => {
       mockFS.exists.mockImplementation(async (p: string) =>
-        p.includes('my-teams/members/john@co.com/john@co.com.md'),
+        p.replace(/\\/g, '/').includes('my-teams/members/john@co.com/john@co.com.md'),
       );
       mockFS.readFile.mockResolvedValue('content');
 
@@ -748,7 +753,10 @@ describe('TeamService', () => {
     it('9.15: self profile takes priority over active team member when both exist', async () => {
       const selfPath = `${WORKSPACE}/my-career/me@co.com.md`;
       const memberPath = `${WORKSPACE}/my-teams/members/me@co.com/me@co.com.md`;
-      mockFS.exists.mockImplementation(async (p: string) => p === selfPath || p === memberPath);
+      mockFS.exists.mockImplementation(
+        async (p: string) =>
+          p.replace(/\\/g, '/') === selfPath || p.replace(/\\/g, '/') === memberPath,
+      );
       mockFS.readFile.mockResolvedValue('self profile content');
 
       const result = await svc.showProfile('me@co.com', WORKSPACE);
@@ -758,27 +766,29 @@ describe('TeamService', () => {
 
     it('9.15: returns self profile when my-career/<email>.md exists', async () => {
       const selfPath = `${WORKSPACE}/my-career/me@co.com.md`;
-      mockFS.exists.mockImplementation(async (p: string) => p === selfPath);
+      mockFS.exists.mockImplementation(async (p: string) => p.replace(/\\/g, '/') === selfPath);
       mockFS.readFile.mockResolvedValue('self profile content');
 
       const result = await svc.showProfile('me@co.com', WORKSPACE);
 
       expect(result).not.toBeNull();
       expect(result?.location).toBe('self');
-      expect(result?.filePath).toBe(selfPath);
+      expect(result?.filePath?.replace(/\\/g, '/')).toBe(selfPath);
       expect(result?.content).toBe('self profile content');
     });
 
     it('9.15: returns contractor profile when my-company/contractors/<email>/<email>.md exists', async () => {
       const contractorPath = `${WORKSPACE}/my-company/contractors/ext@vendor.com/ext@vendor.com.md`;
-      mockFS.exists.mockImplementation(async (p: string) => p === contractorPath);
+      mockFS.exists.mockImplementation(
+        async (p: string) => p.replace(/\\/g, '/') === contractorPath,
+      );
       mockFS.readFile.mockResolvedValue('contractor profile content');
 
       const result = await svc.showProfile('ext@vendor.com', WORKSPACE);
 
       expect(result).not.toBeNull();
       expect(result?.location).toBe('contractor');
-      expect(result?.filePath).toBe(contractorPath);
+      expect(result?.filePath?.replace(/\\/g, '/')).toBe(contractorPath);
       expect(result?.content).toBe('contractor profile content');
     });
   });

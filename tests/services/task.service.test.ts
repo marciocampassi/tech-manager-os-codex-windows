@@ -210,10 +210,11 @@ describe('TaskService', () => {
   it('creates the task file when it does not exist', async () => {
     const result = await svc.extractTasks([makeFile()], WS);
     expect(result.success).toBe(true);
-    expect(mockFS.appendFile).toHaveBeenCalledWith(
-      expect.stringContaining('my-tasks/today.md'),
-      expect.stringContaining('- [ ] **Review PR before deployment**'),
+    const appendCall = (mockFS.appendFile.mock.calls as unknown[][]).find((args) =>
+      String(args[0]).replace(/\\/g, '/').includes('my-tasks/today.md'),
     );
+    expect(appendCall).toBeDefined();
+    expect(String(appendCall![1])).toContain('- [ ] **Review PR before deployment**');
   });
 
   it('returns success with zero counts for an empty files array', async () => {

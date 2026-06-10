@@ -157,8 +157,16 @@ describe('InitCommand', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockCreateDirectory.mockResolvedValue(undefined);
-    mockWriteFile.mockResolvedValue(undefined);
-    mockFsExists.mockResolvedValue(false);
+    // Write-tracking mock: any file written via writeFile reports as existing.
+    // `addRelation` (frontmatter-relations) throws on a missing target file, so
+    // the just-written `<team>-members.md` roster must report as existing before
+    // addMember appends the member wiki-link. An unconditional exists:false would
+    // make addRelation throw and abort run() mid-flow.
+    const written = new Set<string>();
+    mockWriteFile.mockImplementation(async (p: string) => {
+      written.add(p);
+    });
+    mockFsExists.mockImplementation(async (p: string) => written.has(p));
     mockReadFile.mockResolvedValue('# Team Members\n');
     mockAppendFile.mockResolvedValue(undefined);
     mockListDirectories.mockResolvedValue([]);
@@ -266,20 +274,26 @@ describe('InitCommand', () => {
       setupMinimalHappyPath();
       await new InitCommand().run();
       const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) => c[0]);
-      expect(writtenPaths.some((p) => p.endsWith('config/organization.yaml'))).toBe(true);
+      expect(
+        writtenPaths.some((p) => p.replace(/\\/g, '/').endsWith('config/organization.yaml')),
+      ).toBe(true);
     });
 
     it('writes my-tasks/tasks.md', async () => {
       setupMinimalHappyPath();
       await new InitCommand().run();
-      const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) => c[0]);
+      const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) =>
+        c[0].replace(/\\/g, '/'),
+      );
       expect(writtenPaths.some((p) => p.includes('my-tasks/tasks.md'))).toBe(true);
     });
 
     it('writes all 4 period task files', async () => {
       setupMinimalHappyPath();
       await new InitCommand().run();
-      const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) => c[0]);
+      const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) =>
+        c[0].replace(/\\/g, '/'),
+      );
       expect(writtenPaths.some((p) => p.includes('my-tasks/today.md'))).toBe(true);
       expect(writtenPaths.some((p) => p.includes('my-tasks/this-week.md'))).toBe(true);
       expect(writtenPaths.some((p) => p.includes('my-tasks/this-month.md'))).toBe(true);
@@ -296,11 +310,13 @@ describe('InitCommand', () => {
   });
 
   describe('next steps', () => {
-    it('stdout contains tmr config in next steps', async () => {
+    it('stdout contains tmr --help in next steps', async () => {
       setupMinimalHappyPath();
       await new InitCommand().run();
       const allOutput = (stdoutSpy.mock.calls as [string][]).map((c) => c[0]).join('');
-      expect(allOutput).toContain('tmr config');
+      // Source `printPostInitSummary` lists `tmr --help` as the command-discovery
+      // next step; the older `tmr config` guidance now lives in the README only.
+      expect(allOutput).toContain('tmr --help');
     });
 
     it('stdout contains /tmr-inbox in next steps', async () => {
@@ -342,7 +358,9 @@ describe('InitCommand', () => {
     });
 
     it('skips writing period files when they already exist', async () => {
-      mockFsExists.mockImplementation(async (p: string) => p.includes('my-tasks/'));
+      mockFsExists.mockImplementation(async (p: string) =>
+        p.replace(/\\/g, '/').includes('my-tasks/'),
+      );
       setupMinimalHappyPath();
       await new InitCommand().run();
       const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) => c[0]);
@@ -362,7 +380,9 @@ describe('InitCommand', () => {
     it('writes my-career/<email>/<email>.md', async () => {
       setupMinimalHappyPath();
       await new InitCommand().run();
-      const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) => c[0]);
+      const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) =>
+        c[0].replace(/\\/g, '/'),
+      );
       expect(writtenPaths.some((p) => p.includes('my-career/alice@example.com'))).toBe(true);
     });
   });
@@ -371,7 +391,9 @@ describe('InitCommand', () => {
     it('writes my-leadership/<email>/<email>.md', async () => {
       setupMinimalHappyPath();
       await new InitCommand().run();
-      const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) => c[0]);
+      const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) =>
+        c[0].replace(/\\/g, '/'),
+      );
       expect(writtenPaths.some((p) => p.includes('my-leadership/bob@example.com'))).toBe(true);
     });
   });
@@ -380,7 +402,9 @@ describe('InitCommand', () => {
     it('writes member profile at my-teams/members/<email>/<email>.md', async () => {
       setupMinimalHappyPath();
       await new InitCommand().run();
-      const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) => c[0]);
+      const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) =>
+        c[0].replace(/\\/g, '/'),
+      );
       expect(writtenPaths.some((p) => p.includes('my-teams/members/member@example.com'))).toBe(
         true,
       );
@@ -391,14 +415,18 @@ describe('InitCommand', () => {
     it('writes inbox/2026-04-10-Marlon-Alex.md', async () => {
       setupMinimalHappyPath();
       await new InitCommand().run();
-      const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) => c[0]);
+      const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) =>
+        c[0].replace(/\\/g, '/'),
+      );
       expect(writtenPaths.some((p) => p.includes('inbox/2026-04-10-Marlon-Alex.md'))).toBe(true);
     });
 
     it('writes inbox/2026-04-15-Team-Sync.md', async () => {
       setupMinimalHappyPath();
       await new InitCommand().run();
-      const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) => c[0]);
+      const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map((c) =>
+        c[0].replace(/\\/g, '/'),
+      );
       expect(writtenPaths.some((p) => p.includes('inbox/2026-04-15-Team-Sync.md'))).toBe(true);
     });
   });
@@ -593,7 +621,9 @@ describe('InitCommand', () => {
       setupMinimalHappyPath();
       await new InitCommand('1.0.0', false, true).run();
 
-      const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map(([p]) => p);
+      const writtenPaths = (mockWriteFile.mock.calls as [string, string][]).map(([p]) =>
+        p.replace(/\\/g, '/'),
+      );
       expect(writtenPaths.some((p) => p.includes('inbox/'))).toBe(true);
     });
   });

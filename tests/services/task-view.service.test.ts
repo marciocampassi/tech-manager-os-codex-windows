@@ -81,7 +81,9 @@ describe('TaskViewService', () => {
     it('returns file content when file exists and has content', async () => {
       mockReadFile.mockResolvedValue('## My Tasks\n\n- [ ] Do something\n');
       const result = await svc.readTaskFile('today', '/workspace');
-      expect(mockReadFile).toHaveBeenCalledWith('/workspace/my-tasks/today.md');
+      expect(mockReadFile.mock.calls[0]![0].replace(/\\/g, '/')).toBe(
+        '/workspace/my-tasks/today.md',
+      );
       expect(result).toBe('## My Tasks\n\n- [ ] Do something\n');
     });
 
@@ -113,7 +115,7 @@ describe('TaskViewService', () => {
         jest.clearAllMocks();
         mockReadFile.mockResolvedValue('content');
         await svc.readTaskFile(period, '/ws');
-        expect(mockReadFile).toHaveBeenCalledWith(expectedPath);
+        expect(mockReadFile.mock.calls[0]![0].replace(/\\/g, '/')).toBe(expectedPath);
       }
     });
 
