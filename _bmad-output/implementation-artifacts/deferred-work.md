@@ -1,5 +1,13 @@
 # Deferred Work
 
+## Deferred from: code review of 9-28-member-add-team-updates-team-members-frontmatter (2026-06-10)
+
+- Concurrent read-modify-write on team-members file can lose updates — no file-lock pattern in codebase; single-user CLI assumption holds (see 9-26 deferred work).
+- `createTeam` early-return skips members file recreation when context exists but members file deleted — `addRelation` throws if members file missing; repair belongs in doctor/migration scope (Story 9.36).
+- Corrupt YAML in team-members file throws uncaught `matter()` parse error — acceptable for v1 per 9-26 deferred work; Story 9.36 doctor may add validation.
+- Duplicated team-members file path construction in MemberService vs TeamService — story spec explicitly inlined path; centralize in a future refactor.
+- MemberService has no symmetric `removeRelation` when member profile is deleted — lifecycle cleanup is Story 9.34 scope, not 9.28.
+
 ## Deferred from: code review of 9-27-relation-types-and-project-context-rule (2026-06-10)
 
 - Hard cutover read paths without migration fallback — `project-context.md` mandates frontmatter-only reads and points to `tmr doctor --fix-frontmatter` (Story 9.36). No fallback read path in this story; pre-migration vaults may show empty relationships until doctor runs.

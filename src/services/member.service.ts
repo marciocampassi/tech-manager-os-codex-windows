@@ -7,6 +7,8 @@ import { EmailResolutionService, emailResolutionService } from './email-resoluti
 import { getWorkspaceRoot as resolveWorkspaceRoot } from '../utils/workspace.js';
 import { validateEmail } from '../utils/validation.js';
 import { formatWikiLink } from '../utils/wiki-link.js';
+import { addRelation } from '../utils/frontmatter-relations.js';
+import { normalizeSlug } from '../utils/normalization.js';
 import { logger } from '../utils/logger.js';
 import {
   FILE_TYPE_CONFIG,
@@ -111,6 +113,7 @@ export class MemberService {
           );
 
     if (await this._fs.exists(profilePath)) {
+      await this._syncTeamMembersFrontmatter(opts, profilePath, normalizedEmail, workspaceRoot);
       return { created: false };
     }
 
@@ -140,7 +143,31 @@ export class MemberService {
     }
     await this._fs.writeFile(profilePath, profileMd);
 
+    await this._syncTeamMembersFrontmatter(opts, profilePath, normalizedEmail, workspaceRoot);
+
     return { created: true };
+  }
+
+  private async _syncTeamMembersFrontmatter(
+    opts: IAddMemberOptions,
+    profilePath: string,
+    normalizedEmail: string,
+    workspaceRoot: string,
+  ): Promise<void> {
+    if (!opts.team) return;
+
+    const slug = normalizeSlug(opts.team);
+    const teamMembersFilePath = path.join(
+      workspaceRoot,
+      'my-teams',
+      'teams',
+      slug,
+      `${slug}-members.md`,
+    );
+    if (await this._fs.exists(teamMembersFilePath)) {
+      const link = formatWikiLink(profilePath, teamMembersFilePath, normalizedEmail);
+      await addRelation(teamMembersFilePath, 'members', link, this._fs);
+    }
   }
 
   /**

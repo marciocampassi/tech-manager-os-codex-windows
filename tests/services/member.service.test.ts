@@ -1,5 +1,6 @@
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import path from 'node:path';
+import matter from 'gray-matter';
 import { MemberService } from '../../src/services/member.service.js';
 import { FILE_TYPE_CONFIG } from '../../src/types/member.types.js';
 import { InvalidEmailError } from '../../src/errors/tmr-error.js';
@@ -529,6 +530,108 @@ describe('MemberService', () => {
       expect(mockFS.createDirectory).toHaveBeenCalledWith(`${entityDir}/feedbacks`);
       expect(mockFS.createDirectory).toHaveBeenCalledWith(`${entityDir}/assessments`);
       expect(mockFS.createDirectory).toHaveBeenCalledWith(`${entityDir}/performance-reviews`);
+    });
+
+    it('MEM-UNIT-017: team scope — adds member to team-members frontmatter when file exists', async () => {
+      const teamMembersContent = '---\nmembers: []\n---\n\n# Team Members\n';
+
+      mockFS.exists.mockImplementation(async (p: string) => {
+        if (p.includes('backend-members.md')) return true;
+        return false;
+      });
+      mockFS.readFile.mockImplementation(async (p: string) => {
+        if (p.includes('backend-members.md')) return teamMembersContent;
+        return '';
+      });
+
+      await svc.addMember('jane@co.com', { team: 'backend' }, WS);
+
+      expect(mockFS.writeFile).toHaveBeenCalledWith(
+        expect.stringContaining('backend-members.md'),
+        expect.stringContaining('jane@co.com'),
+      );
+    });
+
+    it('MEM-UNIT-018: team scope — skips team-members update when file does not exist', async () => {
+      mockFS.exists.mockResolvedValue(false);
+
+      await svc.addMember('jane@co.com', { team: 'backend' }, WS);
+
+      const calls = mockFS.writeFile.mock.calls as [string, string][];
+      expect(calls.some(([p]) => p.includes('-members.md'))).toBe(false);
+    });
+
+    it('MEM-UNIT-019: no-team scope — no team-members file is touched', async () => {
+      mockFS.exists.mockResolvedValue(false);
+
+      await svc.addMember('jane@co.com', {}, WS);
+
+      const calls = mockFS.writeFile.mock.calls as [string, string][];
+      expect(calls.some(([p]) => p.includes('-members.md'))).toBe(false);
+    });
+
+    it('MEM-UNIT-020: team scope — syncs team-members frontmatter when profile already exists', async () => {
+      const teamMembersContent = '---\nmembers: []\n---\n\n# Team Members\n';
+      const existingProfile = matter.stringify('\n## Performance Reviews\n\n## Feedbacks\n', {
+        email: 'jane@co.com',
+        name: '',
+        role: '',
+        relationship: 'direct-report',
+      });
+
+      mockFS.exists.mockImplementation(async (p: string) => {
+        const n = p.replace(/\\/g, '/');
+        if (n.includes('my-teams/members/jane@co.com/jane@co.com.md')) return true;
+        if (n.includes('backend-members.md')) return true;
+        return false;
+      });
+      mockFS.readFile.mockImplementation(async (p: string) => {
+        const n = p.replace(/\\/g, '/');
+        if (n.includes('backend-members.md')) return teamMembersContent;
+        if (n.includes('jane@co.com/jane@co.com.md')) return existingProfile;
+        return '';
+      });
+
+      const result = await svc.addMember('jane@co.com', { team: 'backend' }, WS);
+
+      expect(result).toEqual({ created: false });
+      expect(mockFS.writeFile).toHaveBeenCalledWith(
+        expect.stringContaining('backend-members.md'),
+        expect.stringContaining('jane@co.com'),
+      );
+    });
+
+    it('MEM-UNIT-021: team scope — idempotent team-members frontmatter on re-run', async () => {
+      let teamMembersContent = '---\nmembers: []\n---\n\n# Team Members\n';
+      const existingProfile = matter.stringify('\n## Performance Reviews\n\n## Feedbacks\n', {
+        email: 'jane@co.com',
+        name: '',
+        role: '',
+        relationship: 'direct-report',
+      });
+
+      mockFS.exists.mockImplementation(async (p: string) => {
+        const n = p.replace(/\\/g, '/');
+        if (n.includes('my-teams/members/jane@co.com/jane@co.com.md')) return true;
+        if (n.includes('backend-members.md')) return true;
+        return false;
+      });
+      mockFS.readFile.mockImplementation(async (p: string) => {
+        const n = p.replace(/\\/g, '/');
+        if (n.includes('backend-members.md')) return teamMembersContent;
+        if (n.includes('jane@co.com/jane@co.com.md')) return existingProfile;
+        return '';
+      });
+      mockFS.writeFile.mockImplementation(async (p: string, content: string) => {
+        if (p.replace(/\\/g, '/').includes('backend-members.md')) teamMembersContent = content;
+      });
+
+      await svc.addMember('jane@co.com', { team: 'backend' }, WS);
+      await svc.addMember('jane@co.com', { team: 'backend' }, WS);
+
+      const { data: parsedMembers } = matter(teamMembersContent);
+      const membersList = Array.isArray(parsedMembers['members']) ? parsedMembers['members'] : [];
+      expect(membersList).toHaveLength(1);
     });
   });
 

@@ -6,6 +6,7 @@ import { generateActionItemsTemplate } from '../templates/onboarding.templates.j
 import { normalizeSlug } from '../utils/normalization.js';
 import { formatWikiLink } from '../utils/wiki-link.js';
 import { validateEmail } from '../utils/validation.js';
+import { addRelation, removeRelation } from '../utils/frontmatter-relations.js';
 import type {
   IAddMemberOptions,
   IArchiveOptions,
@@ -75,7 +76,7 @@ created: ${todayIso()}
 }
 
 function buildMembersMd(): string {
-  return '# Team Members\n';
+  return `---\nmembers: []\n---\n\n# Team Members\n`;
 }
 
 function buildMemberProfileMd(
@@ -130,10 +131,6 @@ ${managerLink}
 
 - [[action-items-${email}|Action Items Tracker]]
 `;
-}
-
-function buildWikiLink(email: string, workspaceRoot: string, teamSlug: string): string {
-  return `- ${formatWikiLink(memberProfilePath(workspaceRoot, email), teamMembersPath(workspaceRoot, teamSlug), email)}`;
 }
 
 // ── Service ───────────────────────────────────────────────────────────────────
@@ -237,15 +234,14 @@ export class TeamService {
       }
     }
 
-    // Append wiki-link to team members file
+    // Append wiki-link to team members file (frontmatter)
     const membersPath = teamMembersPath(workspaceRoot, slug);
-    const wikiLink = buildWikiLink(normalizedEmail, workspaceRoot, slug);
-    const currentMembers = await this._fs.readFile(membersPath);
-
-    // Avoid duplicate links
-    if (!currentMembers.includes(wikiLink)) {
-      await this._fs.appendFile(membersPath, `${wikiLink}\n`);
-    }
+    const link = formatWikiLink(
+      memberProfilePath(workspaceRoot, normalizedEmail),
+      membersPath,
+      normalizedEmail,
+    );
+    await addRelation(membersPath, 'members', link, this._fs);
   }
 
   async listTeams(workspaceRoot: string): Promise<ITeamSummary[]> {
@@ -260,7 +256,9 @@ export class TeamService {
       let memberCount = 0;
       if (await this._fs.exists(membersPath)) {
         const content = await this._fs.readFile(membersPath);
-        memberCount = (content.match(/^\s*-\s+\[\[/gm) ?? []).length;
+        const { data } = matter(content);
+        const members = Array.isArray(data['members']) ? (data['members'] as string[]) : [];
+        memberCount = members.length;
       }
       summaries.push({ teamName, memberCount });
     }
@@ -272,9 +270,14 @@ export class TeamService {
     if (!(await this._fs.exists(membersPath))) return [];
 
     const content = await this._fs.readFile(membersPath);
-    // Capture the display text after '|' which is the email address (no .md extension)
-    const emailMatches = [...content.matchAll(/\[\[.*?\|([^\]]+)\]\]/g)];
-    const emails = emailMatches.map((m) => m[1] as string);
+    const { data } = matter(content);
+    const members = Array.isArray(data['members']) ? (data['members'] as string[]) : [];
+    const emails = members
+      .map((link) => {
+        const match = /\[\[.*?\|([^\]]+)\]\]/.exec(link);
+        return match?.[1] ?? null;
+      })
+      .filter((e): e is string => e !== null);
 
     const summaries: IMemberSummary[] = [];
     for (const email of emails) {
@@ -478,16 +481,11 @@ export class TeamService {
     email: string,
     workspaceRoot: string,
   ): Promise<void> {
-    const membersPath = teamMembersPath(workspaceRoot, normalizeSlug(teamName));
+    const slug = normalizeSlug(teamName);
+    const membersPath = teamMembersPath(workspaceRoot, slug);
     if (!(await this._fs.exists(membersPath))) return;
-
-    const content = await this._fs.readFile(membersPath);
-    const wikiLink = buildWikiLink(email, workspaceRoot, normalizeSlug(teamName));
-    const updated = content
-      .split('\n')
-      .filter((line) => line.trim() !== wikiLink.trim())
-      .join('\n');
-    await this._fs.writeFile(membersPath, updated);
+    const link = formatWikiLink(memberProfilePath(workspaceRoot, email), membersPath, email);
+    await removeRelation(membersPath, 'members', link, this._fs);
   }
 }
 
