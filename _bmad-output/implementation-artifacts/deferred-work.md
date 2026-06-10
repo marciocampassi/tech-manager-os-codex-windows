@@ -392,6 +392,15 @@ The following items were surfaced by the pre-launch AC audit (Epics 1–5) and a
 - Working tree mixes 9-23/9-24 changes unrelated to this story — branch hygiene, not a 9-22 code defect.
 - `promptRoleAndCompany` role field not trimmed on return (whitespace padding) — pre-existing; inconsistent with other prompts but not introduced by this story.
 
+## Deferred from: code review of 9-29-relationship-frontmatter-vocabulary-on-all-entity-profiles (2026-06-10)
+
+- `team add` writes `current_manager: ''` on a flat `my-career/` because `getManagerEmail` uses `listDirectories` (nested layout) → returns null; diverges from `member add --team` which resolves a real link. Pre-existing D1, explicitly out of 9.29 scope. [`src/services/team.service.ts:134-148`]
+- `_getSelfProfilePath` / `_resolveManagerLink` select `mdFiles[0]` from `my-career/`; non-deterministic if more than one top-level `.md` exists (filesystem `readdir` order). Mitigated by the flat self-profile design; mirrors deferred `_resolveManagerLink` behavior (D2). [`src/services/member.service.ts:308-318`, `src/services/team.service.ts:470-475`]
+- Existing member profiles are not backfilled with the new frontmatter vocabulary (relationship/teams/current_manager) when re-added; only `direct_reports`/team-members are synced. Migration is Story 9.36 (`tmr doctor --fix-frontmatter`) scope. [`src/services/member.service.ts:115-119`]
+- `_resolveTeamContextLink` generates a wiki-link to `<slug>-context.md` without verifying the team context file exists; `member add --team` against an uncreated team yields a dangling link. Intentional per Dev Notes (path generation, no FS read). [`src/services/member.service.ts:323-335`]
+- `_getSelfProfilePath` is duplicated in `member.service.ts` and `team.service.ts`; DRY nit — spec only "considered" extracting a shared helper. Risk of future divergence. [`src/services/team.service.ts:470-475`]
+- Pre-existing profiles keep old body sections, and on a legacy nested `my-career/` the `direct_reports` reciprocal is silently skipped (`_getSelfProfilePath` returns null). Covered by the 9.36 migration story. [`src/services/team.service.ts:226-235`]
+
 ## Deferred from: code review of 9-24-email-similarity-shared-utility-and-fix (2026-06-09)
 
 - Dead `filteredEmails.length === 0` guard in `runProjectLinkMembers` / `runProjectLinkStakeholders` — unreachable after 9.24 because `resolveEmailWithSimilarCheck` always returns a string; story dev notes explicitly leave it harmless. [`src/commands/project.command.ts:140,230`]

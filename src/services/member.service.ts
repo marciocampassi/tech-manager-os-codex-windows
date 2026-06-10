@@ -114,10 +114,14 @@ export class MemberService {
 
     if (await this._fs.exists(profilePath)) {
       await this._syncTeamMembersFrontmatter(opts, profilePath, normalizedEmail, workspaceRoot);
+      await this._syncDirectReports(opts, profilePath, normalizedEmail, workspaceRoot);
       return { created: false };
     }
 
-    const managerLink = opts.team ? await this._resolveManagerLink(profilePath, workspaceRoot) : '';
+    const isDirectReport = !!opts.team && !opts.contractor;
+    const currentManagerLink = isDirectReport
+      ? await this._resolveManagerLink(profilePath, workspaceRoot)
+      : '';
 
     const fm: Record<string, unknown> = {
       email: normalizedEmail,
@@ -127,10 +131,18 @@ export class MemberService {
       location: opts.location ?? '',
       relationship: opts.contractor ? 'contractor' : opts.team ? 'direct-report' : 'company-member',
       date_added: todayIso(),
-      ...(opts.team && !opts.contractor ? { manager: managerLink } : {}),
+      start_date: '',
+      current_manager: currentManagerLink,
+      previous_manager: [],
+      other_leaderships: [],
+      ...(isDirectReport
+        ? { teams: [this._resolveTeamContextLink(opts.team as string, profilePath, workspaceRoot)] }
+        : {}),
+      projects: [],
     };
 
-    const body = '\n## Performance Reviews\n\n## Feedbacks\n';
+    const body =
+      '\n## 1on1s\n\n## Feedbacks\n\n## Assessments\n\n## Performance Reviews\n\n## Notes\n';
     const profileMd = matter.stringify(body, fm);
 
     const entityDir = path.dirname(profilePath);
@@ -144,6 +156,7 @@ export class MemberService {
     await this._fs.writeFile(profilePath, profileMd);
 
     await this._syncTeamMembersFrontmatter(opts, profilePath, normalizedEmail, workspaceRoot);
+    await this._syncDirectReports(opts, profilePath, normalizedEmail, workspaceRoot);
 
     return { created: true };
   }
@@ -294,6 +307,50 @@ export class MemberService {
     }
 
     return formatWikiLink(managerProfilePath, memberPath, managerEmail);
+  }
+
+  /**
+   * Returns the first `.md` file path found in `my-career/`, or null if absent.
+   * Used by `_syncDirectReports` to locate the self profile for reciprocal writes.
+   */
+  private async _getSelfProfilePath(workspaceRoot: string): Promise<string | null> {
+    const careerRoot = path.join(workspaceRoot, 'my-career');
+    if (!(await this._fs.exists(careerRoot))) return null;
+    const mdFiles = await this._fs.listFiles(careerRoot, '.md');
+    return mdFiles.length > 0 ? (mdFiles[0] as string) : null;
+  }
+
+  /**
+   * Computes the wiki-link pointing to a team's context file.
+   * Synchronous — no filesystem reads needed; generates path without verifying existence.
+   */
+  private _resolveTeamContextLink(
+    teamName: string,
+    fromPath: string,
+    workspaceRoot: string,
+  ): string {
+    const slug = normalizeSlug(teamName);
+    const contextPath = path.join(workspaceRoot, 'my-teams', 'teams', slug, `${slug}-context.md`);
+    return formatWikiLink(contextPath, fromPath, slug);
+  }
+
+  /**
+   * Writes a `direct_reports` reciprocal link on the self profile when the member being
+   * added is a direct report (team scope, not contractor). Silent no-op if self profile absent.
+   */
+  private async _syncDirectReports(
+    opts: IAddMemberOptions,
+    profilePath: string,
+    normalizedEmail: string,
+    workspaceRoot: string,
+  ): Promise<void> {
+    if (!opts.team || opts.contractor) return;
+
+    const selfPath = await this._getSelfProfilePath(workspaceRoot);
+    if (!selfPath) return;
+
+    const memberLink = formatWikiLink(profilePath, selfPath, normalizedEmail);
+    await addRelation(selfPath, 'direct_reports', memberLink, this._fs);
   }
 }
 

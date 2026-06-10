@@ -389,7 +389,9 @@ describe('Member Integration', () => {
 
       const content = fs.readFileSync(profilePath, 'utf8');
       expect(content).toContain('relationship: contractor');
-      expect(content).not.toContain('manager:');
+      // Story 9.29: contractor profiles now include current_manager (empty string), not bare 'manager:'
+      expect(content).not.toContain('\nmanager:');
+      expect(content).toContain('current_manager:');
       expect(content).toContain('location: Berlin');
     });
 

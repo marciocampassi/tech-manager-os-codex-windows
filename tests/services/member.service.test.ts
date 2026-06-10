@@ -400,7 +400,7 @@ describe('MemberService', () => {
       await svc.addMember('joao@company.com', { team: 'backend' }, WS);
 
       const writtenContent = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
-      expect(writtenContent).toContain('manager:');
+      expect(writtenContent).toContain('current_manager:');
       expect(writtenContent).toMatch(/\[\[.*\|boss@co\.com\]\]/);
     });
 
@@ -431,7 +431,7 @@ describe('MemberService', () => {
       await svc.addMember('joao@company.com', { team: 'backend' }, WS);
 
       const writtenContent = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
-      expect(writtenContent).toMatch(/manager:.*\[\[/);
+      expect(writtenContent).toMatch(/current_manager:.*\[\[/);
     });
 
     it('MEM-UNIT-011: manager is empty string when my-career/ directory does not exist', async () => {
@@ -441,7 +441,7 @@ describe('MemberService', () => {
       await svc.addMember('joao@company.com', { team: 'backend' }, WS);
 
       const writtenContent = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
-      expect(writtenContent).toMatch(/manager:\s*''/);
+      expect(writtenContent).toMatch(/current_manager:\s*''/);
     });
 
     it('returns { created: false } when profile already exists', async () => {
@@ -632,6 +632,119 @@ describe('MemberService', () => {
       const { data: parsedMembers } = matter(teamMembersContent);
       const membersList = Array.isArray(parsedMembers['members']) ? parsedMembers['members'] : [];
       expect(membersList).toHaveLength(1);
+    });
+
+    // ── 9.29 new tests ────────────────────────────────────────────────────────
+
+    it('MEM-UNIT-022: team scope — frontmatter includes previous_manager, other_leaderships, start_date, projects', async () => {
+      mockFS.exists.mockResolvedValue(false);
+
+      await svc.addMember('joao@company.com', { team: 'backend' }, WS);
+
+      const writtenContent = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
+      const { data } = matter(writtenContent);
+      expect(data['previous_manager']).toEqual([]);
+      expect(data['other_leaderships']).toEqual([]);
+      expect(data['start_date']).toBe('');
+      expect(data['projects']).toEqual([]);
+    });
+
+    it('MEM-UNIT-023: team scope — frontmatter includes teams array with team context wiki-link', async () => {
+      mockFS.exists.mockResolvedValue(false);
+
+      await svc.addMember('joao@company.com', { team: 'backend' }, WS);
+
+      const writtenContent = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
+      const { data } = matter(writtenContent);
+      expect(Array.isArray(data['teams'])).toBe(true);
+      expect((data['teams'] as string[])[0]).toMatch(/\[\[.*backend-context\.md\|backend\]\]/);
+    });
+
+    it('MEM-UNIT-024: team scope — self-profile direct_reports updated when self profile found', async () => {
+      const selfProfilePath = `${WS}/my-career/me@co.com.md`;
+      mockFS.exists.mockImplementation(async (p: string) => {
+        const n = p.replace(/\\/g, '/');
+        if (n.includes('my-teams/members/jane@co.com/jane@co.com.md')) return false;
+        if (n.includes('my-career')) return true;
+        if (n.includes('backend-members.md')) return false;
+        if (n.includes('me@co.com.md')) return true;
+        return false;
+      });
+      mockFS.listFiles.mockResolvedValue([selfProfilePath]);
+      mockFS.readFile.mockImplementation(async (p: string) => {
+        if (p.replace(/\\/g, '/').includes('me@co.com.md')) return '---\ndirect_reports: []\n---\n';
+        return '';
+      });
+
+      await svc.addMember('jane@co.com', { team: 'backend' }, WS);
+
+      const selfWriteCall = (mockFS.writeFile.mock.calls as [string, string][]).find(([p]) =>
+        p.replace(/\\/g, '/').includes('me@co.com.md'),
+      );
+      expect(selfWriteCall).toBeDefined();
+      expect(selfWriteCall![1]).toContain('direct_reports');
+      expect(selfWriteCall![1]).toContain('jane@co.com');
+    });
+
+    it('MEM-UNIT-025: team scope — direct_reports write skipped when my-career/ absent', async () => {
+      mockFS.exists.mockResolvedValue(false);
+
+      await svc.addMember('jane@co.com', { team: 'backend' }, WS);
+
+      const calls = mockFS.writeFile.mock.calls as [string, string][];
+      expect(calls.some(([p]) => p.replace(/\\/g, '/').includes('my-career'))).toBe(false);
+    });
+
+    it('MEM-UNIT-026: company scope — self-profile direct_reports NOT updated', async () => {
+      mockFS.exists.mockResolvedValue(false);
+
+      await svc.addMember('joao@company.com', {}, WS);
+
+      const calls = mockFS.writeFile.mock.calls as [string, string][];
+      expect(calls.some(([p]) => p.replace(/\\/g, '/').includes('my-career'))).toBe(false);
+    });
+
+    it('MEM-UNIT-027: contractor scope — self-profile direct_reports NOT updated', async () => {
+      mockFS.exists.mockResolvedValue(false);
+
+      await svc.addMember('ext@agency.com', { contractor: true }, WS);
+
+      const calls = mockFS.writeFile.mock.calls as [string, string][];
+      expect(calls.some(([p]) => p.replace(/\\/g, '/').includes('my-career'))).toBe(false);
+    });
+
+    it('MEM-UNIT-028: team scope — direct_reports synced even when profile already exists', async () => {
+      const selfProfilePath = `${WS}/my-career/me@co.com.md`;
+      const existingProfile = matter.stringify('\n## 1on1s\n\n## Feedbacks\n', {
+        email: 'jane@co.com',
+        relationship: 'direct-report',
+      });
+
+      mockFS.exists.mockImplementation(async (p: string) => {
+        const n = p.replace(/\\/g, '/');
+        if (n.includes('my-teams/members/jane@co.com/jane@co.com.md')) return true;
+        if (n.includes('my-career')) return true;
+        if (n.includes('backend-members.md')) return false;
+        if (n.includes('me@co.com.md')) return true;
+        return false;
+      });
+      mockFS.listFiles.mockResolvedValue([selfProfilePath]);
+      mockFS.readFile.mockImplementation(async (p: string) => {
+        const n = p.replace(/\\/g, '/');
+        if (n.includes('me@co.com.md')) return '---\ndirect_reports: []\n---\n';
+        if (n.includes('jane@co.com/jane@co.com.md')) return existingProfile;
+        return '';
+      });
+
+      const result = await svc.addMember('jane@co.com', { team: 'backend' }, WS);
+
+      expect(result).toEqual({ created: false });
+      const selfWriteCall = (mockFS.writeFile.mock.calls as [string, string][]).find(([p]) =>
+        p.replace(/\\/g, '/').includes('me@co.com.md'),
+      );
+      expect(selfWriteCall).toBeDefined();
+      expect(selfWriteCall![1]).toContain('direct_reports');
+      expect(selfWriteCall![1]).toContain('jane@co.com');
     });
   });
 
