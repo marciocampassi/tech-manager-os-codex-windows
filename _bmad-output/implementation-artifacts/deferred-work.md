@@ -409,6 +409,18 @@ The following items were surfaced by the pre-launch AC audit (Epics 1–5) and a
 - Batch link commands (`runProjectLinkMembers`, `runProjectLinkStakeholders`) prompt sequentially per email with no dedup — pre-existing 9-8 behavior; not introduced by 9.24. [`src/commands/project.command.ts`]
 - Leadership decline-path test uses default mock passthrough rather than explicit N simulation — acceptable given mock design; does not block story acceptance. [`tests/commands/leadership.command.test.ts:248`]
 
+## Deferred from: code review of 9-30-leadership-add-bidirectional-reciprocal-frontmatter (2026-06-11)
+
+- Leader's `direct_reports` unconditionally gains self even when the leader is a skip-level (placed in my `leadership[]`) rather than my manager — spec-prescribed per the Reciprocity Map; semantic asymmetry is a spec-design observation, not a code defect. [`src/services/leadership.service.ts:113`]
+- `_getSelfProfilePath` returns `mdFiles[0]` non-deterministically and (unlike `MemberService._resolveManagerLink`) logs no warning when `my-career/` holds more than one `.md`. Pre-existing D2. [`src/services/leadership.service.ts:70-74`]
+- Reciprocal writes are non-transactional; malformed self-profile YAML or a mid-sequence throw leaves partial state after the leader file is already written. Consistent with the 9.28/9.29 reciprocal pattern; command layer surfaces errors per NFR2. [`src/services/leadership.service.ts:108-123`]
+- No guard against adding one's own email as a leadership contact (self-as-own-manager / self-as-own-report). Unspecified, low-probability. [`src/services/leadership.service.ts:109-123`]
+- `!selfFm['current_manager']` truthiness mishandles whitespace-only / non-string values; spec defines only "empty or absent". Low severity. [`src/services/leadership.service.ts:118`]
+- Leader can end up in both `current_manager` and `leadership[]` (no cross-field dedupe) when the self profile is pre-seeded with the link. Narrow edge. [`src/services/leadership.service.ts:118-122`]
+- Reciprocal org-graph edges are never backfilled if the self profile is created after the leader (creation-guard gates the reciprocal block). Backfill is Story 9.36 (`tmr doctor --fix-frontmatter`) scope. [`src/services/leadership.service.ts:98-123`]
+- Redundant double-write of the leader file: `buildLeadershipProfileMd` emits `direct_reports: []`, then `addRelation` re-reads/re-writes to append the self link. Micro-optimization; `addRelation` is the sanctioned idempotent path. [`src/services/leadership.service.ts:105-113`]
+- LEA-UNIT-034 does not assert `listFiles` is uncalled; new tests are coupled to helper call counts (`mockResolvedValueOnce` sequences). Test polish; low value. [`tests/services/leadership.service.test.ts:186-321`]
+
 ## Deferred from: code review of 9-23-my-career-performance-review-subfolder (2026-06-09)
 
 - No migration for pre-9.23 flat performance-review files in `my-career/` — story intentionally supersedes 9.16 flat layout; old files remain flat with old wiki-link format; new reviews go to `performance-reviews/` subfolder. Out of story scope.

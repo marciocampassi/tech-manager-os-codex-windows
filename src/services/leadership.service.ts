@@ -4,6 +4,8 @@ import { FileSystemService, fileSystemService } from './file-system.service.js';
 import { SectionParserService, sectionParserService } from './section-parser.service.js';
 import { TemplateService, templateService } from './template.service.js';
 import { getWorkspaceRoot as resolveWorkspaceRoot } from '../utils/workspace.js';
+import { addRelation, setScalar } from '../utils/frontmatter-relations.js';
+import { formatWikiLink } from '../utils/wiki-link.js';
 import type {
   IAddLeadershipOptions,
   ILeadershipFrontmatter,
@@ -42,6 +44,12 @@ function buildLeadershipProfileMd(email: string, opts: IAddLeadershipOptions): s
     areas_of_responsibility: opts.areas_of_responsibility ?? '',
     relationship: 'leadership',
     date_added: date,
+    start_date: '',
+    current_manager: '',
+    previous_manager: [],
+    other_leaderships: [],
+    direct_reports: [],
+    projects: [],
   };
   return matter.stringify(`\n# Leadership — ${email}\n\n## Notes\n\n## 1on1s\n`, frontmatter);
 }
@@ -57,6 +65,13 @@ export class LeadershipService {
 
   getWorkspaceRoot(): string {
     return resolveWorkspaceRoot();
+  }
+
+  private async _getSelfProfilePath(workspaceRoot: string): Promise<string | null> {
+    const careerRoot = path.join(workspaceRoot, 'my-career');
+    if (!(await this._fs.exists(careerRoot))) return null;
+    const mdFiles = await this._fs.listFiles(careerRoot, '.md');
+    return mdFiles.length > 0 ? (mdFiles[0] as string) : null;
   }
 
   /**
@@ -89,6 +104,23 @@ export class LeadershipService {
 
     const content = buildLeadershipProfileMd(normalizedEmail, opts);
     await this._fs.writeFile(profilePath, content);
+
+    // ── Reciprocal writes ─────────────────────────────────────────────────────
+    const selfProfile = await this._getSelfProfilePath(workspaceRoot);
+    if (selfProfile) {
+      const selfEmail = path.basename(selfProfile, '.md');
+      const selfLinkOnLeader = formatWikiLink(selfProfile, profilePath, selfEmail);
+      await addRelation(profilePath, 'direct_reports', selfLinkOnLeader, this._fs);
+
+      const leaderLinkOnMe = formatWikiLink(profilePath, selfProfile, normalizedEmail);
+      const selfContent = await this._fs.readFile(selfProfile);
+      const selfFm = matter(selfContent).data as Record<string, unknown>;
+      if (!selfFm['current_manager']) {
+        await setScalar(selfProfile, 'current_manager', leaderLinkOnMe, this._fs);
+      } else {
+        await addRelation(selfProfile, 'leadership', leaderLinkOnMe, this._fs);
+      }
+    }
 
     return { created: true };
   }

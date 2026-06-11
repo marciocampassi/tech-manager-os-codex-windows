@@ -186,6 +186,136 @@ describe('LeadershipService', () => {
         expect.any(String),
       );
     });
+
+    // ── 9.30: Relationship vocabulary + reciprocal writes ─────────────────────
+
+    const SELF_PROFILE = path.join(WS, 'my-career', 'me@co.com.md');
+    const INITIAL_LEADER_CONTENT = [
+      '---',
+      `email: ${EMAIL}`,
+      'direct_reports: []',
+      'current_manager: ""',
+      '---',
+      '',
+      `# Leadership — ${EMAIL}`,
+      '',
+    ].join('\n');
+    const SELF_CONTENT_NO_MANAGER = [
+      '---',
+      'email: me@co.com',
+      'current_manager: ""',
+      'leadership: []',
+      '---',
+      '',
+    ].join('\n');
+    const SELF_CONTENT_HAS_MANAGER = [
+      '---',
+      'email: me@co.com',
+      'current_manager: "[[my-leadership/other@co.com/other@co.com.md|other@co.com]]"',
+      'leadership: []',
+      '---',
+      '',
+    ].join('\n');
+
+    it('LEA-UNIT-030: profile frontmatter contains full relationship vocabulary', async () => {
+      mockFS.exists.mockResolvedValue(false);
+
+      await svc.addLeadership(EMAIL, {}, WS);
+
+      const writtenContent = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
+      expect(writtenContent).toContain('start_date:');
+      expect(writtenContent).toContain('current_manager:');
+      expect(writtenContent).toContain('previous_manager:');
+      expect(writtenContent).toContain('other_leaderships:');
+      expect(writtenContent).toContain('direct_reports:');
+      expect(writtenContent).toContain('projects:');
+    });
+
+    it('LEA-UNIT-031: appends self wiki-link to leader direct_reports when self profile exists', async () => {
+      mockFS.exists
+        .mockResolvedValueOnce(false) // guard: new contact
+        .mockResolvedValueOnce(true) // careerRoot for _getSelfProfilePath
+        .mockResolvedValueOnce(true) // profilePath inside addRelation(direct_reports)
+        .mockResolvedValueOnce(true); // selfProfile inside setScalar(current_manager)
+      mockFS.listFiles.mockResolvedValue([SELF_PROFILE]);
+      mockFS.readFile
+        .mockResolvedValueOnce(INITIAL_LEADER_CONTENT) // addRelation reads leader
+        .mockResolvedValueOnce(SELF_CONTENT_NO_MANAGER) // current_manager check
+        .mockResolvedValueOnce(SELF_CONTENT_NO_MANAGER); // setScalar reads self
+
+      await svc.addLeadership(EMAIL, {}, WS);
+
+      // writeFile[1] = addRelation update on leader profile (direct_reports)
+      const leaderUpdateCall = mockFS.writeFile.mock.calls[1] as [string, string];
+      expect(leaderUpdateCall[0]).toBe(PROFILE_PATH);
+      expect(leaderUpdateCall[1]).toContain('me@co.com');
+    });
+
+    it('LEA-UNIT-032: sets current_manager on self when self has no manager', async () => {
+      mockFS.exists
+        .mockResolvedValueOnce(false)
+        .mockResolvedValueOnce(true)
+        .mockResolvedValueOnce(true)
+        .mockResolvedValueOnce(true);
+      mockFS.listFiles.mockResolvedValue([SELF_PROFILE]);
+      mockFS.readFile
+        .mockResolvedValueOnce(INITIAL_LEADER_CONTENT)
+        .mockResolvedValueOnce(SELF_CONTENT_NO_MANAGER)
+        .mockResolvedValueOnce(SELF_CONTENT_NO_MANAGER);
+
+      await svc.addLeadership(EMAIL, {}, WS);
+
+      // writeFile[2] = setScalar update on self profile (current_manager)
+      const selfUpdateCall = mockFS.writeFile.mock.calls[2] as [string, string];
+      expect(selfUpdateCall[0]).toBe(SELF_PROFILE);
+      expect(selfUpdateCall[1]).toContain('current_manager:');
+      expect(selfUpdateCall[1]).toContain(EMAIL);
+    });
+
+    it('LEA-UNIT-033: appends to leadership array when self already has current_manager', async () => {
+      mockFS.exists
+        .mockResolvedValueOnce(false) // guard: new contact
+        .mockResolvedValueOnce(true) // careerRoot
+        .mockResolvedValueOnce(true) // profilePath inside addRelation(direct_reports)
+        .mockResolvedValueOnce(true); // selfProfile inside addRelation(leadership)
+      mockFS.listFiles.mockResolvedValue([SELF_PROFILE]);
+      mockFS.readFile
+        .mockResolvedValueOnce(INITIAL_LEADER_CONTENT) // addRelation reads leader
+        .mockResolvedValueOnce(SELF_CONTENT_HAS_MANAGER) // current_manager check → has manager
+        .mockResolvedValueOnce(SELF_CONTENT_HAS_MANAGER); // addRelation reads self (leadership)
+
+      await svc.addLeadership(EMAIL, {}, WS);
+
+      // writeFile[2] = addRelation update on self profile (leadership array)
+      const selfUpdateCall = mockFS.writeFile.mock.calls[2] as [string, string];
+      expect(selfUpdateCall[0]).toBe(SELF_PROFILE);
+      expect(selfUpdateCall[1]).toContain('leadership:');
+      expect(selfUpdateCall[1]).toContain(EMAIL);
+      // original current_manager must be preserved (not overwritten with new leader)
+      expect(selfUpdateCall[1]).toContain('other@co.com');
+    });
+
+    it('LEA-UNIT-034: skips all reciprocals silently when self profile is absent', async () => {
+      mockFS.exists
+        .mockResolvedValueOnce(false) // guard: new contact
+        .mockResolvedValueOnce(false); // careerRoot → absent → _getSelfProfilePath returns null
+
+      await svc.addLeadership(EMAIL, {}, WS);
+
+      // Only the initial profile write — no addRelation or setScalar writes
+      expect(mockFS.writeFile).toHaveBeenCalledTimes(1);
+      expect(mockFS.readFile).not.toHaveBeenCalled();
+    });
+
+    it('LEA-UNIT-035: returns created:false immediately without reciprocal writes when contact exists', async () => {
+      mockFS.exists.mockResolvedValue(true); // all exists → profile already there
+
+      const result = await svc.addLeadership(EMAIL, {}, WS);
+
+      expect(result.created).toBe(false);
+      expect(mockFS.writeFile).not.toHaveBeenCalled();
+      expect(mockFS.readFile).not.toHaveBeenCalled();
+    });
   });
 
   // ── add1on1 ──────────────────────────────────────────────────────────────────
