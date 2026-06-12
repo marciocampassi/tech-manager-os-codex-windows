@@ -361,6 +361,92 @@ describe('MemberService', () => {
       const result = await svc.createMemberFile('JOHN@CO.COM', '1on1', { date: '2026-03-07' }, WS);
       expect(result.filePath).toContain('1on1-john@co.com.md');
     });
+
+    // ── 9.31: dated-file frontmatter (subject/with/from) + last_<type> scalar ──
+
+    it('9.31: 1on1 dated file carries subject wiki-link, not member:', async () => {
+      mockFS.exists.mockResolvedValue(true);
+      await svc.createMemberFile(EMAIL, '1on1', { date: '2026-03-07' }, WS);
+
+      const writtenContent = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
+      expect(writtenContent).toContain('type: 1on1');
+      expect(writtenContent).toContain('subject:');
+      expect(writtenContent).not.toContain('member: john@co.com');
+    });
+
+    it('9.31: omits with when self profile absent (AC7)', async () => {
+      mockFS.exists.mockResolvedValue(true); // careerRoot exists...
+      mockFS.listFiles.mockResolvedValue([]); // ...but no .md self profile
+      await svc.createMemberFile(EMAIL, '1on1', { date: '2026-03-07' }, WS);
+
+      const writtenContent = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
+      expect(writtenContent).not.toContain('with:');
+    });
+
+    it('9.31: sets last_1on1 (full ISO date) scalar on the member profile', async () => {
+      mockFS.exists.mockResolvedValue(true);
+      await svc.createMemberFile(EMAIL, '1on1', { date: '2026-03-07' }, WS);
+
+      const profileWrite = (mockFS.writeFile.mock.calls as [string, string][]).find(
+        ([p]) => p === PROFILE_PATH,
+      );
+      expect(profileWrite).toBeDefined();
+      expect(matter((profileWrite as [string, string])[1]).data['last_1on1']).toBe('2026-03-07');
+    });
+
+    it('9.31: sets last_feedback (year-month) scalar — value matches filePrefix (AC5)', async () => {
+      mockFS.exists.mockResolvedValue(true);
+      await svc.createMemberFile(
+        EMAIL,
+        'feedback',
+        { date: '2026-03-07', fromEmail: 'reviewer@co.com' },
+        WS,
+      );
+
+      const profileWrite = (mockFS.writeFile.mock.calls as [string, string][]).find(
+        ([p]) => p === PROFILE_PATH,
+      );
+      expect(profileWrite).toBeDefined();
+      expect(matter((profileWrite as [string, string])[1]).data['last_feedback']).toBe('2026-03');
+    });
+
+    it('9.31 (B5): feedback resolves the reviewer and emits a from wiki-link', async () => {
+      mockFS.exists.mockResolvedValue(true);
+      mockEmailResolver.resolve
+        .mockResolvedValueOnce({ type: 'team', absolutePath: PROFILE_PATH, created: false })
+        .mockResolvedValueOnce({
+          type: 'relationship',
+          absolutePath: `${WS}/my-company/members/reviewer@co.com/reviewer@co.com.md`,
+          created: true,
+        });
+
+      await svc.createMemberFile(
+        EMAIL,
+        'feedback',
+        { date: '2026-03-07', fromEmail: 'reviewer@co.com' },
+        WS,
+      );
+
+      expect(mockEmailResolver.resolve).toHaveBeenCalledWith('reviewer@co.com', WS);
+      const writtenContent = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
+      expect(writtenContent).toContain('from:');
+      expect(writtenContent).toContain('reviewer@co.com');
+    });
+
+    it('9.31: last_<type> is a single scalar (overwrite, not array) — compactness AC6', async () => {
+      mockFS.exists.mockResolvedValue(true);
+      mockFS.readFile.mockResolvedValue('---\nlast_1on1: 2026-01-01\n---\n');
+
+      await svc.createMemberFile(EMAIL, '1on1', { date: '2026-03-07' }, WS);
+
+      const profileWrite = (mockFS.writeFile.mock.calls as [string, string][]).find(
+        ([p]) => p === PROFILE_PATH,
+      );
+      const content = (profileWrite as [string, string])[1];
+      expect(matter(content).data['last_1on1']).toBe('2026-03-07');
+      expect(content).not.toContain('2026-01-01');
+      expect(content.match(/last_1on1:/g)).toHaveLength(1);
+    });
   });
 
   // ── addMember ─────────────────────────────────────────────────────────────────

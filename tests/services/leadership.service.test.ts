@@ -339,11 +339,25 @@ describe('LeadershipService', () => {
       );
     });
 
-    it('uses leadership 1on1 template (type: leadership-1on1)', async () => {
+    it('9.31: dated file uses unified type: 1on1 with a subject wiki-link (not member:)', async () => {
       await svc.add1on1(EMAIL, { date: '2026-03-09' }, WS);
 
       const writtenContent = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
-      expect(writtenContent).toContain('type: leadership-1on1');
+      expect(writtenContent).toContain('type: 1on1');
+      expect(writtenContent).not.toContain('type: leadership-1on1');
+      expect(writtenContent).toContain('subject:');
+      expect(writtenContent).toContain(EMAIL);
+    });
+
+    it('9.31: sets last_1on1 scalar on the leader profile frontmatter', async () => {
+      await svc.add1on1(EMAIL, { date: '2026-03-09' }, WS);
+
+      // setScalar reads + rewrites the profile; locate the profile writeFile call
+      const profileWrite = (mockFS.writeFile.mock.calls as [string, string][]).find(
+        ([p]) => p === PROFILE_PATH,
+      );
+      expect(profileWrite).toBeDefined();
+      expect(matter((profileWrite as [string, string])[1]).data['last_1on1']).toBe('2026-03-09');
     });
 
     it('includes all required leadership 1on1 sections', async () => {

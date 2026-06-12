@@ -7,6 +7,7 @@
 import os from 'node:os';
 import path from 'node:path';
 import fs from 'fs-extra';
+import matter from 'gray-matter';
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
 
 // Mock configService — workspace path is supplied directly in tests
@@ -72,7 +73,9 @@ describe('Member Integration', () => {
 
     const fileContent = fs.readFileSync(result.filePath, 'utf8');
     expect(fileContent).toContain('type: 1on1');
-    expect(fileContent).toContain('member: john@co.com');
+    // Story 9.31: dated file carries a `subject` wiki-link to the member (not `member:`)
+    expect(fileContent).toContain('subject:');
+    expect(fileContent).toContain('john@co.com');
     expect(fileContent).toContain('date: 2026-03-07');
     expect(fileContent).toContain('## Check-in');
 
@@ -80,6 +83,8 @@ describe('Member Integration', () => {
     const profileContent = fs.readFileSync(result.profilePath, 'utf8');
     expect(profileContent).toContain('[[1on1s/2026-03-07-1on1-john@co.com.md]]');
     expect(profileContent).toContain('## 1on1s');
+    // Story 9.31: last_1on1 recency scalar set on the member profile
+    expect(matter(profileContent).data['last_1on1']).toBe('2026-03-07');
   });
 
   // ── feedback ─────────────────────────────────────────────────────────────────
@@ -96,12 +101,24 @@ describe('Member Integration', () => {
     const fileContent = fs.readFileSync(result.filePath, 'utf8');
     expect(fileContent).toContain('type: feedback');
     expect(fileContent).toContain('## Situation');
+    // Story 9.31 (B5): feedback frontmatter carries a `from` wiki-link to the reviewer
+    expect(fileContent).toContain('from:');
+    expect(fileContent).toContain('reviewer@co.com');
 
     // feedbacks/ subdir, year-month prefix, reviewer-email-member-email order
     const profileContent = fs.readFileSync(result.profilePath, 'utf8');
     expect(profileContent).toContain(
       '[[feedbacks/2026-03-feedback-reviewer@co.com-john@co.com.md]]',
     );
+    // Story 9.31: last_feedback recency scalar set on the member profile
+    expect(matter(profileContent).data['last_feedback']).toBe('2026-03');
+
+    // Story 9.31 (B5): reviewer stub profile auto-created when absent
+    expect(
+      fs.existsSync(
+        path.join(workspace, 'my-company', 'members', 'reviewer@co.com', 'reviewer@co.com.md'),
+      ),
+    ).toBe(true);
   });
 
   // ── assessment ───────────────────────────────────────────────────────────────

@@ -150,11 +150,22 @@ export class LeadershipService {
     const fileName = `${date}-1on1-${normalizedEmail}.md`;
     const filePath = path.join(oneOnOneDir, fileName);
 
-    const content = this._template.getLeadership1on1Template(date, normalizedEmail);
+    const links: { subject: string; with?: string } = {
+      subject: formatWikiLink(profilePath, filePath, normalizedEmail),
+    };
+    const selfProfile = await this._getSelfProfilePath(workspaceRoot);
+    if (selfProfile) {
+      const selfEmail = path.basename(selfProfile, '.md');
+      links.with = formatWikiLink(selfProfile, filePath, selfEmail);
+    }
+
+    const content = this._template.getLeadership1on1Template(date, normalizedEmail, links);
     await this._fs.writeFile(filePath, content);
 
     const wikiLink = `- [[1on1s/${fileName}]]`;
     await this._sectionParser.appendToFile(profilePath, '1on1s', wikiLink);
+
+    await setScalar(profilePath, 'last_1on1', date, this._fs);
 
     return { filePath, profilePath, wikiLink };
   }

@@ -7,15 +7,17 @@ import { EmailResolutionService, emailResolutionService } from './email-resoluti
 import { getWorkspaceRoot as resolveWorkspaceRoot } from '../utils/workspace.js';
 import { validateEmail } from '../utils/validation.js';
 import { formatWikiLink } from '../utils/wiki-link.js';
-import { addRelation } from '../utils/frontmatter-relations.js';
+import { addRelation, setScalar } from '../utils/frontmatter-relations.js';
 import { normalizeSlug } from '../utils/normalization.js';
 import { logger } from '../utils/logger.js';
 import {
   FILE_TYPE_CONFIG,
+  LAST_SCALAR_KEY,
   type FileType,
   type IAddMemberOptions,
   type ICreateFileOptions,
   type ICreateFileResult,
+  type IDatedFileLinks,
 } from '../types/member.types.js';
 
 // ── Path helpers ──────────────────────────────────────────────────────────────
@@ -269,22 +271,72 @@ export class MemberService {
     if (type === 'feedback' && !options.fromEmail) {
       throw new Error('fromEmail is required for feedback type');
     }
+    // Normalize the reviewer once so the filename, the `from` wiki-link, and the
+    // resolved/auto-created reviewer profile all agree on casing.
+    const normalizedOptions: ICreateFileOptions = {
+      ...options,
+      fromEmail: options.fromEmail?.toLowerCase(),
+    };
     const fileName =
       type === 'feedback'
-        ? `${prefix}-feedback-${options.fromEmail}-${normalizedEmail}.md`
+        ? `${prefix}-feedback-${normalizedOptions.fromEmail}-${normalizedEmail}.md`
         : `${prefix}-${config.fileSuffix}-${normalizedEmail}.md`;
     const filePath = path.join(subDirPath, fileName);
 
-    const content = this._template.getTemplate(type, date, normalizedEmail);
+    const links = await this._buildDatedFileLinks(type, normalizedOptions, normalizedEmail, {
+      profilePath,
+      filePath,
+      workspaceRoot,
+    });
+
+    const content = this._template.getTemplate(type, date, normalizedEmail, links);
     await this._fs.writeFile(filePath, content);
 
     const wikiLink = `- [[${config.subDir}/${fileName}]]`;
     await this._sectionParser.appendToFile(profilePath, config.sectionName, wikiLink);
 
+    await setScalar(profilePath, LAST_SCALAR_KEY[type], prefix, this._fs);
+
     return { filePath, profilePath, wikiLink };
   }
 
   // ── Private ──────────────────────────────────────────────────────────────────
+
+  /**
+   * Builds the frontmatter wiki-link set for a dated file (Story 9.31).
+   *
+   * - `subject` always points to the member the artifact is about.
+   * - For feedback, the reviewer (`fromEmail`) is resolved via EmailResolutionService —
+   *   auto-creating a stub profile when absent (fixes B5) — and emitted as `from`.
+   * - For all other types, the self profile (if present) is emitted as `with`; omitted
+   *   entirely when no self profile exists.
+   */
+  private async _buildDatedFileLinks(
+    type: FileType,
+    options: ICreateFileOptions,
+    normalizedEmail: string,
+    paths: { profilePath: string; filePath: string; workspaceRoot: string },
+  ): Promise<IDatedFileLinks> {
+    const { profilePath, filePath, workspaceRoot } = paths;
+    const links: IDatedFileLinks = {
+      subject: formatWikiLink(profilePath, filePath, normalizedEmail),
+    };
+
+    if (type === 'feedback' && options.fromEmail) {
+      // `fromEmail` is already lowercased by the caller.
+      const reviewerEmail = options.fromEmail;
+      const reviewer = await this._emailResolver.resolve(reviewerEmail, workspaceRoot);
+      links.from = formatWikiLink(reviewer.absolutePath, filePath, reviewerEmail);
+      return links;
+    }
+
+    const selfPath = await this._getSelfProfilePath(workspaceRoot);
+    if (selfPath) {
+      const selfEmail = path.basename(selfPath, '.md');
+      links.with = formatWikiLink(selfPath, filePath, selfEmail);
+    }
+    return links;
+  }
 
   /**
    * Resolves the manager's wiki-link from the `my-career/` directory.
