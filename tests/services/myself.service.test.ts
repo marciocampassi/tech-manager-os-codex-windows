@@ -1,9 +1,11 @@
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
+import matter from 'gray-matter';
 import { MyselfService } from '../../src/services/myself.service.js';
 import type { FileSystemService } from '../../src/services/file-system.service.js';
 import type { EmailResolutionService } from '../../src/services/email-resolution.service.js';
 import type { TemplateService } from '../../src/services/template.service.js';
 import type { SectionParserService } from '../../src/services/section-parser.service.js';
+import type { IDatedFileLinks } from '../../src/types/member.types.js';
 import { ConfigurationError, ValidationError } from '../../src/errors/tmr-error.js';
 
 // ── Mock types ────────────────────────────────────────────────────────────────
@@ -103,6 +105,7 @@ describe('MyselfService', () => {
         'performance-review',
         expect.stringMatching(/^\d{4}-\d{2}$/),
         OWN_EMAIL,
+        expect.objectContaining({ subject: expect.stringContaining(OWN_EMAIL) }),
       );
       expect(mockFS.writeFile).toHaveBeenCalledWith(
         expect.stringContaining(`-performance-review-${OWN_EMAIL}.md`),
@@ -122,6 +125,7 @@ describe('MyselfService', () => {
         'performance-review',
         '2026-03',
         OWN_EMAIL,
+        expect.objectContaining({ subject: expect.stringContaining(OWN_EMAIL) }),
       );
     });
 
@@ -133,6 +137,7 @@ describe('MyselfService', () => {
         'performance-review',
         '2026-03',
         OWN_EMAIL,
+        expect.objectContaining({ subject: expect.stringContaining(OWN_EMAIL) }),
       );
     });
 
@@ -208,6 +213,67 @@ describe('MyselfService', () => {
 
       expect(mockEmailResolution.resolve).toHaveBeenCalledWith(OWN_EMAIL, WORKSPACE);
       expect(result.profilePath).toBe(PROFILE_PATH);
+    });
+
+    it('9.32: passes links with subject wiki-link containing own email to getTemplate', async () => {
+      await svc.addPerformanceReview({ date: '2026-05' }, WORKSPACE);
+
+      const calls = mockTemplate.getTemplate.mock.calls as [
+        string,
+        string,
+        string,
+        IDatedFileLinks,
+      ][];
+      const [, , , links] = calls[0] as [string, string, string, IDatedFileLinks];
+      expect(links).toBeDefined();
+      // AC5: subject is the exact relative wiki-link from performance-reviews/ up to the flat self-profile
+      expect(links.subject).toBe(`[[../${OWN_EMAIL}.md|${OWN_EMAIL}]]`);
+    });
+
+    it('9.32: links has no with or from field (self-review has no other participant)', async () => {
+      await svc.addPerformanceReview({ date: '2026-05' }, WORKSPACE);
+
+      const calls = mockTemplate.getTemplate.mock.calls as [
+        string,
+        string,
+        string,
+        IDatedFileLinks,
+      ][];
+      const [, , , links] = calls[0] as [string, string, string, IDatedFileLinks];
+      expect(links.with).toBeUndefined();
+      expect(links.from).toBeUndefined();
+    });
+
+    it('9.32: sets last_performance_review scalar on self profile', async () => {
+      mockFS.exists.mockResolvedValue(true);
+
+      await svc.addPerformanceReview({ date: '2026-05' }, WORKSPACE);
+
+      const profileWrite = (mockFS.writeFile.mock.calls as [string, string][]).find(
+        ([p]) => p === PROFILE_PATH,
+      );
+      expect(profileWrite).toBeDefined();
+      const writtenContent = (profileWrite as [string, string])[1];
+      expect(matter(writtenContent).data['last_performance_review']).toBe('2026-05');
+    });
+
+    it('9.32: last_performance_review is a single scalar — overwrite, not array (AC4)', async () => {
+      mockFS.exists.mockResolvedValue(true);
+      // Feed each profile write back into the next readFile so setScalar sees prior state
+      let profileContent = '';
+      mockFS.readFile.mockImplementation(async (p: string) =>
+        p === PROFILE_PATH ? profileContent : '',
+      );
+      mockFS.writeFile.mockImplementation(async (p: string, c: string) => {
+        if (p === PROFILE_PATH) profileContent = c;
+      });
+
+      await svc.addPerformanceReview({ date: '2026-05' }, WORKSPACE);
+      await svc.addPerformanceReview({ date: '2026-07' }, WORKSPACE);
+
+      const data = matter(profileContent).data;
+      expect(data['last_performance_review']).toBe('2026-07');
+      expect(Array.isArray(data['last_performance_review'])).toBe(false);
     });
   });
 });

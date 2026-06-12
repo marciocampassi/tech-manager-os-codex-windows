@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-27
-last_updated: 2026-06-11 (9-31 done)
+last_updated: 2026-06-12 (9-32 done)
 project: tech-manager-os
 project_key: NOKEY
 tracking_system: file-system
@@ -131,7 +131,7 @@ development_status:
   9-29-relationship-frontmatter-vocabulary-on-all-entity-profiles: done
   9-30-leadership-add-bidirectional-reciprocal-frontmatter: done
   9-31-dated-artifact-frontmatter-plus-body-wikilink-plus-last-scalar: done
-  9-32-myself-add-performance-review-body-wikilink-plus-frontmatter-scalar: backlog
+  9-32-myself-add-performance-review-body-wikilink-plus-frontmatter-scalar: done
   9-33-project-link-member-stakeholder-frontmatter-both-sides: backlog
   9-34-team-fire-archive-frontmatter-cleanup-plus-manager-history: backlog
   # Wave 3 (onboarding + migration):

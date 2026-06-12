@@ -6,6 +6,9 @@ import { SectionParserService, sectionParserService } from './section-parser.ser
 import { getWorkspaceRoot as resolveWorkspaceRoot } from '../utils/workspace.js';
 import { ConfigurationError, ValidationError } from '../errors/tmr-error.js';
 import { logger } from '../utils/logger.js';
+import { setScalar } from '../utils/frontmatter-relations.js';
+import { formatWikiLink } from '../utils/wiki-link.js';
+import type { IDatedFileLinks } from '../types/member.types.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -75,11 +78,17 @@ export class MyselfService {
     const fileName = `${datePrefix}-performance-review-${ownEmail}.md`;
     const filePath = path.join(careerRoot, 'performance-reviews', fileName);
 
-    const content = this._template.getTemplate('performance-review', datePrefix, ownEmail);
+    // ── Build dated-file links (D-9.32-1, D-9.32-3) ──────────────────────────
+    const subjectLink = formatWikiLink(profilePath, filePath, ownEmail);
+    const links: IDatedFileLinks = { subject: subjectLink };
+
+    const content = this._template.getTemplate('performance-review', datePrefix, ownEmail, links);
     await this._fs.writeFile(filePath, content);
 
     const wikiLink = `- [[performance-reviews/${fileName}]]`;
     await this._sectionParser.appendToFile(profilePath, 'Performance Reviews', wikiLink);
+
+    await setScalar(profilePath, 'last_performance_review', datePrefix, this._fs);
 
     return { filePath, profilePath };
   }
