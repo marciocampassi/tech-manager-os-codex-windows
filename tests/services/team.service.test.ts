@@ -28,13 +28,18 @@ const WORKSPACE = '/fake/workspace';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function buildProfileMd(email: string, teams: string[]): string {
-  return matter.stringify('## Current Manager\n\n', {
+function buildProfileMd(email: string, teams: string[], managerLink: string = ''): string {
+  return matter.stringify('\n## 1on1s\n\n## Notes\n', {
     email,
     role: 'Engineer',
     location: 'Remote',
-    teams,
+    relationship: 'direct-report',
     date_added: '2026-01-01',
+    teams,
+    current_manager: managerLink,
+    previous_manager: [],
+    other_leaderships: [],
+    projects: [],
   });
 }
 
@@ -588,7 +593,11 @@ describe('TeamService', () => {
 
   describe('archiveMember', () => {
     it('moves member directory and updates frontmatter', async () => {
-      const profileMd = buildProfileMd('a@co.com', ['alpha']);
+      const profileMd = buildProfileMd(
+        'a@co.com',
+        ['[[...alpha-context.md|alpha]]'],
+        '[[../my-career/me@co.com.md|me@co.com]]',
+      );
       mockFS.exists.mockImplementation(async (p: string) => {
         const n = p.replace(/\\/g, '/');
         if (n.includes('my-teams/members/a@co.com') && !n.includes('archived')) return true;
@@ -629,13 +638,249 @@ describe('TeamService', () => {
         'not found',
       );
     });
+
+    // ── 9.34 tests ──────────────────────────────────────────────────────────────
+
+    it('9.34: sets teams: [] on archived profile (B6 fix)', async () => {
+      const profileMd = buildProfileMd('a@co.com', [
+        '[[...alpha-context.md|alpha]]',
+        '[[...beta-context.md|beta]]',
+      ]);
+      mockFS.exists.mockImplementation(async (p: string) => {
+        const n = p.replace(/\\/g, '/');
+        if (n.includes('my-teams/members/a@co.com') && !n.includes('archived')) return true;
+        if (n.includes('my-teams/archived') && n.includes('a@co.com.md')) return true;
+        if (n.includes('alpha-members.md')) return true;
+        return false;
+      });
+      mockFS.readFile.mockImplementation(async (p: string) => {
+        const n = p.replace(/\\/g, '/');
+        if (n.includes('alpha-members.md'))
+          return "---\nmembers:\n  - '[[../../members/a@co.com/a@co.com.md|a@co.com]]'\n---\n\n# Team Members\n";
+        if (n.includes('a@co.com/a@co.com.md')) return profileMd;
+        return '';
+      });
+
+      await svc.archiveMember('alpha', 'a@co.com', {}, WORKSPACE);
+
+      const archivedWrite = (mockFS.writeFile.mock.calls as [string, string][]).find(([p]) =>
+        p.replace(/\\/g, '/').includes('archived'),
+      );
+      expect(archivedWrite).toBeDefined();
+      const { data } = matter(archivedWrite![1]);
+      expect(data['teams']).toEqual([]);
+    });
+
+    it('9.34: moves current_manager to previous_manager[] and clears current_manager', async () => {
+      const managerLink = '[[../../../my-career/me@co.com.md|me@co.com]]';
+      const profileMd = buildProfileMd('a@co.com', ['[[...alpha-context.md|alpha]]'], managerLink);
+      mockFS.exists.mockImplementation(async (p: string) => {
+        const n = p.replace(/\\/g, '/');
+        if (n.includes('my-teams/members/a@co.com') && !n.includes('archived')) return true;
+        if (n.includes('my-teams/archived') && n.includes('a@co.com.md')) return true;
+        if (n.includes('alpha-members.md')) return true;
+        return false;
+      });
+      mockFS.readFile.mockImplementation(async (p: string) => {
+        const n = p.replace(/\\/g, '/');
+        if (n.includes('alpha-members.md'))
+          return "---\nmembers:\n  - '[[../../members/a@co.com/a@co.com.md|a@co.com]]'\n---\n\n# Team Members\n";
+        if (n.includes('a@co.com/a@co.com.md')) return profileMd;
+        return '';
+      });
+
+      await svc.archiveMember('alpha', 'a@co.com', {}, WORKSPACE);
+
+      const archivedWrite = (mockFS.writeFile.mock.calls as [string, string][]).find(([p]) =>
+        p.replace(/\\/g, '/').includes('archived'),
+      );
+      expect(archivedWrite).toBeDefined();
+      const { data } = matter(archivedWrite![1]);
+      expect(Array.isArray(data['previous_manager'])).toBe(true);
+      expect((data['previous_manager'] as string[]).some((l) => l.includes('me@co.com'))).toBe(
+        true,
+      );
+      expect(data['current_manager']).toBe('');
+    });
+
+    it('9.34: skips previous_manager append when current_manager is empty', async () => {
+      const profileMd = buildProfileMd('a@co.com', ['[[...alpha-context.md|alpha]]'], '');
+      mockFS.exists.mockImplementation(async (p: string) => {
+        const n = p.replace(/\\/g, '/');
+        if (n.includes('my-teams/members/a@co.com') && !n.includes('archived')) return true;
+        if (n.includes('my-teams/archived') && n.includes('a@co.com.md')) return true;
+        if (n.includes('alpha-members.md')) return true;
+        return false;
+      });
+      mockFS.readFile.mockImplementation(async (p: string) => {
+        const n = p.replace(/\\/g, '/');
+        if (n.includes('alpha-members.md'))
+          return "---\nmembers:\n  - '[[../../members/a@co.com/a@co.com.md|a@co.com]]'\n---\n\n# Team Members\n";
+        if (n.includes('a@co.com/a@co.com.md')) return profileMd;
+        return '';
+      });
+
+      await svc.archiveMember('alpha', 'a@co.com', {}, WORKSPACE);
+
+      const archivedWrite = (mockFS.writeFile.mock.calls as [string, string][]).find(([p]) =>
+        p.replace(/\\/g, '/').includes('archived'),
+      );
+      expect(archivedWrite).toBeDefined();
+      const { data } = matter(archivedWrite![1]);
+      expect(data['previous_manager']).toEqual([]);
+      expect(data['current_manager']).toBe('');
+    });
+
+    it('9.34: removes member from self direct_reports when self profile exists', async () => {
+      const selfProfilePath = `${WORKSPACE}/my-career/me@co.com.md`;
+      const memberProfileMd = buildProfileMd('a@co.com', ['[[...alpha-context.md|alpha]]']);
+
+      mockFS.exists.mockImplementation(async (p: string) => {
+        const n = p.replace(/\\/g, '/');
+        if (n.includes('my-teams/members/a@co.com') && !n.includes('archived')) return true;
+        if (n.includes('my-teams/archived') && n.includes('a@co.com.md')) return true;
+        if (n.includes('alpha-members.md')) return true;
+        if (n.includes('my-career')) return true;
+        if (n.includes('me@co.com.md')) return true;
+        return false;
+      });
+      mockFS.listFiles.mockImplementation(async (p: string) => {
+        if (p.replace(/\\/g, '/').includes('my-career')) return [selfProfilePath];
+        return [];
+      });
+      mockFS.readFile.mockImplementation(async (p: string) => {
+        const n = p.replace(/\\/g, '/');
+        if (n.includes('alpha-members.md'))
+          return "---\nmembers:\n  - '[[../../members/a@co.com/a@co.com.md|a@co.com]]'\n---\n\n# Team Members\n";
+        if (n.includes('a@co.com/a@co.com.md')) return memberProfileMd;
+        if (n.includes('me@co.com.md'))
+          return "---\ndirect_reports:\n  - '[[../my-teams/members/a@co.com/a@co.com.md|a@co.com]]'\n---\n";
+        return '';
+      });
+
+      await svc.archiveMember('alpha', 'a@co.com', {}, WORKSPACE);
+
+      const selfWrite = (mockFS.writeFile.mock.calls as [string, string][]).find(([p]) =>
+        p.replace(/\\/g, '/').includes('me@co.com.md'),
+      );
+      expect(selfWrite).toBeDefined();
+      const { data } = matter(selfWrite![1]);
+      const directReports = Array.isArray(data['direct_reports'])
+        ? (data['direct_reports'] as string[])
+        : [];
+      expect(directReports.some((l) => l.includes('a@co.com'))).toBe(false);
+    });
+
+    it('9.34: skips direct_reports cleanup when self profile does not exist', async () => {
+      const profileMd = buildProfileMd('a@co.com', ['[[...alpha-context.md|alpha]]']);
+      mockFS.exists.mockImplementation(async (p: string) => {
+        const n = p.replace(/\\/g, '/');
+        if (n.includes('my-teams/members/a@co.com') && !n.includes('archived')) return true;
+        if (n.includes('my-teams/archived') && n.includes('a@co.com.md')) return true;
+        if (n.includes('alpha-members.md')) return true;
+        return false;
+      });
+      mockFS.readFile.mockImplementation(async (p: string) => {
+        const n = p.replace(/\\/g, '/');
+        if (n.includes('alpha-members.md'))
+          return "---\nmembers:\n  - '[[../../members/a@co.com/a@co.com.md|a@co.com]]'\n---\n\n# Team Members\n";
+        if (n.includes('a@co.com/a@co.com.md')) return profileMd;
+        return '';
+      });
+      // No self profile: listFiles returns [] by default (no mock override needed)
+
+      await svc.archiveMember('alpha', 'a@co.com', {}, WORKSPACE);
+
+      // Only the archived profile and team-members file should be written
+      const writtenPaths = (mockFS.writeFile.mock.calls as [string, string][]).map(([p]) =>
+        p.replace(/\\/g, '/'),
+      );
+      expect(writtenPaths.some((p) => p.includes('my-career'))).toBe(false);
+    });
+
+    it('9.34: does not duplicate manager when previous_manager already contains it (dedup)', async () => {
+      const managerLink = '[[../../../my-career/me@co.com.md|me@co.com]]';
+      // Profile already has the current manager present in previous_manager
+      const profileMd = matter.stringify('\n## Notes\n', {
+        email: 'a@co.com',
+        role: 'Engineer',
+        location: 'Remote',
+        relationship: 'direct-report',
+        date_added: '2026-01-01',
+        teams: ['[[...alpha-context.md|alpha]]'],
+        current_manager: managerLink,
+        previous_manager: [managerLink],
+        other_leaderships: [],
+        projects: [],
+      });
+      mockFS.exists.mockImplementation(async (p: string) => {
+        const n = p.replace(/\\/g, '/');
+        if (n.includes('my-teams/members/a@co.com') && !n.includes('archived')) return true;
+        if (n.includes('my-teams/archived') && n.includes('a@co.com.md')) return true;
+        if (n.includes('alpha-members.md')) return true;
+        return false;
+      });
+      mockFS.readFile.mockImplementation(async (p: string) => {
+        const n = p.replace(/\\/g, '/');
+        if (n.includes('alpha-members.md'))
+          return "---\nmembers:\n  - '[[../../members/a@co.com/a@co.com.md|a@co.com]]'\n---\n\n# Team Members\n";
+        if (n.includes('a@co.com/a@co.com.md')) return profileMd;
+        return '';
+      });
+
+      await svc.archiveMember('alpha', 'a@co.com', {}, WORKSPACE);
+
+      const archivedWrite = (mockFS.writeFile.mock.calls as [string, string][]).find(([p]) =>
+        p.replace(/\\/g, '/').includes('archived'),
+      );
+      expect(archivedWrite).toBeDefined();
+      const { data } = matter(archivedWrite![1]);
+      const prev = data['previous_manager'] as string[];
+      expect(prev.filter((l) => l === managerLink)).toHaveLength(1);
+    });
+
+    it('9.34: partial archive (--from/--to) does NOT detach member from team or manager', async () => {
+      const selfProfilePath = `${WORKSPACE}/my-career/me@co.com.md`;
+      mockFS.exists.mockImplementation(async (p: string) => {
+        const n = p.replace(/\\/g, '/');
+        if (n.includes('my-teams/members/a@co.com') && !n.includes('archived')) return true;
+        if (n.includes('1on1s')) return true;
+        if (n.includes('alpha-members.md')) return true;
+        if (n.includes('my-career')) return true;
+        return false;
+      });
+      mockFS.listFiles.mockImplementation(async (p: string) => {
+        const n = p.replace(/\\/g, '/');
+        if (n.includes('my-career')) return [selfProfilePath];
+        if (n.includes('1on1s'))
+          return [`${WORKSPACE}/my-teams/members/a@co.com/1on1s/2023-01-01-note.md`];
+        return [];
+      });
+      mockFS.readFile.mockImplementation(async (p: string) => {
+        const n = p.replace(/\\/g, '/');
+        if (n.includes('alpha-members.md'))
+          return "---\nmembers:\n  - '[[../../members/a@co.com/a@co.com.md|a@co.com]]'\n---\n\n# Team Members\n";
+        if (n.includes('me@co.com.md'))
+          return "---\ndirect_reports:\n  - '[[../my-teams/members/a@co.com/a@co.com.md|a@co.com]]'\n---\n";
+        return '';
+      });
+
+      await svc.archiveMember('alpha', 'a@co.com', { to: '2024-01-01' }, WORKSPACE);
+
+      // No teardown writes: team-members file and self profile must be untouched
+      const writtenPaths = (mockFS.writeFile.mock.calls as [string, string][]).map(([p]) =>
+        p.replace(/\\/g, '/'),
+      );
+      expect(writtenPaths.some((p) => p.includes('alpha-members.md'))).toBe(false);
+      expect(writtenPaths.some((p) => p.includes('my-career'))).toBe(false);
+    });
   });
 
   // ── fireMember ───────────────────────────────────────────────────────────────
 
   describe('fireMember', () => {
     it('archives and adds termination fields', async () => {
-      const profileMd = buildProfileMd('a@co.com', ['alpha']);
+      const profileMd = buildProfileMd('a@co.com', ['[[...alpha-context.md|alpha]]']);
       mockFS.exists.mockImplementation(async (p: string) => {
         const n = p.replace(/\\/g, '/');
         if (n.includes('my-teams/members/a@co.com')) return true;
@@ -668,7 +913,7 @@ describe('TeamService', () => {
     });
 
     it('writes termination_note when note is provided', async () => {
-      const profileMd = buildProfileMd('a@co.com', ['alpha']);
+      const profileMd = buildProfileMd('a@co.com', ['[[...alpha-context.md|alpha]]']);
       mockFS.exists.mockImplementation(async (p: string) => {
         const n = p.replace(/\\/g, '/');
         if (n.includes('my-teams/members/a@co.com')) return true;
@@ -692,7 +937,7 @@ describe('TeamService', () => {
     });
 
     it('does not write termination_note when note is not provided', async () => {
-      const profileMd = buildProfileMd('a@co.com', ['alpha']);
+      const profileMd = buildProfileMd('a@co.com', ['[[...alpha-context.md|alpha]]']);
       mockFS.exists.mockImplementation(async (p: string) => {
         const n = p.replace(/\\/g, '/');
         if (n.includes('my-teams/members/a@co.com')) return true;
@@ -713,6 +958,44 @@ describe('TeamService', () => {
         p.includes('archived'),
       );
       expect(writeCall?.[1]).not.toContain('termination_note');
+    });
+
+    it('9.34: fire preserves all archive cleanup fields (teams:[], previous_manager, current_manager:"")', async () => {
+      const managerLink = '[[../../../my-career/me@co.com.md|me@co.com]]';
+      const profileMd = buildProfileMd('a@co.com', ['[[...alpha-context.md|alpha]]'], managerLink);
+
+      // Stateful archived-profile content so fireMember's re-read sees what
+      // archiveMember actually wrote (exposes regressions where fire overwrites cleanup).
+      let archivedContent = profileMd;
+      mockFS.exists.mockImplementation(async (p: string) => {
+        const n = p.replace(/\\/g, '/');
+        if (n.includes('my-teams/members/a@co.com')) return true;
+        if (n.includes('my-teams/archived') && n.includes('a@co.com.md')) return true;
+        if (n.includes('alpha-members.md')) return true;
+        return false;
+      });
+      mockFS.readFile.mockImplementation(async (p: string) => {
+        const n = p.replace(/\\/g, '/');
+        if (n.includes('alpha-members.md'))
+          return "---\nmembers:\n  - '[[../../members/a@co.com/a@co.com.md|a@co.com]]'\n---\n\n# Team Members\n";
+        if (n.includes('archived') && n.includes('a@co.com.md')) return archivedContent;
+        if (n.includes('a@co.com/a@co.com.md')) return profileMd;
+        return '';
+      });
+      mockFS.writeFile.mockImplementation(async (p: string, content: string) => {
+        if (p.replace(/\\/g, '/').includes('archived')) archivedContent = content;
+      });
+
+      await svc.fireMember('alpha', 'a@co.com', WORKSPACE);
+
+      const { data } = matter(archivedContent);
+      expect(data['archived']).toBe(true);
+      expect(data['teams']).toEqual([]);
+      expect(data['current_manager']).toBe('');
+      expect((data['previous_manager'] as string[]).some((l) => l.includes('me@co.com'))).toBe(
+        true,
+      );
+      expect(data['termination']).toBe(true);
     });
   });
 

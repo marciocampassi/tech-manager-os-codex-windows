@@ -298,6 +298,12 @@ export class TeamService {
     const year = new Date().getFullYear().toString();
     const destDir = path.join(archivedRoot(workspaceRoot), year, normalizedEmail);
 
+    // Capture original path and self path BEFORE the move — the wiki-link for
+    // self-profile direct_reports cleanup must match what addMember originally wrote
+    // (computed from the pre-archive member path, not the archived destination).
+    const originalMemberPath = memberProfilePath(workspaceRoot, normalizedEmail);
+    const selfPath = await this._getSelfProfilePath(workspaceRoot);
+
     const hasDateFilter = options.from !== undefined || options.to !== undefined;
 
     if (hasDateFilter) {
@@ -327,19 +333,52 @@ export class TeamService {
       await this._fs.moveFile(srcDir, destDir);
     }
 
-    // Update frontmatter in the archived profile
+    // Update frontmatter in the archived profile (single batch read-parse-write)
     const archivedProfile = path.join(destDir, `${normalizedEmail}.md`);
     if (await this._fs.exists(archivedProfile)) {
       const content = await this._fs.readFile(archivedProfile);
       const parsed = matter(content);
-      const fm = { ...parsed.data } as ITeamMemberFrontmatter;
-      fm.archived = true;
-      fm.archived_date = todayIso();
+      const fm = { ...parsed.data } as Record<string, unknown>;
+
+      // Archive markers (AC1)
+      fm['archived'] = true;
+      fm['archived_date'] = todayIso();
+
+      // Clear team membership — member is no longer on any active team (AC2 / B6 fix)
+      fm['teams'] = [];
+
+      // Move current_manager into history then clear (AC3)
+      const currentManager = typeof fm['current_manager'] === 'string' ? fm['current_manager'] : '';
+      if (currentManager) {
+        // Coerce existing previous_manager into an array — tolerate a scalar
+        // string (hand-edited frontmatter) so prior history is never dropped.
+        const existing = fm['previous_manager'];
+        const prevManagers = Array.isArray(existing)
+          ? [...(existing as string[])]
+          : typeof existing === 'string' && existing
+            ? [existing]
+            : [];
+        if (!prevManagers.includes(currentManager)) prevManagers.push(currentManager);
+        fm['previous_manager'] = prevManagers;
+      }
+      fm['current_manager'] = '';
+
       await this._fs.writeFile(archivedProfile, matter.stringify(parsed.content, fm));
     }
 
-    // Remove wiki-link from team members file
-    await this._removeWikiLink(slug, normalizedEmail, workspaceRoot);
+    // Relationship teardown only applies to a FULL archive — a date-range
+    // partial archive (--from/--to) keeps the member active, so it must not
+    // detach them from the team roster or their manager's direct_reports.
+    if (!hasDateFilter) {
+      // Remove wiki-link from team members file (uses removeRelation)
+      await this._removeWikiLink(slug, normalizedEmail, workspaceRoot);
+
+      // Reciprocal: remove from self-profile direct_reports (AC4)
+      if (selfPath) {
+        const selfLink = formatWikiLink(originalMemberPath, selfPath, normalizedEmail);
+        await removeRelation(selfPath, 'direct_reports', selfLink, this._fs);
+      }
+    }
   }
 
   async fireMember(
