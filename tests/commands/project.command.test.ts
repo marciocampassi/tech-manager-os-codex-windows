@@ -36,7 +36,11 @@ const mockLinkStakeholders = jest
   .mockResolvedValue({ linked: 1, created: 1 });
 
 const mockListProjects = jest
-  .fn<() => Promise<{ name: string; memberCount: number; stakeholderCount: number }[]>>()
+  .fn<
+    () => Promise<
+      { name: string; memberCount: number; stakeholderCount: number; needsMigration?: boolean }[]
+    >
+  >()
   .mockResolvedValue([]);
 
 const mockSvcInstance = {
@@ -250,5 +254,24 @@ describe('runProjectList', () => {
     expect(writeSpy).toHaveBeenCalledWith(expect.stringContaining('Members'));
     expect(writeSpy).toHaveBeenCalledWith(expect.stringContaining('platform'));
     expect(writeSpy).toHaveBeenCalledWith(expect.stringContaining('mobile'));
+  });
+
+  it('AC8: prints migration warning when any project needs migration', async () => {
+    mockListProjects.mockResolvedValueOnce([
+      { name: 'platform', memberCount: 0, stakeholderCount: 0, needsMigration: true },
+    ]);
+
+    await runProjectList(mockSvcInstance as unknown as SvcType);
+    expect(writeSpy).toHaveBeenCalledWith(expect.stringContaining('--fix-frontmatter'));
+  });
+
+  it('AC8: does not print migration warning when all projects are migrated', async () => {
+    mockListProjects.mockResolvedValueOnce([
+      { name: 'platform', memberCount: 1, stakeholderCount: 0, needsMigration: false },
+    ]);
+
+    await runProjectList(mockSvcInstance as unknown as SvcType);
+    const calls = writeSpy.mock.calls.map((c: unknown[]) => String(c[0]));
+    expect(calls.some((s: string) => s.includes('--fix-frontmatter'))).toBe(false);
   });
 });

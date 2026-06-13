@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { projectService, ProjectService } from '../services/project.service.js';
-import { printError } from '../utils/display.js';
+import { printError, printWarning } from '../utils/display.js';
 import { resolveEmailWithSimilarCheck } from '../utils/email-guard.js';
 import type { IProjectFileOptions } from '../types/project.types.js';
 
@@ -267,6 +267,13 @@ export async function runProjectList(svc: ProjectService): Promise<void> {
   for (const row of rows) {
     process.stdout.write(
       `${padEnd(row.name, 30)}  ${padEnd(String(row.memberCount), 10)}  ${row.stakeholderCount}\n`,
+    );
+  }
+
+  if (rows.some((r) => r.needsMigration)) {
+    printWarning(
+      'Some projects use the old body-section format and show 0 counts. ' +
+        'Run `tmr doctor --fix-frontmatter` to migrate them.',
     );
   }
 }

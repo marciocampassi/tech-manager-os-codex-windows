@@ -1,4 +1,5 @@
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
+import matter from 'gray-matter';
 import { ProjectService } from '../../src/services/project.service.js';
 import type { FileSystemService } from '../../src/services/file-system.service.js';
 import type { EmailResolutionService } from '../../src/services/email-resolution.service.js';
@@ -54,10 +55,36 @@ const NAME = 'platform';
 const NORMALIZED = 'platform-project';
 const OVERVIEW_PATH = `${WS}/my-company/projects/${NORMALIZED}/${NORMALIZED}.md`;
 
-function overviewContent(members: string[] = [], stakeholders: string[] = []): string {
-  const memberLines = members.map((e) => `- [[${e}]]`).join('\n');
-  const stakeholderLines = stakeholders.map((e) => `- [[${e}]]`).join('\n');
-  return `# Team Members\n${memberLines}\n\n# Stakeholders\n${stakeholderLines}\n`;
+/** Project overview file in the 9.33 frontmatter format. */
+function frontmatterOverview(members: string[] = [], stakeholders: string[] = []): string {
+  return matter.stringify('\n# platform-project\n\n## Overview\n', {
+    name: NORMALIZED,
+    type: 'project',
+    date_created: '2026-01-01',
+    members,
+    stakeholders,
+  });
+}
+
+/** Legacy (pre-9.33) overview: body sections, no members/stakeholders frontmatter keys. */
+function legacyOverview(): string {
+  return matter.stringify('\n# platform-project\n\n# Team Members\n\n# Stakeholders\n', {
+    name: NORMALIZED,
+    type: 'project',
+    date_created: '2026-01-01',
+  });
+}
+
+/** A generic resolved entity profile file. */
+function entityProfile(): string {
+  return matter.stringify('\n# profile\n', { email: 'default@co.com' });
+}
+
+/** Returns the last writeFile content for a given absolute path. */
+function lastWriteFor(mockFS: MockFS, target: string): string | undefined {
+  const calls = mockFS.writeFile.mock.calls as [string, string][];
+  const match = [...calls].reverse().find(([p]) => p.replace(/\\/g, '/') === target);
+  return match?.[1];
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -101,13 +128,16 @@ describe('ProjectService', () => {
       );
     });
 
-    it('overview file contains Team Members and Stakeholders sections', async () => {
+    it('overview frontmatter contains members and stakeholders arrays, no body sections', async () => {
       mockFS.exists.mockResolvedValue(false);
       await svc.addProject(NAME, WS);
 
       const written = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
-      expect(written).toContain('# Team Members');
-      expect(written).toContain('# Stakeholders');
+      const { data } = matter(written);
+      expect(Array.isArray(data['members'])).toBe(true);
+      expect(Array.isArray(data['stakeholders'])).toBe(true);
+      expect(written).not.toContain('# Team Members');
+      expect(written).not.toContain('# Stakeholders');
     });
 
     it('does not create a composition file', async () => {
@@ -240,8 +270,12 @@ describe('ProjectService', () => {
 
   describe('linkMember', () => {
     beforeEach(() => {
-      mockFS.exists.mockImplementation(async (p: string) => p.endsWith(`${NORMALIZED}.md`));
-      mockFS.readFile.mockResolvedValue(overviewContent());
+      mockFS.exists.mockResolvedValue(true);
+      mockFS.readFile.mockImplementation(async (p: string) =>
+        p.replace(/\\/g, '/').endsWith(`${NORMALIZED}.md`)
+          ? frontmatterOverview()
+          : entityProfile(),
+      );
     });
 
     it('throws when project does not exist', async () => {
@@ -249,16 +283,14 @@ describe('ProjectService', () => {
       await expect(svc.linkMember(NAME, 'alice@co.com', WS)).rejects.toThrow(/not found/i);
     });
 
-    it('appends wiki-link to overview file', async () => {
-      mockEmailResolution.generateWikiLink.mockReturnValue('[[fake/path|alice@co.com]]');
-
+    it('appends member wiki-link to the overview members frontmatter array', async () => {
       await svc.linkMember(NAME, 'alice@co.com', WS);
 
-      const overviewWrite = (mockFS.writeFile.mock.calls as [string, string][]).find(
-        ([p]) => p.replace(/\\/g, '/') === OVERVIEW_PATH,
-      );
-      expect(overviewWrite).toBeDefined();
-      expect(overviewWrite?.[1]).toContain('[[');
+      const written = lastWriteFor(mockFS, OVERVIEW_PATH);
+      expect(written).toBeDefined();
+      const { data } = matter(written!);
+      expect(Array.isArray(data['members'])).toBe(true);
+      expect((data['members'] as string[]).some((l) => l.includes('alice@co.com'))).toBe(true);
     });
 
     it('normalizes email to lowercase before calling resolve', async () => {
@@ -283,16 +315,16 @@ describe('ProjectService', () => {
       expect(result.created).toBe(false);
     });
 
-    // ── 9.14 tests ──────────────────────────────────────────────────────────────
+    // ── 9.33: reciprocal frontmatter write ────────────────────────────────────────
 
-    it('9.14: writes project back-link to member profile under ## Projects', async () => {
+    it('9.33: writes project back-link to member profile projects frontmatter array', async () => {
       await svc.linkMember(NAME, 'alice@co.com', WS);
 
-      // Single regex verifies ## Projects appears before the wiki-link in the same write
-      expect(mockFS.writeFile).toHaveBeenCalledWith(
-        DEFAULT_LOCATION.absolutePath,
-        expect.stringMatching(/## Projects[\s\S]*\[\[/),
-      );
+      const written = lastWriteFor(mockFS, DEFAULT_LOCATION.absolutePath);
+      expect(written).toBeDefined();
+      const { data } = matter(written!);
+      expect(Array.isArray(data['projects'])).toBe(true);
+      expect((data['projects'] as string[]).some((l) => l.includes(NORMALIZED))).toBe(true);
     });
   });
 
@@ -300,8 +332,12 @@ describe('ProjectService', () => {
 
   describe('linkStakeholder', () => {
     beforeEach(() => {
-      mockFS.exists.mockImplementation(async (p: string) => p.endsWith(`${NORMALIZED}.md`));
-      mockFS.readFile.mockResolvedValue(overviewContent());
+      mockFS.exists.mockResolvedValue(true);
+      mockFS.readFile.mockImplementation(async (p: string) =>
+        p.replace(/\\/g, '/').endsWith(`${NORMALIZED}.md`)
+          ? frontmatterOverview()
+          : entityProfile(),
+      );
     });
 
     it('throws when project does not exist', async () => {
@@ -309,16 +345,14 @@ describe('ProjectService', () => {
       await expect(svc.linkStakeholder(NAME, 'alice@co.com', WS)).rejects.toThrow(/not found/i);
     });
 
-    it('appends to Stakeholders section in overview file', async () => {
-      mockEmailResolution.generateWikiLink.mockReturnValue('[[fake/path|stake@co.com]]');
-
+    it('appends stakeholder wiki-link to the overview stakeholders frontmatter array', async () => {
       await svc.linkStakeholder(NAME, 'stake@co.com', WS);
 
-      const written = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
-      const stakeholderIdx = written.indexOf('# Stakeholders');
-      const linkIdx = written.indexOf('stake@co.com');
-      expect(stakeholderIdx).toBeGreaterThanOrEqual(0);
-      expect(linkIdx).toBeGreaterThan(stakeholderIdx);
+      const written = lastWriteFor(mockFS, OVERVIEW_PATH);
+      expect(written).toBeDefined();
+      const { data } = matter(written!);
+      expect(Array.isArray(data['stakeholders'])).toBe(true);
+      expect((data['stakeholders'] as string[]).some((l) => l.includes('stake@co.com'))).toBe(true);
     });
 
     it('normalizes email to lowercase before calling resolve', async () => {
@@ -327,16 +361,16 @@ describe('ProjectService', () => {
       expect(mockEmailResolution.resolve).toHaveBeenCalledWith('stake@co.com', WS);
     });
 
-    // ── 9.14 tests ──────────────────────────────────────────────────────────────
+    // ── 9.33: reciprocal frontmatter write ────────────────────────────────────────
 
-    it('9.14: writes project back-link to stakeholder profile under ## Projects', async () => {
+    it('9.33: writes project back-link to stakeholder profile projects frontmatter array', async () => {
       await svc.linkStakeholder(NAME, 'stake@co.com', WS);
 
-      // Single regex verifies ## Projects appears before the wiki-link in the same write
-      expect(mockFS.writeFile).toHaveBeenCalledWith(
-        DEFAULT_LOCATION.absolutePath,
-        expect.stringMatching(/## Projects[\s\S]*\[\[/),
-      );
+      const written = lastWriteFor(mockFS, DEFAULT_LOCATION.absolutePath);
+      expect(written).toBeDefined();
+      const { data } = matter(written!);
+      expect(Array.isArray(data['projects'])).toBe(true);
+      expect((data['projects'] as string[]).some((l) => l.includes(NORMALIZED))).toBe(true);
     });
   });
 
@@ -344,8 +378,12 @@ describe('ProjectService', () => {
 
   describe('linkMembers', () => {
     beforeEach(() => {
-      mockFS.exists.mockImplementation(async (p: string) => p.endsWith(`${NORMALIZED}.md`));
-      mockFS.readFile.mockResolvedValue(overviewContent());
+      mockFS.exists.mockResolvedValue(true);
+      mockFS.readFile.mockImplementation(async (p: string) =>
+        p.replace(/\\/g, '/').endsWith(`${NORMALIZED}.md`)
+          ? frontmatterOverview()
+          : entityProfile(),
+      );
     });
 
     it('returns correct linked count for batch', async () => {
@@ -363,6 +401,15 @@ describe('ProjectService', () => {
     it('skips empty strings in email list', async () => {
       const result = await svc.linkMembers(NAME, ['a@co.com', '', 'b@co.com'], WS);
       expect(result.linked).toBe(2);
+    });
+
+    it('9.33: each batch link also writes the reciprocal projects frontmatter', async () => {
+      await svc.linkMembers(NAME, ['a@co.com'], WS);
+
+      const written = lastWriteFor(mockFS, DEFAULT_LOCATION.absolutePath);
+      expect(written).toBeDefined();
+      const { data } = matter(written!);
+      expect((data['projects'] as string[]).some((l) => l.includes(NORMALIZED))).toBe(true);
     });
   });
 
@@ -385,27 +432,53 @@ describe('ProjectService', () => {
     it('only lists directories ending in -project', async () => {
       mockFS.exists.mockResolvedValue(true);
       mockFS.listDirectories.mockResolvedValue(['platform-project', 'random-dir']);
-      mockFS.readFile.mockResolvedValue(overviewContent());
+      mockFS.readFile.mockResolvedValue(frontmatterOverview());
 
       const result = await svc.listProjects(WS);
       expect(result).toHaveLength(1);
       expect(result[0]?.name).toBe('platform-project');
     });
 
-    it('counts members and stakeholders correctly', async () => {
+    it('counts members and stakeholders from frontmatter arrays', async () => {
       mockFS.exists.mockResolvedValue(true);
       mockFS.listDirectories.mockResolvedValue(['platform-project']);
-      mockFS.readFile.mockResolvedValue(overviewContent(['a@co.com', 'b@co.com'], ['s@co.com']));
+      mockFS.readFile.mockResolvedValue(
+        frontmatterOverview(['[[a@co.com]]', '[[b@co.com]]'], ['[[s@co.com]]']),
+      );
 
       const result = await svc.listProjects(WS);
       expect(result[0]).toMatchObject({
         name: 'platform-project',
         memberCount: 2,
         stakeholderCount: 1,
+        needsMigration: false,
       });
     });
 
-    it('returns zero counts when overview file is missing', async () => {
+    it('flags needsMigration when overview lacks members/stakeholders frontmatter', async () => {
+      mockFS.exists.mockResolvedValue(true);
+      mockFS.listDirectories.mockResolvedValue(['platform-project']);
+      mockFS.readFile.mockResolvedValue(legacyOverview());
+
+      const result = await svc.listProjects(WS);
+      expect(result[0]).toMatchObject({
+        name: 'platform-project',
+        memberCount: 0,
+        stakeholderCount: 0,
+        needsMigration: true,
+      });
+    });
+
+    it('does not flag needsMigration for migrated projects with empty arrays', async () => {
+      mockFS.exists.mockResolvedValue(true);
+      mockFS.listDirectories.mockResolvedValue(['platform-project']);
+      mockFS.readFile.mockResolvedValue(frontmatterOverview([], []));
+
+      const result = await svc.listProjects(WS);
+      expect(result[0]?.needsMigration).toBe(false);
+    });
+
+    it('returns zero counts and needsMigration:false when overview file is missing', async () => {
       mockFS.exists
         .mockResolvedValueOnce(true) // my-company/projects/ exists
         .mockResolvedValueOnce(false); // overview does not exist
@@ -416,6 +489,21 @@ describe('ProjectService', () => {
         name: 'platform-project',
         memberCount: 0,
         stakeholderCount: 0,
+        needsMigration: false,
+      });
+    });
+
+    it('returns zero counts and needsMigration:false when YAML parse fails', async () => {
+      mockFS.exists.mockResolvedValue(true);
+      mockFS.listDirectories.mockResolvedValue(['platform-project']);
+      mockFS.readFile.mockResolvedValue('---\n: bad: yaml: [{\n---\nbody\n');
+
+      const result = await svc.listProjects(WS);
+      expect(result[0]).toMatchObject({
+        name: 'platform-project',
+        memberCount: 0,
+        stakeholderCount: 0,
+        needsMigration: false,
       });
     });
   });

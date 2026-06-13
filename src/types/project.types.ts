@@ -3,16 +3,20 @@
  *
  * Directory layout:
  *   my-company/projects/{name}-project/
- *     {name}-project.md    project overview (includes Team Members + Stakeholders sections)
+ *     {name}-project.md    project overview (frontmatter: members[], stakeholders[])
  *     standups/            standup notes
  *     meetings/            meeting notes
  */
 
-/** Frontmatter written into my-company/projects/{name}-project.md */
+/** Frontmatter written into my-company/projects/{name}-project.md (as of Story 9.33) */
 export interface IProjectFrontmatter {
   name: string;
   type: 'project';
   date_created: string;
+  /** Wiki-links to entity profiles linked as team members */
+  members: string[];
+  /** Wiki-links to entity profiles linked as stakeholders */
+  stakeholders: string[];
 }
 
 /** Options for project-level file creation (standup, discussion, presentation) */
@@ -27,6 +31,8 @@ export interface IProjectSummary {
   name: string;
   memberCount: number;
   stakeholderCount: number;
+  /** True when the overview lacks `members`/`stakeholders` frontmatter (pre-9.33 format) */
+  needsMigration?: boolean;
 }
 
 /**

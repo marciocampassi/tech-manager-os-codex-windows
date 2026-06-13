@@ -137,11 +137,15 @@ describe('TemplateService', () => {
       expect(result).toContain('name: platform');
       expect(result).toContain('type: project');
       expect(result).toContain(`date_created: ${DATE}`);
+      expect(result).toContain('members: []');
+      expect(result).toContain('stakeholders: []');
       expect(result).toContain('# platform');
       expect(result).toContain('## Overview');
       expect(result).toContain('## Goals');
       expect(result).toContain('## Timeline');
       expect(result).toContain('## Notes');
+      expect(result).not.toContain('# Team Members');
+      expect(result).not.toContain('# Stakeholders');
     });
   });
 

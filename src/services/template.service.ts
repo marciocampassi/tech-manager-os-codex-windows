@@ -33,6 +33,8 @@ export class TemplateService {
 name: ${name}
 type: project
 date_created: ${date}
+members: []
+stakeholders: []
 ---
 
 # ${name}
@@ -44,10 +46,6 @@ date_created: ${date}
 ## Timeline
 
 ## Notes
-
-# Team Members
-
-# Stakeholders
 `;
   }
 
