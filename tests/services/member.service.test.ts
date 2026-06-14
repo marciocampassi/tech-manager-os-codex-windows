@@ -453,8 +453,12 @@ describe('MemberService', () => {
 
   describe('addMember', () => {
     beforeEach(() => {
-      // Default: profile does not exist yet; careerRoot does not exist
-      mockFS.exists.mockResolvedValue(false);
+      // Default: nothing exists yet EXCEPT team context files — so the team-existence guard
+      // (member add --team) does not reject team-scoped adds. Profile/career/roster paths
+      // still resolve to "missing" so creation logic runs as before.
+      mockFS.exists.mockImplementation(async (p: string) =>
+        p.replace(/\\/g, '/').includes('-context.md'),
+      );
     });
 
     it('MEM-UNIT-001: company scope — writes to my-company/members/<email>/<email>.md', async () => {
@@ -477,9 +481,10 @@ describe('MemberService', () => {
 
     it('MEM-UNIT-003: team scope — frontmatter contains manager wiki-link when career profile exists', async () => {
       // Path-based mock (order-independent): my-career/ exists, member profile does not.
-      mockFS.exists.mockImplementation(async (p: string) =>
-        p.replace(/\\/g, '/').includes('my-career'),
-      );
+      mockFS.exists.mockImplementation(async (p: string) => {
+        const n = p.replace(/\\/g, '/');
+        return n.includes('my-career') || n.includes('-context.md');
+      });
       mockFS.listFiles.mockResolvedValue([`${WS}/my-career/boss@co.com.md`]);
 
       await svc.addMember('joao@company.com', { team: 'backend' }, WS);
@@ -510,9 +515,10 @@ describe('MemberService', () => {
     });
 
     it('MEM-UNIT-010: team-scoped manager value uses wiki-link format, not plain email string', async () => {
-      mockFS.exists.mockImplementation(async (p: string) =>
-        p.replace(/\\/g, '/').includes('my-career'),
-      );
+      mockFS.exists.mockImplementation(async (p: string) => {
+        const n = p.replace(/\\/g, '/');
+        return n.includes('my-career') || n.includes('-context.md');
+      });
       mockFS.listFiles.mockResolvedValue([`${WS}/my-career/boss@co.com.md`]);
 
       await svc.addMember('joao@company.com', { team: 'backend' }, WS);
@@ -523,7 +529,9 @@ describe('MemberService', () => {
 
     it('MEM-UNIT-011: manager is empty string when my-career/ directory does not exist', async () => {
       // First exists(): profile not found; second exists(): careerRoot missing
-      mockFS.exists.mockResolvedValueOnce(false).mockResolvedValueOnce(false);
+      mockFS.exists.mockImplementation(async (p: string) =>
+        p.replace(/\\/g, '/').includes('-context.md'),
+      );
 
       await svc.addMember('joao@company.com', { team: 'backend' }, WS);
 
@@ -576,7 +584,9 @@ describe('MemberService', () => {
     });
 
     it('9.5: team scope writes relationship: direct-report', async () => {
-      mockFS.exists.mockResolvedValueOnce(false).mockResolvedValueOnce(false);
+      mockFS.exists.mockImplementation(async (p: string) =>
+        p.replace(/\\/g, '/').includes('-context.md'),
+      );
       await svc.addMember('joao@company.com', { team: 'backend' }, WS);
 
       const written = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
@@ -634,6 +644,7 @@ describe('MemberService', () => {
       const teamMembersContent = '---\nmembers: []\n---\n\n# Team Members\n';
 
       mockFS.exists.mockImplementation(async (p: string) => {
+        if (p.includes('-context.md')) return true;
         if (p.includes('backend-members.md')) return true;
         return false;
       });
@@ -651,7 +662,9 @@ describe('MemberService', () => {
     });
 
     it('MEM-UNIT-018: team scope — skips team-members update when file does not exist', async () => {
-      mockFS.exists.mockResolvedValue(false);
+      mockFS.exists.mockImplementation(async (p: string) =>
+        p.replace(/\\/g, '/').includes('-context.md'),
+      );
 
       await svc.addMember('jane@co.com', { team: 'backend' }, WS);
 
@@ -679,6 +692,7 @@ describe('MemberService', () => {
 
       mockFS.exists.mockImplementation(async (p: string) => {
         const n = p.replace(/\\/g, '/');
+        if (n.includes('-context.md')) return true;
         if (n.includes('my-teams/members/jane@co.com/jane@co.com.md')) return true;
         if (n.includes('backend-members.md')) return true;
         return false;
@@ -710,6 +724,7 @@ describe('MemberService', () => {
 
       mockFS.exists.mockImplementation(async (p: string) => {
         const n = p.replace(/\\/g, '/');
+        if (n.includes('-context.md')) return true;
         if (n.includes('my-teams/members/jane@co.com/jane@co.com.md')) return true;
         if (n.includes('backend-members.md')) return true;
         return false;
@@ -735,7 +750,9 @@ describe('MemberService', () => {
     // ── 9.29 new tests ────────────────────────────────────────────────────────
 
     it('MEM-UNIT-022: team scope — frontmatter includes previous_manager, other_leaderships, start_date, projects', async () => {
-      mockFS.exists.mockResolvedValue(false);
+      mockFS.exists.mockImplementation(async (p: string) =>
+        p.replace(/\\/g, '/').includes('-context.md'),
+      );
 
       await svc.addMember('joao@company.com', { team: 'backend' }, WS);
 
@@ -748,7 +765,9 @@ describe('MemberService', () => {
     });
 
     it('MEM-UNIT-023: team scope — frontmatter includes teams array with team context wiki-link', async () => {
-      mockFS.exists.mockResolvedValue(false);
+      mockFS.exists.mockImplementation(async (p: string) =>
+        p.replace(/\\/g, '/').includes('-context.md'),
+      );
 
       await svc.addMember('joao@company.com', { team: 'backend' }, WS);
 
@@ -762,6 +781,7 @@ describe('MemberService', () => {
       const selfProfilePath = `${WS}/my-career/me@co.com.md`;
       mockFS.exists.mockImplementation(async (p: string) => {
         const n = p.replace(/\\/g, '/');
+        if (n.includes('-context.md')) return true;
         if (n.includes('my-teams/members/jane@co.com/jane@co.com.md')) return false;
         if (n.includes('my-career')) return true;
         if (n.includes('backend-members.md')) return false;
@@ -785,7 +805,9 @@ describe('MemberService', () => {
     });
 
     it('MEM-UNIT-025: team scope — direct_reports write skipped when my-career/ absent', async () => {
-      mockFS.exists.mockResolvedValue(false);
+      mockFS.exists.mockImplementation(async (p: string) =>
+        p.replace(/\\/g, '/').includes('-context.md'),
+      );
 
       await svc.addMember('jane@co.com', { team: 'backend' }, WS);
 
@@ -820,6 +842,7 @@ describe('MemberService', () => {
 
       mockFS.exists.mockImplementation(async (p: string) => {
         const n = p.replace(/\\/g, '/');
+        if (n.includes('-context.md')) return true;
         if (n.includes('my-teams/members/jane@co.com/jane@co.com.md')) return true;
         if (n.includes('my-career')) return true;
         if (n.includes('backend-members.md')) return false;
@@ -863,9 +886,10 @@ describe('MemberService', () => {
 
     it('allows a non-self email even when a different self profile exists', async () => {
       const selfProfilePath = `${WS}/my-career/me@co.com.md`;
-      mockFS.exists.mockImplementation(async (p: string) =>
-        p.replace(/\\/g, '/').includes('my-career'),
-      );
+      mockFS.exists.mockImplementation(async (p: string) => {
+        const n = p.replace(/\\/g, '/');
+        return n.includes('my-career') || n.includes('-context.md');
+      });
       mockFS.listFiles.mockResolvedValue([selfProfilePath]);
       mockFS.readFile.mockResolvedValue('---\ndirect_reports: []\n---\n');
 
@@ -904,6 +928,43 @@ describe('MemberService', () => {
         ValidationError,
       );
       expect(mockFS.writeFile).not.toHaveBeenCalled();
+    });
+
+    // ── Team-existence guard (member add --team) ────────────────────────────────
+
+    it('rejects --team when the team does not exist: throws ValidationError, writes nothing', async () => {
+      // Nothing exists — in particular the team context file is absent.
+      mockFS.exists.mockResolvedValue(false);
+
+      await expect(svc.addMember('jane@co.com', { team: 'ghost' }, WS)).rejects.toBeInstanceOf(
+        ValidationError,
+      );
+      expect(mockFS.writeFile).not.toHaveBeenCalled();
+      expect(mockFS.createDirectory).not.toHaveBeenCalled();
+    });
+
+    it('allows --team when the team context file exists', async () => {
+      mockFS.exists.mockImplementation(async (p: string) =>
+        p.replace(/\\/g, '/').includes('-context.md'),
+      );
+
+      const result = await svc.addMember('jane@co.com', { team: 'backend' }, WS);
+      expect(result).toEqual({ created: true });
+    });
+
+    it('does not apply the team guard to contractor scope (team is ignored)', async () => {
+      mockFS.exists.mockResolvedValue(false); // no team context file anywhere
+
+      const result = await svc.addMember('ext@agency.com', { team: 'ghost', contractor: true }, WS);
+      expect(result.created).toBe(true);
+    });
+
+    it('teamExists returns true/false based on the team context file', async () => {
+      mockFS.exists.mockImplementation(async (p: string) =>
+        p.replace(/\\/g, '/').includes('my-teams/teams/backend/backend-context.md'),
+      );
+      await expect(svc.teamExists('backend', WS)).resolves.toBe(true);
+      await expect(svc.teamExists('ghost', WS)).resolves.toBe(false);
     });
   });
 

@@ -19,6 +19,7 @@ const mockFindMember = jest
 
 const mockGetInternalDomains = jest.fn<() => Promise<string[]>>().mockResolvedValue([]);
 const mockAppendInternalDomain = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
+const mockTeamExists = jest.fn<() => Promise<boolean>>().mockResolvedValue(true);
 
 const mockMemberServiceInstance = {
   getWorkspaceRoot: mockGetWorkspaceRoot,
@@ -27,6 +28,7 @@ const mockMemberServiceInstance = {
   findMember: mockFindMember,
   getInternalDomains: mockGetInternalDomains,
   appendInternalDomain: mockAppendInternalDomain,
+  teamExists: mockTeamExists,
 };
 
 jest.unstable_mockModule('../../src/services/member.service.js', () => ({
@@ -87,6 +89,7 @@ describe('member command', () => {
     mockGetInternalDomains.mockResolvedValue([]);
     mockPrompt.mockResolvedValue({});
     mockResolveSelfEmail.mockResolvedValue(null);
+    mockTeamExists.mockResolvedValue(true);
   });
 
   afterEach(() => {
@@ -253,6 +256,46 @@ describe('member command', () => {
       expect(mockAddMember).not.toHaveBeenCalled();
       expect(mockPrompt).not.toHaveBeenCalled();
       expect(exitCodeSpy).toHaveBeenCalledWith(1);
+    });
+
+    it('rejects --team when the team does not exist: errors before prompts, never calls addMember', async () => {
+      mockTeamExists.mockResolvedValue(false);
+
+      await runMemberAdd(mockMemberServiceInstance as never, 'jane@co.com', undefined, {
+        team: 'ghost',
+      });
+
+      expect(mockTeamExists).toHaveBeenCalledWith('ghost', '/fake/ws');
+      expect(mockAddMember).not.toHaveBeenCalled();
+      expect(mockPrompt).not.toHaveBeenCalled();
+      expect(exitCodeSpy).toHaveBeenCalledWith(1);
+      const errOutput = stderrSpy.mock.calls.map((c: unknown[]) => c[0]).join('');
+      expect(errOutput).toContain('Team "ghost" does not exist');
+      expect(errOutput).toContain('tmr team create ghost');
+    });
+
+    it('proceeds with --team when the team exists', async () => {
+      mockTeamExists.mockResolvedValue(true);
+      mockPrompt.mockResolvedValue({ name: '', gender: '', role: '', location: '' });
+
+      await runMemberAdd(mockMemberServiceInstance as never, 'jane@co.com', undefined, {
+        team: 'backend',
+      });
+
+      expect(mockAddMember).toHaveBeenCalledWith(
+        'jane@co.com',
+        expect.objectContaining({ team: 'backend' }),
+        '/fake/ws',
+      );
+    });
+
+    it('does not run the team guard when no --team is provided', async () => {
+      mockPrompt.mockResolvedValue({ name: '', gender: '', role: '', location: '' });
+
+      await runMemberAdd(mockMemberServiceInstance as never, 'jane@co.com', undefined, {});
+
+      expect(mockTeamExists).not.toHaveBeenCalled();
+      expect(mockAddMember).toHaveBeenCalled();
     });
   });
 

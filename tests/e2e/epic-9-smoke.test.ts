@@ -149,6 +149,12 @@ describe('Group 1 — Foundation & Workspace (9.1–9.5)', () => {
   });
 
   it('T-04 (9.1): member add creates nested team path with relationship: direct-report', async () => {
+    // The team must exist before a team-scoped member can be added (member-add team guard).
+    mkdirSync(join(WS, 'my-teams', 'teams', 'backend'), { recursive: true });
+    writeFileSync(
+      join(WS, 'my-teams', 'teams', 'backend', 'backend-context.md'),
+      '---\nteam: backend\n---\n',
+    );
     await memberService.addMember(
       'bob@company.com',
       {

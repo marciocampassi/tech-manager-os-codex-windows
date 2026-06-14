@@ -258,6 +258,7 @@ describe('Member Integration', () => {
       const careerDir = path.join(workspace, 'my-career');
       fs.mkdirSync(careerDir, { recursive: true });
       fs.writeFileSync(path.join(careerDir, 'boss@co.com.md'), '---\nemail: boss@co.com\n---\n');
+      await teamSvc.createTeam('backend', workspace);
 
       await memberSvc.addMember('joao@company.com', { team: 'backend' }, workspace);
 
@@ -277,6 +278,7 @@ describe('Member Integration', () => {
 
     it('MEM-INT-003b: createMemberFile routes feedback to existing nested team-scoped profile', async () => {
       // Seed a nested team-scoped profile (addMember with --team)
+      await teamSvc.createTeam('backend', workspace);
       await memberSvc.addMember('joao@company.com', { team: 'backend' }, workspace);
 
       const result = await memberSvc.createMemberFile(
@@ -432,6 +434,7 @@ describe('Member Integration', () => {
     });
 
     it('9.7-INT-004: team-scoped member: my-teams path, 4 subdirs + shared, relationship: direct-report', async () => {
+      await teamSvc.createTeam('backend', workspace);
       await memberSvc.addMember(
         'user@company.com',
         { team: 'backend', location: 'Berlin' },

@@ -52,6 +52,15 @@ export async function runMemberAdd(
       return;
     }
 
+    if (opts.team && !opts.contractor && !(await svc.teamExists(opts.team, ws))) {
+      printError(
+        `Team "${opts.team}" does not exist.`,
+        `Create it first with \`tmr team create ${opts.team}\`, then re-run this command.`,
+      );
+      process.exitCode = 1;
+      return;
+    }
+
     const { name, gender, role, location } = await inquirer.prompt<{
       name: string;
       gender: string;

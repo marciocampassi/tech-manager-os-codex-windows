@@ -116,6 +116,14 @@ export class MemberService {
       }
     }
 
+    // Team scope requires a pre-existing team — adding to a non-existent team would write a
+    // dangling `teams` link (the context file doesn't exist) with no reciprocal roster entry.
+    if (opts.team && !opts.contractor && !(await this.teamExists(opts.team, workspaceRoot))) {
+      throw new ValidationError(
+        `Team "${opts.team}" does not exist. Create it first with \`tmr team create ${opts.team}\`, then add the member.`,
+      );
+    }
+
     const profilePath = opts.contractor
       ? path.join(
           workspaceRoot,
@@ -390,6 +398,17 @@ export class MemberService {
     if (!(await this._fs.exists(careerRoot))) return null;
     const mdFiles = await this._fs.listFiles(careerRoot, '.md');
     return mdFiles.length > 0 ? (mdFiles[0] as string) : null;
+  }
+
+  /**
+   * True when a team exists, keyed on its context file (`my-teams/teams/<slug>/<slug>-context.md`) —
+   * the exact target the member's `teams` wiki-link points at. Used to reject `--team` adds for
+   * non-existent teams (which would otherwise create a dangling link).
+   */
+  async teamExists(teamName: string, workspaceRoot: string): Promise<boolean> {
+    const slug = normalizeSlug(teamName);
+    const contextPath = path.join(workspaceRoot, 'my-teams', 'teams', slug, `${slug}-context.md`);
+    return this._fs.exists(contextPath);
   }
 
   /**
