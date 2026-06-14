@@ -377,6 +377,8 @@ export class InitService {
         '  3. Run /tmr-inbox in Claude Code to process your inbox meeting notes',
         '  4. Run `tmr --help` to explore all commands',
         '',
+        'Upgrading an older vault? Run `tmr doctor --fix-frontmatter` to migrate body links to frontmatter (idempotent).',
+        '',
         'Skills installed:',
         '  /tmr-myself-config      — personalize AI context across your vault',
         '  /tmr-inbox              — process inbox meeting notes into structured entries',

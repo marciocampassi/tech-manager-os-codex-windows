@@ -25,6 +25,24 @@ For a full walkthrough, see [docs/project-overview.md](docs/project-overview.md)
 
 ---
 
+## Upgrading an existing vault
+
+Newer versions of `tmr` store entity relationships (managers, direct reports, team members,
+stakeholders, projects) in YAML **frontmatter** instead of Markdown body sections. If you created
+your vault with an older release, run:
+
+```bash
+tmr doctor --fix-frontmatter
+```
+
+This lifts structural body wiki-links into frontmatter, renames the legacy `manager:` key to
+`current_manager:`, and removes deprecated fields. It is **idempotent** — running it again is a
+safe no-op. Dated lists (`## 1on1s`, `## Feedbacks`, etc.) intentionally stay in the body; only a
+`last_<type>` summary scalar is recorded in frontmatter. Plain `tmr doctor` will warn you when a
+vault still contains legacy body links.
+
+---
+
 ## CLI Command Reference
 
 ### Core
@@ -36,6 +54,7 @@ For a full walkthrough, see [docs/project-overview.md](docs/project-overview.md)
 | `tmr init` | Guided vault setup — profile, leader, teams, members, skills |
 | `tmr init --scaffold-only` | Create files and folders only — skip network operations (offline / CI) |
 | `tmr doctor` | Check environment health: Node.js, Obsidian, Granola, vault, plugins |
+| `tmr doctor --fix-frontmatter` | Migrate a legacy vault's body wiki-links into frontmatter (idempotent) |
 | `tmr update` | Update all installed skills to latest versions |
 | `tmr show <email>` | Display profile for any email (self, team, leadership, company, contractor) |
 

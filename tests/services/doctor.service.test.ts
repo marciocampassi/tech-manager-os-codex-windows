@@ -31,6 +31,14 @@ jest.unstable_mockModule('../../src/services/obsidian-plugin.service.js', () => 
   obsidianPluginService: {},
 }));
 
+// Mock file-system.service directly (Story 9.36 injects it into DoctorService) for the
+// same reason — its fs-extra import would otherwise break the node:fs partial mock above.
+// These health-check tests never touch the migration methods, so a stub is sufficient.
+jest.unstable_mockModule('../../src/services/file-system.service.js', () => ({
+  FileSystemService: class {},
+  fileSystemService: {},
+}));
+
 // ── Dynamic imports (after mocks) ─────────────────────────────────────────────
 
 const { DoctorService } = await import('../../src/services/doctor.service.js');
