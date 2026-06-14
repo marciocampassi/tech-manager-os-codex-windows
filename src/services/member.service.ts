@@ -6,6 +6,7 @@ import { TemplateService, templateService } from './template.service.js';
 import { EmailResolutionService, emailResolutionService } from './email-resolution.service.js';
 import { getWorkspaceRoot as resolveWorkspaceRoot } from '../utils/workspace.js';
 import { validateEmail } from '../utils/validation.js';
+import { ValidationError } from '../errors/tmr-error.js';
 import { formatWikiLink } from '../utils/wiki-link.js';
 import { addRelation, setScalar } from '../utils/frontmatter-relations.js';
 import { normalizeSlug } from '../utils/normalization.js';
@@ -95,6 +96,25 @@ export class MemberService {
   ): Promise<{ created: boolean }> {
     validateEmail(email);
     const normalizedEmail = email.toLowerCase();
+
+    const selfPath = await this._getSelfProfilePath(workspaceRoot);
+    if (selfPath) {
+      const selfFileEmail = path.basename(selfPath, '.md').toLowerCase();
+      let selfFrontmatterEmail = '';
+      try {
+        const selfData = matter(await this._fs.readFile(selfPath)).data as Record<string, unknown>;
+        if (typeof selfData['email'] === 'string') {
+          selfFrontmatterEmail = selfData['email'].trim().toLowerCase();
+        }
+      } catch {
+        // Unreadable/invalid self profile — fall back to the filename check only.
+      }
+      if (selfFileEmail === normalizedEmail || selfFrontmatterEmail === normalizedEmail) {
+        throw new ValidationError(
+          `Cannot add "${normalizedEmail}" as a member — it is your own (self) profile. Manage your own profile with tmr myself.`,
+        );
+      }
+    }
 
     const profilePath = opts.contractor
       ? path.join(

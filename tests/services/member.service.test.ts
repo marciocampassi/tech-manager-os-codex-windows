@@ -3,7 +3,7 @@ import path from 'node:path';
 import matter from 'gray-matter';
 import { MemberService } from '../../src/services/member.service.js';
 import { FILE_TYPE_CONFIG } from '../../src/types/member.types.js';
-import { InvalidEmailError } from '../../src/errors/tmr-error.js';
+import { InvalidEmailError, ValidationError } from '../../src/errors/tmr-error.js';
 import type { FileSystemService } from '../../src/services/file-system.service.js';
 import type { SectionParserService } from '../../src/services/section-parser.service.js';
 import type { EmailResolutionService } from '../../src/services/email-resolution.service.js';
@@ -476,13 +476,11 @@ describe('MemberService', () => {
     });
 
     it('MEM-UNIT-003: team scope — frontmatter contains manager wiki-link when career profile exists', async () => {
-      // Sequence of exists() calls:
-      // 1. profilePath (does not exist yet) → false
-      // 2. careerRoot → true
-      mockFS.exists
-        .mockResolvedValueOnce(false) // profile not yet created
-        .mockResolvedValueOnce(true); // careerRoot exists
-      mockFS.listFiles.mockResolvedValueOnce([`${WS}/my-career/boss@co.com.md`]);
+      // Path-based mock (order-independent): my-career/ exists, member profile does not.
+      mockFS.exists.mockImplementation(async (p: string) =>
+        p.replace(/\\/g, '/').includes('my-career'),
+      );
+      mockFS.listFiles.mockResolvedValue([`${WS}/my-career/boss@co.com.md`]);
 
       await svc.addMember('joao@company.com', { team: 'backend' }, WS);
 
@@ -512,8 +510,10 @@ describe('MemberService', () => {
     });
 
     it('MEM-UNIT-010: team-scoped manager value uses wiki-link format, not plain email string', async () => {
-      mockFS.exists.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
-      mockFS.listFiles.mockResolvedValueOnce([`${WS}/my-career/boss@co.com.md`]);
+      mockFS.exists.mockImplementation(async (p: string) =>
+        p.replace(/\\/g, '/').includes('my-career'),
+      );
+      mockFS.listFiles.mockResolvedValue([`${WS}/my-career/boss@co.com.md`]);
 
       await svc.addMember('joao@company.com', { team: 'backend' }, WS);
 
@@ -532,7 +532,9 @@ describe('MemberService', () => {
     });
 
     it('returns { created: false } when profile already exists', async () => {
-      mockFS.exists.mockResolvedValueOnce(true); // profile exists
+      // Member profile exists; careerRoot has no self file (listFiles default []), so the
+      // self-guard is inert and the existing-profile early-return is exercised.
+      mockFS.exists.mockResolvedValue(true);
 
       const result = await svc.addMember('joao@company.com', {}, WS);
 
@@ -841,6 +843,67 @@ describe('MemberService', () => {
       expect(selfWriteCall).toBeDefined();
       expect(selfWriteCall![1]).toContain('direct_reports');
       expect(selfWriteCall![1]).toContain('jane@co.com');
+    });
+
+    // ── Self-email guard ────────────────────────────────────────────────────────
+
+    it('rejects adding the vault owner own (self) email: throws ValidationError, writes nothing', async () => {
+      const selfProfilePath = `${WS}/my-career/me@co.com.md`;
+      mockFS.exists.mockImplementation(async (p: string) =>
+        p.replace(/\\/g, '/').includes('my-career'),
+      );
+      mockFS.listFiles.mockResolvedValue([selfProfilePath]);
+
+      await expect(svc.addMember('ME@co.com', { team: 'backend' }, WS)).rejects.toBeInstanceOf(
+        ValidationError,
+      );
+      expect(mockFS.writeFile).not.toHaveBeenCalled();
+      expect(mockFS.createDirectory).not.toHaveBeenCalled();
+    });
+
+    it('allows a non-self email even when a different self profile exists', async () => {
+      const selfProfilePath = `${WS}/my-career/me@co.com.md`;
+      mockFS.exists.mockImplementation(async (p: string) =>
+        p.replace(/\\/g, '/').includes('my-career'),
+      );
+      mockFS.listFiles.mockResolvedValue([selfProfilePath]);
+      mockFS.readFile.mockResolvedValue('---\ndirect_reports: []\n---\n');
+
+      const result = await svc.addMember('other@co.com', { team: 'backend' }, WS);
+
+      expect(result).toEqual({ created: true });
+      const wroteMember = (mockFS.writeFile.mock.calls as [string, string][]).some(([p]) =>
+        p.replace(/\\/g, '/').includes('my-teams/members/other@co.com/other@co.com.md'),
+      );
+      expect(wroteMember).toBe(true);
+    });
+
+    it('rejects own (self) email for contractor scope as well', async () => {
+      const selfProfilePath = `${WS}/my-career/me@co.com.md`;
+      mockFS.exists.mockImplementation(async (p: string) =>
+        p.replace(/\\/g, '/').includes('my-career'),
+      );
+      mockFS.listFiles.mockResolvedValue([selfProfilePath]);
+
+      await expect(svc.addMember('me@co.com', { contractor: true }, WS)).rejects.toBeInstanceOf(
+        ValidationError,
+      );
+      expect(mockFS.writeFile).not.toHaveBeenCalled();
+    });
+
+    it('rejects self by frontmatter email even when the profile filename differs', async () => {
+      // Self profile stored as my-career/profile.md with frontmatter email: me@co.com.
+      const selfProfilePath = `${WS}/my-career/profile.md`;
+      mockFS.exists.mockImplementation(async (p: string) =>
+        p.replace(/\\/g, '/').includes('my-career'),
+      );
+      mockFS.listFiles.mockResolvedValue([selfProfilePath]);
+      mockFS.readFile.mockResolvedValue('---\nemail: me@co.com\n---\n');
+
+      await expect(svc.addMember('me@co.com', { team: 'backend' }, WS)).rejects.toBeInstanceOf(
+        ValidationError,
+      );
+      expect(mockFS.writeFile).not.toHaveBeenCalled();
     });
   });
 

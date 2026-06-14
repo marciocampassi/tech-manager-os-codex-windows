@@ -229,6 +229,31 @@ describe('member command', () => {
       const output = stdoutSpy.mock.calls.map((c: unknown[]) => c[0]).join('');
       expect(output).toContain('already exists');
     });
+
+    it('rejects adding own (self) email: errors, sets exit 1, never calls addMember or prompts', async () => {
+      mockResolveSelfEmail.mockResolvedValue('me@co.com');
+
+      await runMemberAdd(mockMemberServiceInstance as never, 'ME@co.com', undefined, {});
+
+      expect(mockAddMember).not.toHaveBeenCalled();
+      expect(mockPrompt).not.toHaveBeenCalled();
+      expect(exitCodeSpy).toHaveBeenCalledWith(1);
+      const errOutput = stderrSpy.mock.calls.map((c: unknown[]) => c[0]).join('');
+      expect(errOutput).toContain('your own profile');
+    });
+
+    it('rejects own email even after the similar-email guard rewrites the input', async () => {
+      // Typo input is corrected to the self-email by the similarity guard; the self-check
+      // must run on the RESOLVED email.
+      mockResolveEmailWithSimilarCheck.mockResolvedValue('me@co.com');
+      mockResolveSelfEmail.mockResolvedValue('me@co.com');
+
+      await runMemberAdd(mockMemberServiceInstance as never, 'mee@co.com', undefined, {});
+
+      expect(mockAddMember).not.toHaveBeenCalled();
+      expect(mockPrompt).not.toHaveBeenCalled();
+      expect(exitCodeSpy).toHaveBeenCalledWith(1);
+    });
   });
 
   // ── Domain-check + contractor routing (FR41 / FR42) ──────────────────────────

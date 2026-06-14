@@ -42,6 +42,16 @@ export async function runMemberAdd(
 
     email = await resolveEmailWithSimilarCheck(email, ws);
 
+    const selfEmail = await resolveSelfEmail(ws);
+    if (selfEmail && selfEmail === email.toLowerCase()) {
+      printError(
+        `"${email}" is your own profile — you can't add yourself as a member.`,
+        'Manage your own profile with tmr myself; use a different email for members.',
+      );
+      process.exitCode = 1;
+      return;
+    }
+
     const { name, gender, role, location } = await inquirer.prompt<{
       name: string;
       gender: string;
@@ -108,9 +118,11 @@ export async function runMemberAdd(
     } catch (err) {
       if (err instanceof InvalidEmailError) {
         printError(`Invalid email address: ${email}`);
+        process.exitCode = 1;
         return;
       }
       printError(err instanceof Error ? err.message : String(err));
+      process.exitCode = 1;
       return;
     }
 
