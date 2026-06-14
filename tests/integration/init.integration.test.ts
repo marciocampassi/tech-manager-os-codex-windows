@@ -8,6 +8,7 @@
  * are captured in a Map to assert correct paths and content end-to-end.
  */
 import { describe, it, expect, jest, afterAll, beforeAll } from '@jest/globals';
+import matter from 'gray-matter';
 
 // ── Mock declarations (must precede dynamic imports) ──────────────────────────
 
@@ -324,6 +325,17 @@ describe('InitCommand integration (Story 2.3 — member collection loop)', () =>
       const paths = Array.from(writtenFiles.keys());
       expect(paths.some((p) => p.includes('my-tasks/this-quarter.md'))).toBe(true);
     });
+
+    it('9.35: each task file has type + owner frontmatter pointing at self profile', () => {
+      const types = ['tasks', 'today', 'this-week', 'this-month', 'this-quarter'];
+      for (const type of types) {
+        const content = writtenFiles.get(`${WORKSPACE}/my-tasks/${type}.md`);
+        expect(content).toBeDefined();
+        const { data } = matter(content as string);
+        expect(data['type']).toBe(type);
+        expect(data['owner']).toContain(USER_EMAIL);
+      }
+    });
   });
 
   describe('Obsidian plugin installation (AC: 3)', () => {
@@ -355,6 +367,22 @@ describe('InitCommand integration (Story 2.3 — member collection loop)', () =>
       const profilePath = `${WORKSPACE}/my-career/${USER_EMAIL}.md`;
       const content = writtenFiles.get(profilePath);
       expect(content).toContain(USER_ROLE);
+    });
+
+    it('9.35: self profile has current_manager set to leader and leadership: []', () => {
+      const content = writtenFiles.get(`${WORKSPACE}/my-career/${USER_EMAIL}.md`);
+      const { data } = matter(content as string);
+      expect(data['current_manager']).toContain(LEADER_EMAIL);
+      expect(data['leadership']).toEqual([]);
+    });
+
+    it('9.35: self profile has the five task-graph scalars', () => {
+      const content = writtenFiles.get(`${WORKSPACE}/my-career/${USER_EMAIL}.md`);
+      const { data } = matter(content as string);
+      for (const key of ['tasks', 'today', 'this_week', 'this_month', 'this_quarter']) {
+        expect(typeof data[key]).toBe('string');
+        expect(data[key] as string).toContain('my-tasks');
+      }
     });
   });
 

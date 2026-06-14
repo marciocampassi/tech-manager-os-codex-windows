@@ -92,7 +92,7 @@ export class LeadershipService {
     opts: IAddLeadershipOptions,
     workspaceRoot: string,
   ): Promise<{ created: boolean }> {
-    const normalizedEmail = email.toLowerCase();
+    const normalizedEmail = email.trim().toLowerCase();
     const profilePath = leadershipProfilePath(workspaceRoot, normalizedEmail);
 
     if (await this._fs.exists(profilePath)) {
@@ -117,9 +117,12 @@ export class LeadershipService {
       const selfFm = matter(selfContent).data as Record<string, unknown>;
       if (!selfFm['current_manager']) {
         await setScalar(selfProfile, 'current_manager', leaderLinkOnMe, this._fs);
-      } else {
+      } else if (selfFm['current_manager'] !== leaderLinkOnMe) {
+        // Different leader (skip-level / upward chain) → record in leadership[].
         await addRelation(selfProfile, 'leadership', leaderLinkOnMe, this._fs);
       }
+      // else: this leader already IS the current_manager — no-op (avoids duplicating
+      // the current manager into leadership[]).
     }
 
     return { created: true };

@@ -162,25 +162,38 @@ export class InitService {
   ): Promise<void> {
     const email = opts.email.trim().toLowerCase();
     const filePath = path.join(vaultPath, 'my-career', `${email}.md`);
-    const fm = {
+
+    const taskLink = (file: string, label: string): string =>
+      formatWikiLink(path.join(vaultPath, 'my-tasks', file), filePath, label);
+
+    const fm: Record<string, unknown> = {
       email,
       name: opts.name,
       role: opts.role,
       relationship: 'self',
       date_added: todayIso(),
+      start_date: '',
+      current_manager: '',
+      previous_manager: [],
+      leadership: [],
+      other_leaderships: [],
+      direct_reports: [],
+      projects: [],
+      tasks: taskLink('tasks.md', 'tasks'),
+      today: taskLink('today.md', 'today'),
+      this_week: taskLink('this-week.md', 'this-week'),
+      this_month: taskLink('this-month.md', 'this-month'),
+      this_quarter: taskLink('this-quarter.md', 'this-quarter'),
     };
-
-    let body = '\n# Career Profile\n\n## Notes\n\n## Goals\n';
 
     if (opts.leaderEmail?.trim()) {
       const leaderEmail = opts.leaderEmail.trim().toLowerCase();
       const leaderFile = path.join(vaultPath, 'my-leadership', leaderEmail, `${leaderEmail}.md`);
-      const leaderLink = formatWikiLink(leaderFile, filePath, leaderEmail);
-      body += `\n## Leadership\n\n- ${leaderLink}\n`;
+      fm.current_manager = formatWikiLink(leaderFile, filePath, leaderEmail);
     }
 
-    const content = matter.stringify(body, fm);
-    await this._fs.writeFile(filePath, content);
+    const body = '\n# Career Profile\n\n## Notes\n\n## Performance Reviews\n';
+    await this._fs.writeFile(filePath, matter.stringify(body, fm));
   }
 
   /**

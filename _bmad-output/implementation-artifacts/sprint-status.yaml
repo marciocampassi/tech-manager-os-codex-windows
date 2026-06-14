@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-27
-last_updated: 2026-06-13 (9-34 done)
+last_updated: 2026-06-14 (9-35 done)
 project: tech-manager-os
 project_key: NOKEY
 tracking_system: file-system
@@ -135,6 +135,6 @@ development_status:
   9-33-project-link-member-stakeholder-frontmatter-both-sides: done
   9-34-team-fire-archive-frontmatter-cleanup-plus-manager-history: done
   # Wave 3 (onboarding + migration):
-  9-35-init-frontmatter-native-self-and-leader-profiles-plus-tasks-goals: backlog
+  9-35-init-frontmatter-native-self-and-leader-profiles-plus-tasks-goals: done
   9-36-tmr-doctor-fix-frontmatter-migration: backlog
   epic-9-retrospective: optional

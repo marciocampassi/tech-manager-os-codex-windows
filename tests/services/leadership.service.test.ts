@@ -295,6 +295,37 @@ describe('LeadershipService', () => {
       expect(selfUpdateCall[1]).toContain('other@co.com');
     });
 
+    it('9.35: does NOT append to leadership[] when self current_manager already IS this leader', async () => {
+      const SELF_CONTENT_SAME_MANAGER = [
+        '---',
+        'email: me@co.com',
+        'current_manager: "[[../my-leadership/boss@co.com/boss@co.com.md|boss@co.com]]"',
+        'leadership: []',
+        '---',
+        '',
+      ].join('\n');
+      mockFS.exists
+        .mockResolvedValueOnce(false) // guard: new contact
+        .mockResolvedValueOnce(true) // careerRoot
+        .mockResolvedValueOnce(true); // profilePath inside addRelation(direct_reports)
+      mockFS.listFiles.mockResolvedValue([SELF_PROFILE]);
+      mockFS.readFile
+        .mockResolvedValueOnce(INITIAL_LEADER_CONTENT) // addRelation reads leader
+        .mockResolvedValueOnce(SELF_CONTENT_SAME_MANAGER); // current_manager check → already this leader
+
+      await svc.addLeadership(EMAIL, {}, WS);
+
+      // direct_reports still written on the leader profile (writeFile[1])
+      const leaderUpdateCall = mockFS.writeFile.mock.calls[1] as [string, string];
+      expect(leaderUpdateCall[0]).toBe(PROFILE_PATH);
+      expect(leaderUpdateCall[1]).toContain('me@co.com');
+      // but NO write to the self profile (no leadership[] append, no current_manager change)
+      const selfWrites = (mockFS.writeFile.mock.calls as [string, string][]).filter(
+        ([p]) => p === SELF_PROFILE,
+      );
+      expect(selfWrites).toHaveLength(0);
+    });
+
     it('LEA-UNIT-034: skips all reciprocals silently when self profile is absent', async () => {
       mockFS.exists
         .mockResolvedValueOnce(false) // guard: new contact

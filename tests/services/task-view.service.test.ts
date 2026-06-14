@@ -93,6 +93,24 @@ describe('TaskViewService', () => {
       expect(result).toBe('');
     });
 
+    it('9.35: strips YAML frontmatter (type/owner) so it does not leak into the view', async () => {
+      mockReadFile.mockResolvedValue(
+        '---\ntype: today\nowner: "[[../my-career/me@co.com.md|me@co.com]]"\n---\n\n# Tasks — Today\n\n- [ ] Do something\n',
+      );
+      const result = await svc.readTaskFile('today', '/workspace');
+      expect(result).not.toContain('type: today');
+      expect(result).not.toContain('owner:');
+      expect(result).not.toMatch(/^---/);
+      expect(result).toContain('# Tasks — Today');
+      expect(result).toContain('- [ ] Do something');
+    });
+
+    it('9.35: returns empty string when file has only frontmatter and no body', async () => {
+      mockReadFile.mockResolvedValue('---\ntype: today\nowner: "x"\n---\n');
+      const result = await svc.readTaskFile('today', '/workspace');
+      expect(result).toBe('');
+    });
+
     it('returns empty string when file does not exist (FileSystemError)', async () => {
       mockReadFile.mockRejectedValue(
         new FileSystemError('ENOENT', 'readFile', '/workspace/my-tasks/today.md'),

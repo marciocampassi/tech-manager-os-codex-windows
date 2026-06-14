@@ -165,16 +165,35 @@ description: Tech Manager OS — ${agentName}
 `;
 }
 
-const TASK_PERIOD_LABELS: Record<TaskPeriod, string> = {
+const TASK_FILE_LABELS: Record<'tasks' | TaskPeriod, string> = {
+  tasks: 'Backlog',
   today: 'Today',
   'this-week': 'This Week',
   'this-month': 'This Month',
   'this-quarter': 'This Quarter',
 };
 
-export function generateTaskFileTemplate(period: TaskPeriod): string {
-  const label = TASK_PERIOD_LABELS[period];
-  return `# Tasks — ${label}\n\n_Run \`tmr process\` to populate this file from your inbox._\n`;
+/**
+ * Renders a `my-tasks/` shell file with frontmatter (`type` + `owner` wiki-link)
+ * so the self-profile's task-graph scalars resolve to real Obsidian nodes.
+ *
+ * @param type - The task file type/period (`tasks`, `today`, `this-week`, `this-month`, `this-quarter`).
+ * @param ownerWikiLink - A wiki-link string pointing at the vault owner's self profile.
+ */
+export function generateTaskFileTemplate(
+  type: 'tasks' | TaskPeriod,
+  ownerWikiLink: string,
+): string {
+  const label = TASK_FILE_LABELS[type];
+  return `---
+type: ${type}
+owner: "${ownerWikiLink}"
+---
+
+# Tasks — ${label}
+
+_Run \`tmr process\` to populate this file from your inbox._
+`;
 }
 
 export function generateAgentStub(agentName: string): string {
