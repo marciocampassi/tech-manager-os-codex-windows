@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
 import which from 'which';
 import matter from 'gray-matter';
@@ -24,6 +24,46 @@ export interface MigrationSummary {
   renamed: number;
   /** Files that could not be read or parsed (e.g. malformed YAML) and were skipped. */
   skipped: number;
+}
+
+/** Result of a `tmr doctor --prune-links` run. */
+export interface LinkRepairSummary {
+  scanned: number;
+  /** Files that had at least one dangling link removed (and were rewritten). */
+  repaired: number;
+  /** Total dangling link entries removed across all files. */
+  removed: number;
+  /** Files that could not be read or parsed (e.g. malformed YAML) and were skipped. */
+  skipped: number;
+}
+
+/**
+ * Frontmatter relation arrays whose wiki-link entries are checked for dangling targets by
+ * `tmr doctor --prune-links`. Scoped to structural/reciprocal relations (decision #7 vocabulary);
+ * scalar relations (`current_manager`) and non-selected arrays are intentionally excluded.
+ */
+export const REPAIRABLE_RELATION_KEYS: ReadonlyArray<string> = [
+  'direct_reports',
+  'leadership',
+  'members',
+  'stakeholders',
+  'projects',
+  'teams',
+];
+
+const WIKILINK_VALUE = /^\s*\[\[([^\]]+?)\]\]\s*$/;
+
+/**
+ * Extracts the target path from a frontmatter wiki-link value (`[[target|display]]` or
+ * `[[target]]`). Returns null for any non-wiki-link string (which must never be pruned).
+ */
+export function parseWikiLinkTarget(value: string): string | null {
+  const m = value.match(WIKILINK_VALUE);
+  if (!m) return null;
+  const inner = m[1];
+  const pipe = inner.indexOf('|');
+  const target = (pipe === -1 ? inner : inner.slice(0, pipe)).trim();
+  return target === '' ? null : target;
 }
 
 // ── Frontmatter migration helpers (Story 9.36) ────────────────────────────────
@@ -733,6 +773,110 @@ export class DoctorService {
     await scan(await this._listEntityProfiles(workspaceRoot), migrateProfileContent);
     await scan(await this._listRosterFiles(workspaceRoot), migrateRosterContent);
     await scan(await this._listProjectOverviews(workspaceRoot), migrateProjectContent);
+
+    return count;
+  }
+
+  // ── Dangling reciprocal-link repair (consistency) ──────────────────────────
+
+  /** True if a wiki-link target resolves to an existing file (tolerating extension-less links). */
+  private async _linkTargetExists(fileDir: string, target: string): Promise<boolean> {
+    if (await this._fs.exists(join(fileDir, target))) return true;
+    // Obsidian-style links may omit the `.md` extension — treat `<target>.md` as a match too.
+    if (!target.endsWith('.md') && (await this._fs.exists(join(fileDir, `${target}.md`)))) {
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Computes the pruned content for a single file: removes frontmatter relation-array entries
+   * that are wiki-links whose target no longer exists. Returns null when nothing changes (so the
+   * file is left byte-for-byte untouched). May throw on malformed YAML — callers isolate that.
+   */
+  private async _pruneFileLinks(
+    file: string,
+    raw: string,
+  ): Promise<{ content: string; removed: number } | null> {
+    const parsed = matter(raw);
+    const data = { ...(parsed.data as Record<string, unknown>) };
+    const fileDir = dirname(file);
+    let removed = 0;
+
+    for (const key of REPAIRABLE_RELATION_KEYS) {
+      const val = data[key];
+      if (!Array.isArray(val)) continue;
+      const kept: unknown[] = [];
+      for (const entry of val) {
+        if (typeof entry === 'string') {
+          const target = parseWikiLinkTarget(entry);
+          if (target && !(await this._linkTargetExists(fileDir, target))) {
+            removed++;
+            continue; // drop dangling entry
+          }
+        }
+        kept.push(entry);
+      }
+      if (kept.length !== val.length) data[key] = kept;
+    }
+
+    if (removed === 0) return null;
+    return { content: matter.stringify(parsed.content, data), removed };
+  }
+
+  /**
+   * Walks every entity / roster / project file and removes dangling reciprocal frontmatter links
+   * (entries pointing at a target file that no longer exists). Idempotent — a second run removes
+   * nothing. Only files that actually change are rewritten.
+   */
+  async pruneDanglingLinks(workspaceRoot: string): Promise<LinkRepairSummary> {
+    let scanned = 0;
+    let repaired = 0;
+    let removed = 0;
+    let skipped = 0;
+
+    const files = [
+      ...(await this._listEntityProfiles(workspaceRoot)),
+      ...(await this._listRosterFiles(workspaceRoot)),
+      ...(await this._listProjectOverviews(workspaceRoot)),
+    ];
+
+    for (const file of files) {
+      scanned++;
+      let result: { content: string; removed: number } | null;
+      try {
+        result = await this._pruneFileLinks(file, await this._fs.readFile(file));
+      } catch {
+        skipped++;
+        continue;
+      }
+      if (result) {
+        await this._fs.writeFile(file, result.content);
+        repaired++;
+        removed += result.removed;
+      }
+    }
+
+    return { scanned, repaired, removed, skipped };
+  }
+
+  /** Read-only scan: counts files that carry at least one dangling reciprocal frontmatter link. */
+  async detectDanglingLinks(workspaceRoot: string): Promise<number> {
+    let count = 0;
+
+    const files = [
+      ...(await this._listEntityProfiles(workspaceRoot)),
+      ...(await this._listRosterFiles(workspaceRoot)),
+      ...(await this._listProjectOverviews(workspaceRoot)),
+    ];
+
+    for (const file of files) {
+      try {
+        if (await this._pruneFileLinks(file, await this._fs.readFile(file))) count++;
+      } catch {
+        /* skip unreadable / unparseable file */
+      }
+    }
 
     return count;
   }

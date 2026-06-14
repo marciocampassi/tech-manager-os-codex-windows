@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
-import type { CheckResult, MigrationSummary } from '../../src/services/doctor.service.js';
+import type {
+  CheckResult,
+  LinkRepairSummary,
+  MigrationSummary,
+} from '../../src/services/doctor.service.js';
 
 // ── Mock declarations ─────────────────────────────────────────────────────────
 
@@ -8,16 +12,24 @@ const mockDetectLegacy = jest.fn<() => Promise<number>>(() => Promise.resolve(0)
 const mockMigrate = jest.fn<() => Promise<MigrationSummary>>(() =>
   Promise.resolve({ scanned: 0, migrated: 0, renamed: 0, skipped: 0 }),
 );
+const mockDetectDangling = jest.fn<() => Promise<number>>(() => Promise.resolve(0));
+const mockPrune = jest.fn<() => Promise<LinkRepairSummary>>(() =>
+  Promise.resolve({ scanned: 0, repaired: 0, removed: 0, skipped: 0 }),
+);
 jest.unstable_mockModule('../../src/services/doctor.service.js', () => ({
   DoctorService: jest.fn(() => ({
     runChecks: mockRunChecks,
     detectLegacyBodyLinks: mockDetectLegacy,
     migrateFrontmatter: mockMigrate,
+    detectDanglingLinks: mockDetectDangling,
+    pruneDanglingLinks: mockPrune,
   })),
   doctorService: {
     runChecks: mockRunChecks,
     detectLegacyBodyLinks: mockDetectLegacy,
     migrateFrontmatter: mockMigrate,
+    detectDanglingLinks: mockDetectDangling,
+    pruneDanglingLinks: mockPrune,
   },
 }));
 
@@ -99,6 +111,8 @@ describe('runDoctor', () => {
     mockGetWorkspacePath.mockReturnValue(undefined);
     mockDetectLegacy.mockResolvedValue(0);
     mockMigrate.mockResolvedValue({ scanned: 0, migrated: 0, renamed: 0, skipped: 0 });
+    mockDetectDangling.mockResolvedValue(0);
+    mockPrune.mockResolvedValue({ scanned: 0, repaired: 0, removed: 0, skipped: 0 });
     process.exitCode = undefined;
     stdoutOutput = '';
     stderrOutput = '';
@@ -332,6 +346,84 @@ describe('runDoctor', () => {
     mockGetWorkspacePath.mockReturnValue(undefined);
     await runDoctor({ plain: false, json: true, fixFrontmatter: true });
     expect(mockMigrate).not.toHaveBeenCalled();
+    const parsed = JSON.parse(stdoutOutput) as { error?: string };
+    expect(parsed.error).toBe('no vault configured');
+    expect(process.exitCode).toBe(1);
+  });
+
+  // ── Dangling-link warning + --prune-links repair ───────────────────────────────
+
+  it('warns when dangling reciprocal links are detected (human mode, vault configured)', async () => {
+    mockRunChecks.mockResolvedValue(allPassing());
+    mockGetWorkspacePath.mockReturnValue('/vault');
+    mockDetectDangling.mockResolvedValue(2);
+    await runDoctor({ plain: true, json: false });
+    const out = strip(stdoutOutput);
+    expect(out).toContain('2 files contain dangling reciprocal links');
+    expect(out).toContain('tmr doctor --prune-links');
+  });
+
+  it('does not warn when no dangling links are detected', async () => {
+    mockRunChecks.mockResolvedValue(allPassing());
+    mockGetWorkspacePath.mockReturnValue('/vault');
+    mockDetectDangling.mockResolvedValue(0);
+    await runDoctor({ plain: true, json: false });
+    expect(strip(stdoutOutput)).not.toContain('dangling reciprocal links');
+  });
+
+  it('skips dangling detection in JSON mode', async () => {
+    mockRunChecks.mockResolvedValue(allPassing());
+    mockGetWorkspacePath.mockReturnValue('/vault');
+    mockDetectDangling.mockResolvedValue(4);
+    await runDoctor({ plain: false, json: true });
+    expect(mockDetectDangling).not.toHaveBeenCalled();
+  });
+
+  it('runs prune and prints a summary when --prune-links is set', async () => {
+    mockGetWorkspacePath.mockReturnValue('/vault');
+    mockPrune.mockResolvedValue({ scanned: 12, repaired: 2, removed: 3, skipped: 0 });
+    await runDoctor({ plain: true, json: false, pruneLinks: true });
+    const out = strip(stdoutOutput);
+    expect(mockPrune).toHaveBeenCalledWith('/vault');
+    expect(mockRunChecks).not.toHaveBeenCalled();
+    expect(out).toContain('Scanned 12 files');
+    expect(out).toContain('removed 3 dangling links from 2 files');
+  });
+
+  it('reports a clean result when --prune-links finds nothing', async () => {
+    mockGetWorkspacePath.mockReturnValue('/vault');
+    mockPrune.mockResolvedValue({ scanned: 7, repaired: 0, removed: 0, skipped: 0 });
+    await runDoctor({ plain: true, json: false, pruneLinks: true });
+    expect(strip(stdoutOutput)).toContain('Scanned 7 files — no dangling links found');
+  });
+
+  it('notes skipped files in the prune summary when some were skipped', async () => {
+    mockGetWorkspacePath.mockReturnValue('/vault');
+    mockPrune.mockResolvedValue({ scanned: 5, repaired: 1, removed: 1, skipped: 2 });
+    await runDoctor({ plain: true, json: false, pruneLinks: true });
+    expect(strip(stdoutOutput)).toContain('2 skipped (unreadable/invalid)');
+  });
+
+  it('emits JSON prune summary with --prune-links --json', async () => {
+    mockGetWorkspacePath.mockReturnValue('/vault');
+    mockPrune.mockResolvedValue({ scanned: 3, repaired: 1, removed: 2, skipped: 0 });
+    await runDoctor({ plain: false, json: true, pruneLinks: true });
+    const parsed = JSON.parse(stdoutOutput) as LinkRepairSummary;
+    expect(parsed).toEqual({ scanned: 3, repaired: 1, removed: 2, skipped: 0 });
+  });
+
+  it('warns and sets exitCode 1 when --prune-links runs without a vault', async () => {
+    mockGetWorkspacePath.mockReturnValue(undefined);
+    await runDoctor({ plain: true, json: false, pruneLinks: true });
+    expect(mockPrune).not.toHaveBeenCalled();
+    expect(strip(stdoutOutput)).toContain('No vault configured');
+    expect(process.exitCode).toBe(1);
+  });
+
+  it('emits JSON (not text) when --prune-links --json runs without a vault', async () => {
+    mockGetWorkspacePath.mockReturnValue(undefined);
+    await runDoctor({ plain: false, json: true, pruneLinks: true });
+    expect(mockPrune).not.toHaveBeenCalled();
     const parsed = JSON.parse(stdoutOutput) as { error?: string };
     expect(parsed.error).toBe('no vault configured');
     expect(process.exitCode).toBe(1);

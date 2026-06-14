@@ -10,10 +10,51 @@ export async function runDoctor(opts: {
   json: boolean;
   tmrVersion?: string;
   fixFrontmatter?: boolean;
+  pruneLinks?: boolean;
 }): Promise<void> {
   const service = new DoctorService(opts.tmrVersion ?? '0.0.0');
 
   try {
+    if (opts.pruneLinks) {
+      const ws = configService.getWorkspacePath();
+      if (!ws) {
+        if (opts.json) {
+          printJson({
+            error: 'no vault configured',
+            scanned: 0,
+            repaired: 0,
+            removed: 0,
+            skipped: 0,
+          });
+        } else {
+          printWarning('No vault configured — run tmr init first.', opts.plain);
+        }
+        process.exitCode = 1;
+        return;
+      }
+      const summary = await service.pruneDanglingLinks(ws);
+      if (opts.json) {
+        printJson(summary);
+        return;
+      }
+      const skippedNote =
+        summary.skipped > 0 ? `, ${summary.skipped} skipped (unreadable/invalid)` : '';
+      if (summary.removed === 0) {
+        printSuccess(
+          `Scanned ${summary.scanned} files — no dangling links found${skippedNote}.`,
+          opts.plain,
+        );
+      } else {
+        printSuccess(
+          `Scanned ${summary.scanned} files, removed ${summary.removed} dangling ` +
+            `link${summary.removed === 1 ? '' : 's'} from ${summary.repaired} ` +
+            `file${summary.repaired === 1 ? '' : 's'}${skippedNote}.`,
+          opts.plain,
+        );
+      }
+      return;
+    }
+
     if (opts.fixFrontmatter) {
       const ws = configService.getWorkspacePath();
       if (!ws) {
@@ -93,6 +134,17 @@ export async function runDoctor(opts: {
             opts.plain,
           );
         }
+
+        // Story 9.x: warn when frontmatter relations point at files that no longer exist
+        // (dangling reciprocal links from a failed write or a manually deleted profile).
+        const dangling = await service.detectDanglingLinks(ws);
+        if (dangling > 0) {
+          printWarning(
+            `${dangling} files contain dangling reciprocal links (targets no longer exist).\n` +
+              '  Run `tmr doctor --prune-links` to remove them.',
+            opts.plain,
+          );
+        }
       }
     }
 
@@ -110,14 +162,26 @@ export function createDoctorCommand(tmrVersion: string): Command {
   return new Command('doctor')
     .description('check environment health — Node.js, tmr, vault, Obsidian, Granola, Google Drive')
     .option('--fix-frontmatter', 'migrate legacy body-style wiki-links into frontmatter')
+    .option(
+      '--prune-links',
+      'remove dangling reciprocal frontmatter links (targets that no longer exist)',
+    )
     .addHelpText(
       'after',
-      '\nExamples:\n  tmr doctor\n  tmr --json doctor\n  tmr --plain doctor\n  tmr doctor --fix-frontmatter\n',
+      '\nExamples:\n  tmr doctor\n  tmr --json doctor\n  tmr --plain doctor\n  tmr doctor --fix-frontmatter\n  tmr doctor --prune-links\n',
     )
-    .action(async (localOpts: { fixFrontmatter?: boolean }, command: Command) => {
-      const globals = command.parent?.opts() as { plain?: boolean; json?: boolean } | undefined;
-      const plain = globals?.plain ?? false;
-      const json = globals?.json ?? false;
-      await runDoctor({ plain, json, tmrVersion, fixFrontmatter: localOpts?.fixFrontmatter });
-    });
+    .action(
+      async (localOpts: { fixFrontmatter?: boolean; pruneLinks?: boolean }, command: Command) => {
+        const globals = command.parent?.opts() as { plain?: boolean; json?: boolean } | undefined;
+        const plain = globals?.plain ?? false;
+        const json = globals?.json ?? false;
+        await runDoctor({
+          plain,
+          json,
+          tmrVersion,
+          fixFrontmatter: localOpts?.fixFrontmatter,
+          pruneLinks: localOpts?.pruneLinks,
+        });
+      },
+    );
 }

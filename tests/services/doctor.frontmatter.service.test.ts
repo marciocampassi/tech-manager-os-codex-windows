@@ -13,8 +13,13 @@ jest.unstable_mockModule('../../src/services/config.service.js', () => ({
 
 // ── Dynamic import (after mocks) ──────────────────────────────────────────────
 
-const { DoctorService, migrateProfileContent, migrateProjectContent, migrateRosterContent } =
-  await import('../../src/services/doctor.service.js');
+const {
+  DoctorService,
+  migrateProfileContent,
+  migrateProjectContent,
+  migrateRosterContent,
+  parseWikiLinkTarget,
+} = await import('../../src/services/doctor.service.js');
 
 // ── In-memory fake FileSystemService ──────────────────────────────────────────
 //
@@ -591,5 +596,200 @@ describe('DoctorService.migrateFrontmatter / detectLegacyBodyLinks', () => {
     expect(summary.scanned).toBe(2);
     expect(summary.migrated).toBe(1);
     expect(summary.skipped).toBe(1);
+  });
+});
+
+// ── parseWikiLinkTarget (pure) ────────────────────────────────────────────────
+
+describe('parseWikiLinkTarget', () => {
+  it('extracts the target path from a piped wiki-link', () => {
+    expect(parseWikiLinkTarget('[[../m/x.md|x@co.com]]')).toBe('../m/x.md');
+  });
+
+  it('extracts the target from a bare (display-less) wiki-link', () => {
+    expect(parseWikiLinkTarget('[[../m/x.md]]')).toBe('../m/x.md');
+  });
+
+  it('trims surrounding whitespace around the value and target', () => {
+    expect(parseWikiLinkTarget('  [[ ../m/x.md | x ]]  ')).toBe('../m/x.md');
+  });
+
+  it('returns null for a non-wiki-link string', () => {
+    expect(parseWikiLinkTarget('just a freeform note')).toBeNull();
+    expect(parseWikiLinkTarget('')).toBeNull();
+    expect(parseWikiLinkTarget('[[|only-display]]')).toBeNull();
+  });
+});
+
+// ── DoctorService dangling-link repair ────────────────────────────────────────
+
+describe('DoctorService.pruneDanglingLinks / detectDanglingLinks', () => {
+  const ws = '/vault';
+  let fake: FakeFs;
+  let service: InstanceType<typeof DoctorService>;
+
+  beforeEach(() => {
+    fake = new FakeFs();
+    service = new DoctorService('1.0.0', asFs(fake));
+  });
+
+  function selfWith(directReports: string[]): void {
+    fake.set(
+      join(ws, 'my-career', 'me@co.com.md'),
+      [
+        '---',
+        'email: me@co.com',
+        'direct_reports:',
+        ...directReports.map((l) => `  - "${l}"`),
+        '---',
+        '',
+        '## Notes',
+        '',
+        'keep me',
+        '',
+      ].join('\n'),
+    );
+  }
+
+  function seedMember(email: string, relations = ''): void {
+    fake.set(
+      join(ws, 'my-teams', 'members', email, `${email}.md`),
+      ['---', `email: ${email}`, relations, '---', ''].join('\n'),
+    );
+  }
+
+  it('removes a dangling entry while keeping the valid one and reports an accurate summary', async () => {
+    selfWith([
+      '[[../my-teams/members/r@co.com/r@co.com.md|r@co.com]]', // exists
+      '[[../my-teams/members/ghost@co.com/ghost@co.com.md|ghost@co.com]]', // missing
+    ]);
+    seedMember('r@co.com');
+
+    const summary = await service.pruneDanglingLinks(ws);
+    expect(summary).toEqual({ scanned: 2, repaired: 1, removed: 1, skipped: 0 });
+
+    const self = matter(fake.get(join(ws, 'my-career', 'me@co.com.md'))!);
+    expect(self.data['direct_reports']).toEqual([
+      '[[../my-teams/members/r@co.com/r@co.com.md|r@co.com]]',
+    ]);
+    // Body content is preserved.
+    expect(self.content).toContain('keep me');
+  });
+
+  it('is idempotent — a second run removes nothing', async () => {
+    selfWith(['[[../my-teams/members/ghost@co.com/ghost@co.com.md|ghost@co.com]]']);
+    const first = await service.pruneDanglingLinks(ws);
+    expect(first.removed).toBe(1);
+    const second = await service.pruneDanglingLinks(ws);
+    expect(second.removed).toBe(0);
+    expect(second.repaired).toBe(0);
+  });
+
+  it('never removes valid links or non-wiki-link strings', async () => {
+    fake.set(
+      join(ws, 'my-career', 'me@co.com.md'),
+      [
+        '---',
+        'email: me@co.com',
+        'projects:',
+        '  - "[[../my-company/projects/apollo/apollo.md|apollo]]"',
+        '  - "just a freeform note"',
+        '---',
+        '',
+      ].join('\n'),
+    );
+    fake.set(
+      join(ws, 'my-company', 'projects', 'apollo', 'apollo.md'),
+      '---\nproject: apollo\n---\n',
+    );
+
+    const summary = await service.pruneDanglingLinks(ws);
+    expect(summary.removed).toBe(0);
+    expect(summary.repaired).toBe(0);
+    const self = matter(fake.get(join(ws, 'my-career', 'me@co.com.md'))!);
+    expect(self.data['projects']).toEqual([
+      '[[../my-company/projects/apollo/apollo.md|apollo]]',
+      'just a freeform note',
+    ]);
+  });
+
+  it('tolerates extension-less wiki-link targets (Obsidian style)', async () => {
+    fake.set(
+      join(ws, 'my-career', 'me@co.com.md'),
+      [
+        '---',
+        'email: me@co.com',
+        'teams:',
+        '  - "[[../my-teams/teams/backend/backend-context|backend]]"',
+        '---',
+        '',
+      ].join('\n'),
+    );
+    fake.set(
+      join(ws, 'my-teams', 'teams', 'backend', 'backend-context.md'),
+      '---\nteam: backend\n---\n',
+    );
+
+    const summary = await service.pruneDanglingLinks(ws);
+    expect(summary.removed).toBe(0);
+  });
+
+  it('prunes dangling members/stakeholders on a project overview', async () => {
+    fake.set(
+      join(ws, 'my-company', 'projects', 'apollo', 'apollo.md'),
+      [
+        '---',
+        'project: apollo',
+        'members:',
+        '  - "[[../../members/a@co.com/a@co.com.md|a@co.com]]"', // missing
+        'stakeholders:',
+        '  - "[[../../members/s@co.com/s@co.com.md|s@co.com]]"', // missing
+        '---',
+        '',
+      ].join('\n'),
+    );
+
+    const summary = await service.pruneDanglingLinks(ws);
+    expect(summary.removed).toBe(2);
+    expect(summary.repaired).toBe(1);
+    const project = matter(fake.get(join(ws, 'my-company', 'projects', 'apollo', 'apollo.md'))!);
+    expect(project.data['members']).toEqual([]);
+    expect(project.data['stakeholders']).toEqual([]);
+  });
+
+  it('skips a file with malformed YAML instead of aborting the run', async () => {
+    selfWith(['[[../my-teams/members/ghost@co.com/ghost@co.com.md|ghost@co.com]]']);
+    fake.set(
+      join(ws, 'my-teams', 'members', 'bad@co.com', 'bad@co.com.md'),
+      ['---', 'email: "unterminated', 'broken: [a, b', '---', ''].join('\n'),
+    );
+
+    const summary = await service.pruneDanglingLinks(ws);
+    expect(summary.scanned).toBe(2);
+    expect(summary.repaired).toBe(1);
+    expect(summary.removed).toBe(1);
+    expect(summary.skipped).toBe(1);
+  });
+
+  it('returns a zero summary for an empty vault', async () => {
+    expect(await service.pruneDanglingLinks(ws)).toEqual({
+      scanned: 0,
+      repaired: 0,
+      removed: 0,
+      skipped: 0,
+    });
+    expect(await service.detectDanglingLinks(ws)).toBe(0);
+  });
+
+  it('detectDanglingLinks counts files with at least one dangling link', async () => {
+    selfWith([
+      '[[../my-teams/members/r@co.com/r@co.com.md|r@co.com]]',
+      '[[../my-teams/members/ghost@co.com/ghost@co.com.md|ghost@co.com]]',
+    ]);
+    seedMember('r@co.com');
+    expect(await service.detectDanglingLinks(ws)).toBe(1);
+    // Read-only: the file is not rewritten.
+    const self = matter(fake.get(join(ws, 'my-career', 'me@co.com.md'))!);
+    expect(self.data['direct_reports']).toHaveLength(2);
   });
 });
