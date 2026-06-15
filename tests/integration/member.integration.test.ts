@@ -7,6 +7,7 @@
 import os from 'node:os';
 import path from 'node:path';
 import fs from 'fs-extra';
+import matter from 'gray-matter';
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
 
 // Mock configService — workspace path is supplied directly in tests
@@ -72,7 +73,9 @@ describe('Member Integration', () => {
 
     const fileContent = fs.readFileSync(result.filePath, 'utf8');
     expect(fileContent).toContain('type: 1on1');
-    expect(fileContent).toContain('member: john@co.com');
+    // Story 9.31: dated file carries a `subject` wiki-link to the member (not `member:`)
+    expect(fileContent).toContain('subject:');
+    expect(fileContent).toContain('john@co.com');
     expect(fileContent).toContain('date: 2026-03-07');
     expect(fileContent).toContain('## Check-in');
 
@@ -80,6 +83,8 @@ describe('Member Integration', () => {
     const profileContent = fs.readFileSync(result.profilePath, 'utf8');
     expect(profileContent).toContain('[[1on1s/2026-03-07-1on1-john@co.com.md]]');
     expect(profileContent).toContain('## 1on1s');
+    // Story 9.31: last_1on1 recency scalar set on the member profile
+    expect(matter(profileContent).data['last_1on1']).toBe('2026-03-07');
   });
 
   // ── feedback ─────────────────────────────────────────────────────────────────
@@ -96,12 +101,24 @@ describe('Member Integration', () => {
     const fileContent = fs.readFileSync(result.filePath, 'utf8');
     expect(fileContent).toContain('type: feedback');
     expect(fileContent).toContain('## Situation');
+    // Story 9.31 (B5): feedback frontmatter carries a `from` wiki-link to the reviewer
+    expect(fileContent).toContain('from:');
+    expect(fileContent).toContain('reviewer@co.com');
 
     // feedbacks/ subdir, year-month prefix, reviewer-email-member-email order
     const profileContent = fs.readFileSync(result.profilePath, 'utf8');
     expect(profileContent).toContain(
       '[[feedbacks/2026-03-feedback-reviewer@co.com-john@co.com.md]]',
     );
+    // Story 9.31: last_feedback recency scalar set on the member profile
+    expect(matter(profileContent).data['last_feedback']).toBe('2026-03');
+
+    // Story 9.31 (B5): reviewer stub profile auto-created when absent
+    expect(
+      fs.existsSync(
+        path.join(workspace, 'my-company', 'members', 'reviewer@co.com', 'reviewer@co.com.md'),
+      ),
+    ).toBe(true);
   });
 
   // ── assessment ───────────────────────────────────────────────────────────────
@@ -241,6 +258,7 @@ describe('Member Integration', () => {
       const careerDir = path.join(workspace, 'my-career');
       fs.mkdirSync(careerDir, { recursive: true });
       fs.writeFileSync(path.join(careerDir, 'boss@co.com.md'), '---\nemail: boss@co.com\n---\n');
+      await teamSvc.createTeam('backend', workspace);
 
       await memberSvc.addMember('joao@company.com', { team: 'backend' }, workspace);
 
@@ -260,6 +278,7 @@ describe('Member Integration', () => {
 
     it('MEM-INT-003b: createMemberFile routes feedback to existing nested team-scoped profile', async () => {
       // Seed a nested team-scoped profile (addMember with --team)
+      await teamSvc.createTeam('backend', workspace);
       await memberSvc.addMember('joao@company.com', { team: 'backend' }, workspace);
 
       const result = await memberSvc.createMemberFile(
@@ -271,7 +290,9 @@ describe('Member Integration', () => {
 
       expect(fs.existsSync(result.filePath)).toBe(true);
       // Routed to the nested team profile
-      expect(result.profilePath).toContain('my-teams/members/joao@company.com/joao@company.com.md');
+      expect(result.profilePath.replace(/\\/g, '/')).toContain(
+        'my-teams/members/joao@company.com/joao@company.com.md',
+      );
       const profileContent = fs.readFileSync(result.profilePath, 'utf8');
       expect(profileContent).toContain('[[feedbacks/');
     });
@@ -291,7 +312,7 @@ describe('Member Integration', () => {
       const profileContent = fs.readFileSync(result.profilePath, 'utf8');
       expect(profileContent).toContain('## Feedbacks');
       expect(profileContent).toContain('[[feedbacks/');
-      expect(result.profilePath).toContain(
+      expect(result.profilePath.replace(/\\/g, '/')).toContain(
         'my-company/members/joao@company.com/joao@company.com.md',
       );
     });
@@ -340,7 +361,9 @@ describe('Member Integration', () => {
       expect(entries).toContain('joao@company.com');
       expect(entries).not.toContain('JOAO@COMPANY.COM');
       // Feedback appended to the correct nested profile (feedbacks/ subdir)
-      expect(result.profilePath).toContain('joao@company.com/joao@company.com.md');
+      expect(result.profilePath.replace(/\\/g, '/')).toContain(
+        'joao@company.com/joao@company.com.md',
+      );
       const profileContent = fs.readFileSync(result.profilePath, 'utf8');
       expect(profileContent).toContain('[[feedbacks/');
     });
@@ -389,7 +412,9 @@ describe('Member Integration', () => {
 
       const content = fs.readFileSync(profilePath, 'utf8');
       expect(content).toContain('relationship: contractor');
-      expect(content).not.toContain('manager:');
+      // Story 9.29: contractor profiles now include current_manager (empty string), not bare 'manager:'
+      expect(content).not.toContain('\nmanager:');
+      expect(content).toContain('current_manager:');
       expect(content).toContain('location: Berlin');
     });
 
@@ -409,6 +434,7 @@ describe('Member Integration', () => {
     });
 
     it('9.7-INT-004: team-scoped member: my-teams path, 4 subdirs + shared, relationship: direct-report', async () => {
+      await teamSvc.createTeam('backend', workspace);
       await memberSvc.addMember(
         'user@company.com',
         { team: 'backend', location: 'Berlin' },

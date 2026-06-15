@@ -10,9 +10,28 @@ const mockAddPerformanceReview = jest
     profilePath: '/fake/ws/my-career/me@co.com.md',
   });
 
+const mockSetManager = jest
+  .fn<
+    () => Promise<{
+      selfPath: string;
+      leaderPath: string;
+      newManagerEmail: string;
+      previousManagerEmail: string | null;
+      changed: boolean;
+    }>
+  >()
+  .mockResolvedValue({
+    selfPath: '/fake/ws/my-career/me@co.com.md',
+    leaderPath: '/fake/ws/my-leadership/chef@co.com/chef@co.com.md',
+    newManagerEmail: 'chef@co.com',
+    previousManagerEmail: 'marlon@co.com',
+    changed: true,
+  });
+
 const mockMyselfServiceInstance = {
   getWorkspaceRoot: mockGetWorkspaceRoot,
   addPerformanceReview: mockAddPerformanceReview,
+  setManager: mockSetManager,
 };
 
 jest.unstable_mockModule('../../src/services/myself.service.js', () => ({
@@ -22,7 +41,7 @@ jest.unstable_mockModule('../../src/services/myself.service.js', () => ({
 
 // ── Dynamic imports (after mocks) ─────────────────────────────────────────────
 
-const { runMyselfAddPerformanceReview, createMyselfCommand } =
+const { runMyselfAddPerformanceReview, runMyselfSetManager, createMyselfCommand } =
   await import('../../src/commands/myself.command.js');
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -94,6 +113,46 @@ describe('myself command', () => {
     });
   });
 
+  describe('runMyselfSetManager', () => {
+    it('prints a success summary including the new and previous manager', async () => {
+      await runMyselfSetManager(mockMyselfServiceInstance as never, 'chef@co.com');
+
+      expect(mockSetManager).toHaveBeenCalledWith('chef@co.com', '/fake/ws');
+      expect(stdoutSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Current manager set to chef@co.com'),
+      );
+      expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('marlon@co.com'));
+      expect(process.exitCode).toBe(0);
+    });
+
+    it('prints a no-change notice when already the current manager', async () => {
+      mockSetManager.mockResolvedValueOnce({
+        selfPath: '/fake/ws/my-career/me@co.com.md',
+        leaderPath: '/fake/ws/my-leadership/chef@co.com/chef@co.com.md',
+        newManagerEmail: 'chef@co.com',
+        previousManagerEmail: null,
+        changed: false,
+      });
+
+      await runMyselfSetManager(mockMyselfServiceInstance as never, 'chef@co.com');
+
+      expect(stdoutSpy).toHaveBeenCalledWith(
+        expect.stringContaining('already your current manager'),
+      );
+    });
+
+    it('prints error and sets exitCode=1 on failure', async () => {
+      mockSetManager.mockRejectedValueOnce(
+        new Error('Leader "chef@co.com" not found in my-leadership/.'),
+      );
+
+      await runMyselfSetManager(mockMyselfServiceInstance as never, 'chef@co.com');
+
+      expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining('not found in my-leadership'));
+      expect(process.exitCode).toBe(1);
+    });
+  });
+
   // ── createMyselfCommand CLI wiring ───────────────────────────────────────────
 
   describe('createMyselfCommand', () => {
@@ -109,6 +168,13 @@ describe('myself command', () => {
       await cmd.parseAsync(['add', 'performance-review'], { from: 'user' });
 
       expect(mockAddPerformanceReview).toHaveBeenCalledWith({ date: undefined }, '/fake/ws');
+    });
+
+    it('routes `set-manager <email>` to setManager', async () => {
+      const cmd = createMyselfCommand();
+      await cmd.parseAsync(['set-manager', 'chef@co.com'], { from: 'user' });
+
+      expect(mockSetManager).toHaveBeenCalledWith('chef@co.com', '/fake/ws');
     });
   });
 });

@@ -1,4 +1,5 @@
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
+import path from 'node:path';
 
 const mockEnsureDir = jest.fn<() => Promise<void>>();
 const mockReadFile = jest.fn<() => Promise<unknown>>();
@@ -394,7 +395,7 @@ describe('FileSystemService — listFiles', () => {
   it('returns absolute paths for all files in the directory', async () => {
     mockReaddir.mockResolvedValue([makeDirent('a.md'), makeDirent('b.md')]);
     const result = await service.listFiles('/inbox');
-    expect(result).toEqual(['/inbox/a.md', '/inbox/b.md']);
+    expect(result).toEqual([path.join('/inbox', 'a.md'), path.join('/inbox', 'b.md')]);
   });
 
   it('filters by extension when provided', async () => {
@@ -404,13 +405,13 @@ describe('FileSystemService — listFiles', () => {
       makeDirent('other.md'),
     ]);
     const result = await service.listFiles('/inbox', '.md');
-    expect(result).toEqual(['/inbox/note.md', '/inbox/other.md']);
+    expect(result).toEqual([path.join('/inbox', 'note.md'), path.join('/inbox', 'other.md')]);
   });
 
   it('excludes directories from results', async () => {
     mockReaddir.mockResolvedValue([makeDirent('file.md', true), makeDirent('subdir', false)]);
     const result = await service.listFiles('/inbox');
-    expect(result).toEqual(['/inbox/file.md']);
+    expect(result).toEqual([path.join('/inbox', 'file.md')]);
   });
 
   it('passes { withFileTypes: true } to readdir', async () => {

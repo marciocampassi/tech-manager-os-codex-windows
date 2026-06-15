@@ -282,7 +282,6 @@ export interface NameAndEmailAnswers {
 
 export interface RoleAndCompanyAnswers {
   role: string;
-  company: string;
 }
 
 /**
@@ -316,9 +315,9 @@ export async function promptNameAndEmail(): Promise<NameAndEmailAnswers> {
 }
 
 /**
- * Prompts for the user's role and company.
- * Called after `promptNameAndEmail` and `promptAdditionalDomains` so that
- * the domain prompt fires immediately after email collection.
+ * Prompts for the user's role / title.
+ * Called after `promptNameAndEmail` and `promptAdditionalDomains`.
+ * Company domain is inferred from the work email in `InitCommand.run()` — not prompted here.
  */
 export async function promptRoleAndCompany(): Promise<RoleAndCompanyAnswers> {
   return inquirer.prompt<RoleAndCompanyAnswers>([
@@ -328,13 +327,6 @@ export async function promptRoleAndCompany(): Promise<RoleAndCompanyAnswers> {
       message: 'Your current role / title:',
       validate: (v: string): ValidateResult =>
         v.trim().length > 0 ? true : 'Role cannot be empty',
-    },
-    {
-      type: 'input',
-      name: 'company',
-      message: 'Your company / domain (e.g. acme.com):',
-      validate: (v: string): ValidateResult =>
-        v.trim().length > 0 ? true : 'Company cannot be empty',
     },
   ]);
 }

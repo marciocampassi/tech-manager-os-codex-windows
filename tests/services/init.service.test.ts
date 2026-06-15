@@ -1,4 +1,5 @@
 import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
+import matter from 'gray-matter';
 import path from 'node:path';
 import { homedir } from 'node:os';
 import * as fs from 'node:fs';
@@ -119,7 +120,7 @@ describe('InitService', () => {
   describe('scaffold', () => {
     // ── INIT-UNIT-001 ──────────────────────────────────────────────────────────
 
-    it('INIT-UNIT-001: creates all 12 required directories (positive set)', async () => {
+    it('INIT-UNIT-001: creates all required directories (positive set)', async () => {
       await svc.scaffold(WS);
 
       const dirs = (mockFS.createDirectory.mock.calls as [string][]).map((c) =>
@@ -136,6 +137,7 @@ describe('InitService', () => {
         path.join('my-company', 'projects'),
         'my-leadership',
         'my-career',
+        path.join('my-career', 'performance-reviews'),
         'knowledge-base',
         path.join('.claude', 'skills'),
         path.join('.cursor', 'rules', 'tmr'),
@@ -158,9 +160,9 @@ describe('InitService', () => {
       expect(dirs).not.toContain(path.join(WS, 'my-teams', 'feedback-templates'));
     });
 
-    it('creates exactly 14 directories — no extra ones', async () => {
+    it('creates exactly 15 directories — no extra ones', async () => {
       await svc.scaffold(WS);
-      expect(mockFS.createDirectory).toHaveBeenCalledTimes(14);
+      expect(mockFS.createDirectory).toHaveBeenCalledTimes(15);
     });
 
     // ── INIT-UNIT-007 ──────────────────────────────────────────────────────────
@@ -260,21 +262,56 @@ describe('InitService', () => {
       expect(paths.some((p) => p.includes('user@example.com'))).toBe(true);
     });
 
-    it('includes ## Leadership section with wiki-link when leaderEmail is provided', async () => {
-      await svc.writeUserProfile(WS, { ...opts, leaderEmail: 'boss@example.com' });
+    // ── 9.35: frontmatter-native self profile ─────────────────────────────────
+
+    const selfWrite = (): string => {
       const call = (mockFS.writeFile.mock.calls as [string, string][]).find(([p]) =>
         p.endsWith('user@example.com.md'),
       );
-      expect(call![1]).toContain('## Leadership');
-      expect(call![1]).toContain('boss@example.com');
+      expect(call).toBeDefined();
+      return call![1];
+    };
+
+    it('9.35: sets current_manager to leader wiki-link and leadership: [] when leaderEmail provided', async () => {
+      await svc.writeUserProfile(WS, { ...opts, leaderEmail: 'boss@example.com' });
+      const { data, content } = matter(selfWrite());
+      expect(data['current_manager']).toContain('boss@example.com');
+      expect(data['leadership']).toEqual([]);
+      expect(content).not.toContain('## Leadership');
     });
 
-    it('does NOT include ## Leadership section when leaderEmail is absent', async () => {
+    it('9.35: current_manager is empty string when leaderEmail is absent', async () => {
       await svc.writeUserProfile(WS, opts);
-      const call = (mockFS.writeFile.mock.calls as [string, string][]).find(([p]) =>
-        p.endsWith('user@example.com.md'),
-      );
-      expect(call![1]).not.toContain('## Leadership');
+      const { data } = matter(selfWrite());
+      expect(data['current_manager']).toBe('');
+    });
+
+    it('9.35: frontmatter contains all five task-graph scalars as my-tasks wiki-links', async () => {
+      await svc.writeUserProfile(WS, opts);
+      const { data } = matter(selfWrite());
+      expect(data['tasks']).toBe('[[../my-tasks/tasks.md|tasks]]');
+      expect(data['today']).toBe('[[../my-tasks/today.md|today]]');
+      expect(data['this_week']).toBe('[[../my-tasks/this-week.md|this-week]]');
+      expect(data['this_month']).toBe('[[../my-tasks/this-month.md|this-month]]');
+      expect(data['this_quarter']).toBe('[[../my-tasks/this-quarter.md|this-quarter]]');
+    });
+
+    it('9.35: frontmatter contains empty-default relationship arrays and start_date', async () => {
+      await svc.writeUserProfile(WS, opts);
+      const { data } = matter(selfWrite());
+      expect(data['start_date']).toBe('');
+      expect(data['previous_manager']).toEqual([]);
+      expect(data['leadership']).toEqual([]);
+      expect(data['other_leaderships']).toEqual([]);
+      expect(data['direct_reports']).toEqual([]);
+      expect(data['projects']).toEqual([]);
+    });
+
+    it('9.35: body has ## Performance Reviews and no ## Goals section', async () => {
+      await svc.writeUserProfile(WS, opts);
+      const { content } = matter(selfWrite());
+      expect(content).toContain('## Performance Reviews');
+      expect(content).not.toContain('## Goals');
     });
 
     it('re-throws when writeFile rejects', async () => {
@@ -608,10 +645,12 @@ describe('InitService', () => {
       expect(stdoutSpy).toHaveBeenCalled();
     });
 
-    it('INIT-UNIT-006: output contains "tmr project add"', () => {
+    it('INIT-UNIT-006: output contains "tmr --help"', () => {
       svc.printPostInitSummary(WS, false);
       const output = (stdoutSpy.mock.calls as [string][]).map((c) => c[0]).join('');
-      expect(output).toContain('tmr project add');
+      // `printPostInitSummary` lists `tmr --help` as the command-discovery next
+      // step; the older `tmr project add` guidance now lives in the README only.
+      expect(output).toContain('tmr --help');
     });
 
     it('INIT-UNIT-006: output contains "tmr-inbox"', () => {

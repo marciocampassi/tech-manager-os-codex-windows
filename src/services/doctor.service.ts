@@ -1,8 +1,10 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
 import which from 'which';
+import matter from 'gray-matter';
 import { configService } from './config.service.js';
+import { FileSystemService, fileSystemService } from './file-system.service.js';
 import { REQUIRED_PLUGIN_IDS } from './obsidian-plugin.service.js';
 
 export interface CheckResult {
@@ -15,10 +17,317 @@ export interface CheckResult {
   fix?: string;
 }
 
+/** Result of a `tmr doctor --fix-frontmatter` run. */
+export interface MigrationSummary {
+  scanned: number;
+  migrated: number;
+  renamed: number;
+  /** Files that could not be read or parsed (e.g. malformed YAML) and were skipped. */
+  skipped: number;
+}
+
+/** Result of a `tmr doctor --prune-links` run. */
+export interface LinkRepairSummary {
+  scanned: number;
+  /** Files that had at least one dangling link removed (and were rewritten). */
+  repaired: number;
+  /** Total dangling link entries removed across all files. */
+  removed: number;
+  /** Files that could not be read or parsed (e.g. malformed YAML) and were skipped. */
+  skipped: number;
+}
+
+/**
+ * Frontmatter relation arrays whose wiki-link entries are checked for dangling targets by
+ * `tmr doctor --prune-links`. Scoped to structural/reciprocal relations (decision #7 vocabulary);
+ * scalar relations (`current_manager`) and non-selected arrays are intentionally excluded.
+ */
+export const REPAIRABLE_RELATION_KEYS: ReadonlyArray<string> = [
+  'direct_reports',
+  'leadership',
+  'members',
+  'stakeholders',
+  'projects',
+  'teams',
+];
+
+const WIKILINK_VALUE = /^\s*\[\[([^\]]+?)\]\]\s*$/;
+
+/**
+ * Extracts the target path from a frontmatter wiki-link value (`[[target|display]]` or
+ * `[[target]]`). Returns null for any non-wiki-link string (which must never be pruned).
+ */
+export function parseWikiLinkTarget(value: string): string | null {
+  const m = value.match(WIKILINK_VALUE);
+  if (!m) return null;
+  const inner = m[1];
+  const pipe = inner.indexOf('|');
+  const target = (pipe === -1 ? inner : inner.slice(0, pipe)).trim();
+  return target === '' ? null : target;
+}
+
+// ── Frontmatter migration helpers (Story 9.36) ────────────────────────────────
+//
+// Pure, IO-free transforms used by DoctorService.migrateFrontmatter /
+// detectLegacyBodyLinks. Each returns the rewritten content plus flags:
+//   - `changed`: any migration happened (incl. dated `last_<type>` scalar) → write + count migrated
+//   - `legacy`:  a structural/key/deprecated body link was present → counts toward the warning
+//     (dated `## 1on1s` etc. are intentionally NOT legacy — they stay in body, decision #2)
+
+interface MigrationOutcome {
+  content: string;
+  changed: boolean;
+  legacy: boolean;
+  renamed: boolean;
+}
+
+/** Structural body sections lifted into frontmatter (decision #7 vocabulary). */
+const STRUCTURAL_SECTIONS: ReadonlyArray<{ section: string; key: string; scalar: boolean }> = [
+  { section: 'Current Manager', key: 'current_manager', scalar: true },
+  { section: 'Previous Managers', key: 'previous_manager', scalar: false },
+  { section: 'Leadership', key: 'leadership', scalar: false },
+  { section: 'Other Leaderships', key: 'other_leaderships', scalar: false },
+  { section: 'Projects', key: 'projects', scalar: false },
+  { section: 'Direct Reports', key: 'direct_reports', scalar: false },
+];
+
+/** Dated body sections: body stays put; only the `last_<type>` scalar is computed. */
+const DATED_SECTIONS: ReadonlyArray<{ section: string; scalar: string }> = [
+  { section: '1on1s', scalar: 'last_1on1' },
+  { section: 'Feedbacks', scalar: 'last_feedback' },
+  { section: 'Assessments', scalar: 'last_assessment' },
+  { section: 'Performance Reviews', scalar: 'last_performance_review' },
+];
+
+const WIKILINK_BULLET = /^-\s*(\[\[.+?\]\])/;
+const DATE_TOKEN_G = /\d{4}-\d{2}(?:-\d{2})?/g;
+
+function headingOf(line: string): { level: number; name: string } | null {
+  const m = line.match(/^(#{1,6})\s+(.*)$/);
+  return m ? { level: m[1].length, name: m[2].trim() } : null;
+}
+
+/** Largest `YYYY-MM[-DD]` token on a line (ISO sorts lexicographically), or null. */
+function maxDateOnLine(line: string): string | null {
+  const tokens = line.match(DATE_TOKEN_G);
+  return tokens ? tokens.reduce((a, b) => (b > a ? b : a)) : null;
+}
+
+/**
+ * Normalizes an existing frontmatter date value to a `YYYY-MM-DD` string for comparison.
+ * gray-matter parses unquoted full dates into JS `Date` objects, so a raw `!==` against a
+ * date string is always true; this keeps the dated-scalar migration idempotent.
+ */
+function dateToken(value: unknown): string | undefined {
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  if (typeof value === 'string') return value;
+  return undefined;
+}
+
+function mergeArray(data: Record<string, unknown>, key: string, links: string[]): void {
+  let existing: string[];
+  if (Array.isArray(data[key])) {
+    existing = (data[key] as string[]).slice();
+  } else if (typeof data[key] === 'string' && (data[key] as string).trim() !== '') {
+    // Preserve a legacy scalar value sitting at an array key instead of discarding it.
+    existing = [data[key] as string];
+  } else {
+    existing = [];
+  }
+  for (const l of links) if (!existing.includes(l)) existing.push(l);
+  data[key] = existing;
+}
+
+/**
+ * Migrates a single entity profile (self / member / leadership / company / contractor / archived):
+ * lifts structural `## Section` body wiki-links into frontmatter, renames `manager`→`current_manager`,
+ * strips deprecated `action_items_gdoc` + body `## Action Items` line, and sets `last_<type>` scalars
+ * from the latest date in each dated section (whose body links are left untouched).
+ */
+export function migrateProfileContent(raw: string): MigrationOutcome {
+  const parsed = matter(raw);
+  const data = { ...(parsed.data as Record<string, unknown>) };
+  let changed = false;
+  let legacy = false;
+  let renamed = false;
+
+  // Legacy frontmatter: rename `manager` → `current_manager`, strip `action_items_gdoc`.
+  // Only migrate when `manager` holds a usable non-empty string; a non-string value
+  // (e.g. an unquoted `manager: [[x]]` that YAML parses into a nested array) is left
+  // untouched rather than silently deleted, to avoid data loss.
+  if (Object.prototype.hasOwnProperty.call(data, 'manager')) {
+    const mgr = data['manager'];
+    if (typeof mgr === 'string' && mgr.trim() !== '') {
+      const cur = data['current_manager'];
+      if (cur === undefined || cur === '') data['current_manager'] = mgr;
+      delete data['manager'];
+      changed = true;
+      legacy = true;
+      renamed = true;
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(data, 'action_items_gdoc')) {
+    delete data['action_items_gdoc'];
+    changed = true;
+    legacy = true;
+  }
+
+  const structural = new Map(STRUCTURAL_SECTIONS.map((s) => [s.section, s]));
+  const dated = new Map(DATED_SECTIONS.map((s) => [s.section, s]));
+  const collected = new Map<string, string[]>();
+  const datedMax = new Map<string, string>();
+
+  const outLines: string[] = [];
+  let current: string | null = null;
+  let kind: 'structural' | 'dated' | 'actionItems' | 'other' = 'other';
+
+  for (const line of parsed.content.split('\n')) {
+    const h = headingOf(line);
+    if (h) {
+      current = h.level === 2 ? h.name : null;
+      if (current && structural.has(current)) kind = 'structural';
+      else if (current && dated.has(current)) kind = 'dated';
+      else if (current === 'Action Items') kind = 'actionItems';
+      else kind = 'other';
+      outLines.push(line); // keep header (even when emptied)
+      continue;
+    }
+
+    const bullet = line.match(WIKILINK_BULLET);
+
+    if (kind === 'structural' && bullet) {
+      const arr = collected.get(current as string) ?? [];
+      arr.push(bullet[1]);
+      collected.set(current as string, arr);
+      changed = true;
+      legacy = true;
+      continue; // strip line
+    }
+    if (kind === 'actionItems' && /^-\s*\[\[action-items-/.test(line)) {
+      changed = true;
+      legacy = true;
+      continue; // strip deprecated line
+    }
+    if (kind === 'dated' && bullet) {
+      const d = maxDateOnLine(line);
+      if (d) {
+        const prev = datedMax.get(current as string);
+        if (!prev || d > prev) datedMax.set(current as string, d);
+      }
+      outLines.push(line); // dated body links stay put
+      continue;
+    }
+    outLines.push(line);
+  }
+
+  for (const { section, key, scalar } of STRUCTURAL_SECTIONS) {
+    const links = collected.get(section);
+    if (!links || links.length === 0) continue;
+    if (scalar) {
+      const cur = data[key];
+      if (cur === undefined || cur === '') data[key] = links[0];
+    } else {
+      mergeArray(data, key, links);
+    }
+  }
+
+  for (const { section, scalar } of DATED_SECTIONS) {
+    const max = datedMax.get(section);
+    if (!max) continue;
+    // Fill if absent, upgrade if the body has a newer date, never downgrade a newer
+    // existing scalar — and normalize Date↔string so re-runs are idempotent (AC5).
+    const existing = dateToken(data[scalar]);
+    if (existing === undefined || max > existing) {
+      data[scalar] = max;
+      changed = true;
+    }
+  }
+
+  if (!changed) return { content: raw, changed: false, legacy: false, renamed: false };
+  return { content: matter.stringify(outLines.join('\n'), data), changed: true, legacy, renamed };
+}
+
+/** Migrates a team roster file: `# Team Members` body link list → frontmatter `members` array. */
+export function migrateRosterContent(raw: string): MigrationOutcome {
+  const parsed = matter(raw);
+  const data = { ...(parsed.data as Record<string, unknown>) };
+  const links: string[] = [];
+  const outLines: string[] = [];
+  let inMembers = false;
+  for (const line of parsed.content.split('\n')) {
+    const h = headingOf(line);
+    if (h) {
+      // Scope to the Team Members section so links in other sections are never absorbed.
+      inMembers = h.name === 'Team Members';
+      outLines.push(line);
+      continue;
+    }
+    const bullet = line.match(WIKILINK_BULLET);
+    if (inMembers && bullet) {
+      links.push(bullet[1]);
+      continue;
+    }
+    outLines.push(line);
+  }
+  if (links.length === 0) return { content: raw, changed: false, legacy: false, renamed: false };
+  mergeArray(data, 'members', links);
+  return {
+    content: matter.stringify(outLines.join('\n'), data),
+    changed: true,
+    legacy: true,
+    renamed: false,
+  };
+}
+
+/** Migrates a project overview: body `# Team Members` / `# Stakeholders` link lists → frontmatter. */
+export function migrateProjectContent(raw: string): MigrationOutcome {
+  const parsed = matter(raw);
+  const data = { ...(parsed.data as Record<string, unknown>) };
+  const map: Record<string, 'members' | 'stakeholders'> = {
+    'Team Members': 'members',
+    Stakeholders: 'stakeholders',
+  };
+  const collected: Record<'members' | 'stakeholders', string[]> = { members: [], stakeholders: [] };
+  const outLines: string[] = [];
+  let currentKey: 'members' | 'stakeholders' | null = null;
+
+  for (const line of parsed.content.split('\n')) {
+    const h = headingOf(line);
+    if (h) {
+      currentKey = map[h.name] ?? null;
+      outLines.push(line);
+      continue;
+    }
+    const bullet = line.match(WIKILINK_BULLET);
+    if (currentKey && bullet) {
+      collected[currentKey].push(bullet[1]);
+      continue;
+    }
+    outLines.push(line);
+  }
+
+  if (collected.members.length === 0 && collected.stakeholders.length === 0) {
+    return { content: raw, changed: false, legacy: false, renamed: false };
+  }
+  if (collected.members.length > 0) mergeArray(data, 'members', collected.members);
+  if (collected.stakeholders.length > 0) mergeArray(data, 'stakeholders', collected.stakeholders);
+  return {
+    content: matter.stringify(outLines.join('\n'), data),
+    changed: true,
+    legacy: true,
+    renamed: false,
+  };
+}
+
 export class DoctorService {
   // tmrVersion is injected by the command layer (which reads package.json at the correct
   // relative path for both source and dist environments).
-  constructor(private readonly tmrVersion = '0.0.0') {}
+  // _fs is injected for the async frontmatter-migration methods (Story 9.36); the legacy
+  // synchronous health checks continue to use node:fs directly.
+  constructor(
+    private readonly tmrVersion = '0.0.0',
+    private readonly _fs: FileSystemService = fileSystemService,
+  ) {}
 
   private get platform(): string {
     return process.platform;
@@ -344,6 +653,232 @@ export class DoctorService {
         fix: 'tmr init',
       };
     }
+  }
+
+  // ── Frontmatter migration (Story 9.36) ─────────────────────────────────────
+
+  private async _collectFlat(out: string[], dir: string): Promise<void> {
+    if (await this._fs.exists(dir)) out.push(...(await this._fs.listFiles(dir, '.md')));
+  }
+
+  /** Collects `<root>/<email>/<email>.md` profiles. */
+  private async _collectNested(out: string[], root: string): Promise<void> {
+    if (!(await this._fs.exists(root))) return;
+    for (const dir of await this._fs.listDirectories(root)) {
+      const profile = join(root, dir, `${dir}.md`);
+      if (await this._fs.exists(profile)) out.push(profile);
+    }
+  }
+
+  /** Collects `<root>/<year>/<email>/<email>.md` archived profiles. */
+  private async _collectArchived(out: string[], root: string): Promise<void> {
+    if (!(await this._fs.exists(root))) return;
+    for (const year of await this._fs.listDirectories(root)) {
+      const yearDir = join(root, year);
+      for (const dir of await this._fs.listDirectories(yearDir)) {
+        const profile = join(yearDir, dir, `${dir}.md`);
+        if (await this._fs.exists(profile)) out.push(profile);
+      }
+    }
+  }
+
+  private async _listEntityProfiles(ws: string): Promise<string[]> {
+    const out: string[] = [];
+    await this._collectFlat(out, join(ws, 'my-career')); // self (flat; perf-reviews/ subdir ignored)
+    await this._collectNested(out, join(ws, 'my-teams', 'members'));
+    await this._collectNested(out, join(ws, 'my-leadership'));
+    await this._collectNested(out, join(ws, 'my-company', 'members'));
+    await this._collectNested(out, join(ws, 'my-company', 'contractors'));
+    await this._collectArchived(out, join(ws, 'my-teams', 'archived'));
+    return out;
+  }
+
+  private async _listRosterFiles(ws: string): Promise<string[]> {
+    const out: string[] = [];
+    const root = join(ws, 'my-teams', 'teams');
+    if (!(await this._fs.exists(root))) return out;
+    for (const slug of await this._fs.listDirectories(root)) {
+      const file = join(root, slug, `${slug}-members.md`);
+      if (await this._fs.exists(file)) out.push(file);
+    }
+    return out;
+  }
+
+  private async _listProjectOverviews(ws: string): Promise<string[]> {
+    const out: string[] = [];
+    const root = join(ws, 'my-company', 'projects');
+    if (!(await this._fs.exists(root))) return out;
+    for (const name of await this._fs.listDirectories(root)) {
+      const file = join(root, name, `${name}.md`);
+      if (await this._fs.exists(file)) out.push(file);
+    }
+    return out;
+  }
+
+  /**
+   * Walks every entity / roster / project file in the vault and migrates structural
+   * body wiki-links into frontmatter (idempotent — a second run reports 0 migrated).
+   */
+  async migrateFrontmatter(workspaceRoot: string): Promise<MigrationSummary> {
+    let scanned = 0;
+    let migrated = 0;
+    let renamed = 0;
+    let skipped = 0;
+
+    const run = async (files: string[], fn: (raw: string) => MigrationOutcome): Promise<void> => {
+      for (const file of files) {
+        scanned++;
+        // Isolate each file: a single unreadable/malformed-YAML file must not abort the
+        // whole migration (which would leave the vault partially migrated).
+        let outcome: MigrationOutcome;
+        try {
+          outcome = fn(await this._fs.readFile(file));
+        } catch {
+          skipped++;
+          continue;
+        }
+        if (outcome.changed) {
+          await this._fs.writeFile(file, outcome.content);
+          migrated++;
+          if (outcome.renamed) renamed++;
+        }
+      }
+    };
+
+    await run(await this._listEntityProfiles(workspaceRoot), migrateProfileContent);
+    await run(await this._listRosterFiles(workspaceRoot), migrateRosterContent);
+    await run(await this._listProjectOverviews(workspaceRoot), migrateProjectContent);
+
+    return { scanned, migrated, renamed, skipped };
+  }
+
+  /**
+   * Read-only scan: counts files that still carry legacy structural body wiki-links or
+   * deprecated frontmatter keys. Dated sections (`## 1on1s` etc.) do NOT count.
+   */
+  async detectLegacyBodyLinks(workspaceRoot: string): Promise<number> {
+    let count = 0;
+
+    const scan = async (files: string[], fn: (raw: string) => MigrationOutcome): Promise<void> => {
+      for (const file of files) {
+        // Read-only: never let one unreadable/malformed file break plain `tmr doctor`.
+        try {
+          if (fn(await this._fs.readFile(file)).legacy) count++;
+        } catch {
+          /* skip unreadable / unparseable file */
+        }
+      }
+    };
+
+    await scan(await this._listEntityProfiles(workspaceRoot), migrateProfileContent);
+    await scan(await this._listRosterFiles(workspaceRoot), migrateRosterContent);
+    await scan(await this._listProjectOverviews(workspaceRoot), migrateProjectContent);
+
+    return count;
+  }
+
+  // ── Dangling reciprocal-link repair (consistency) ──────────────────────────
+
+  /** True if a wiki-link target resolves to an existing file (tolerating extension-less links). */
+  private async _linkTargetExists(fileDir: string, target: string): Promise<boolean> {
+    if (await this._fs.exists(join(fileDir, target))) return true;
+    // Obsidian-style links may omit the `.md` extension — treat `<target>.md` as a match too.
+    if (!target.endsWith('.md') && (await this._fs.exists(join(fileDir, `${target}.md`)))) {
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Computes the pruned content for a single file: removes frontmatter relation-array entries
+   * that are wiki-links whose target no longer exists. Returns null when nothing changes (so the
+   * file is left byte-for-byte untouched). May throw on malformed YAML — callers isolate that.
+   */
+  private async _pruneFileLinks(
+    file: string,
+    raw: string,
+  ): Promise<{ content: string; removed: number } | null> {
+    const parsed = matter(raw);
+    const data = { ...(parsed.data as Record<string, unknown>) };
+    const fileDir = dirname(file);
+    let removed = 0;
+
+    for (const key of REPAIRABLE_RELATION_KEYS) {
+      const val = data[key];
+      if (!Array.isArray(val)) continue;
+      const kept: unknown[] = [];
+      for (const entry of val) {
+        if (typeof entry === 'string') {
+          const target = parseWikiLinkTarget(entry);
+          if (target && !(await this._linkTargetExists(fileDir, target))) {
+            removed++;
+            continue; // drop dangling entry
+          }
+        }
+        kept.push(entry);
+      }
+      if (kept.length !== val.length) data[key] = kept;
+    }
+
+    if (removed === 0) return null;
+    return { content: matter.stringify(parsed.content, data), removed };
+  }
+
+  /**
+   * Walks every entity / roster / project file and removes dangling reciprocal frontmatter links
+   * (entries pointing at a target file that no longer exists). Idempotent — a second run removes
+   * nothing. Only files that actually change are rewritten.
+   */
+  async pruneDanglingLinks(workspaceRoot: string): Promise<LinkRepairSummary> {
+    let scanned = 0;
+    let repaired = 0;
+    let removed = 0;
+    let skipped = 0;
+
+    const files = [
+      ...(await this._listEntityProfiles(workspaceRoot)),
+      ...(await this._listRosterFiles(workspaceRoot)),
+      ...(await this._listProjectOverviews(workspaceRoot)),
+    ];
+
+    for (const file of files) {
+      scanned++;
+      let result: { content: string; removed: number } | null;
+      try {
+        result = await this._pruneFileLinks(file, await this._fs.readFile(file));
+      } catch {
+        skipped++;
+        continue;
+      }
+      if (result) {
+        await this._fs.writeFile(file, result.content);
+        repaired++;
+        removed += result.removed;
+      }
+    }
+
+    return { scanned, repaired, removed, skipped };
+  }
+
+  /** Read-only scan: counts files that carry at least one dangling reciprocal frontmatter link. */
+  async detectDanglingLinks(workspaceRoot: string): Promise<number> {
+    let count = 0;
+
+    const files = [
+      ...(await this._listEntityProfiles(workspaceRoot)),
+      ...(await this._listRosterFiles(workspaceRoot)),
+      ...(await this._listProjectOverviews(workspaceRoot)),
+    ];
+
+    for (const file of files) {
+      try {
+        if (await this._pruneFileLinks(file, await this._fs.readFile(file))) count++;
+      } catch {
+        /* skip unreadable / unparseable file */
+      }
+    }
+
+    return count;
   }
 
   async runChecks(): Promise<CheckResult[]> {

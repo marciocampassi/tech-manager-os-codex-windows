@@ -40,10 +40,12 @@ jest.unstable_mockModule('../../src/services/leadership.service.js', () => ({
   leadershipService: mockSvcInstance,
 }));
 
-const mockFindSimilarEmail = jest.fn<(email: string, ws: string) => string | null>();
+const mockResolveEmailWithSimilarCheck = jest
+  .fn<(email: string, ws: string) => Promise<string>>()
+  .mockImplementation((email: string) => Promise.resolve(email));
 
-jest.unstable_mockModule('../../src/utils/email-similarity.js', () => ({
-  findSimilarEmail: mockFindSimilarEmail,
+jest.unstable_mockModule('../../src/utils/email-guard.js', () => ({
+  resolveEmailWithSimilarCheck: mockResolveEmailWithSimilarCheck,
 }));
 
 const mockPrompt = jest.fn<() => Promise<Record<string, string>>>();
@@ -79,7 +81,7 @@ describe('leadership command', () => {
     jest.clearAllMocks();
     mockGetWorkspaceRoot.mockReturnValue('/fake/ws');
     mockAddLeadership.mockResolvedValue({ created: true });
-    mockFindSimilarEmail.mockReturnValue(null);
+    mockResolveEmailWithSimilarCheck.mockImplementation((email: string) => Promise.resolve(email));
   });
 
   afterEach(() => {
@@ -235,20 +237,16 @@ describe('leadership command', () => {
       expect(mockAdd1on1).toHaveBeenCalledWith('boss@co.com', expect.any(Object), '/fake/ws');
     });
 
-    it('9.8: aborts add1on1 when user confirms it is a typo (similarity guard)', async () => {
-      mockFindSimilarEmail.mockReturnValueOnce('boss@co.com');
-      // User answers "yes, it was a typo — abort"
-      mockPrompt.mockResolvedValueOnce({ proceed: true } as unknown as Record<string, string>);
+    it('9.24: uses similar email and proceeds with add1on1 when user confirms (Y)', async () => {
+      mockResolveEmailWithSimilarCheck.mockResolvedValueOnce('boss@co.com'); // guard returns corrected email
 
       await runLeadership1on1(mockSvcInstance as never, 'bos@co.com', {});
 
-      expect(mockAdd1on1).not.toHaveBeenCalled();
+      expect(mockAdd1on1).toHaveBeenCalledWith('boss@co.com', expect.any(Object), '/fake/ws');
     });
 
-    it('9.8: proceeds with add1on1 when user confirms the email is intentional (similarity guard)', async () => {
-      mockFindSimilarEmail.mockReturnValueOnce('boss@co.com');
-      // User answers "no — continue with the new email"
-      mockPrompt.mockResolvedValueOnce({ proceed: false } as unknown as Record<string, string>);
+    it('9.24: proceeds with original email for add1on1 when user declines similar (N)', async () => {
+      // Default mock returns original email unchanged
 
       await runLeadership1on1(mockSvcInstance as never, 'bos@co.com', {});
 

@@ -15,8 +15,15 @@ export interface ITeamMemberFrontmatter {
   gender?: string;
   location: string;
   relationship?: string;
-  teams: string[];
+  teams: string[]; // wiki-link strings pointing to <slug>-context.md
   date_added: string;
+  // ── New fields (Story 9.29) ──
+  start_date?: string;
+  current_manager?: string;
+  previous_manager?: string[];
+  other_leaderships?: string[];
+  projects?: string[];
+  // ── Archive fields ──
   archived?: boolean;
   archived_date?: string;
   termination?: boolean;

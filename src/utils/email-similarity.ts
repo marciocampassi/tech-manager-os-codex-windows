@@ -83,6 +83,11 @@ export function findSimilarEmail(email: string, workspaceRoot: string): string |
     const [candLocal, candDomain] = candidate.split('@') as [string, string];
     if (!candLocal || !candDomain) continue;
     if (candDomain !== domain) continue; // different domain — not a typo candidate
+    // Require the local-part to start with the same character. Real typos (insertions,
+    // deletions, single substitutions) almost always preserve the first letter, while
+    // genuinely different names that merely share an interior substring (e.g. "carlos" vs
+    // "marlon", distance 2) do not — this cuts those false positives.
+    if (localPart[0] !== candLocal[0]) continue;
     const dist = levenshtein(localPart, candLocal);
     if (dist <= 2 && dist < bestDistance) {
       bestDistance = dist;

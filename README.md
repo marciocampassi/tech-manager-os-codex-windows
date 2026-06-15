@@ -25,6 +25,36 @@ For a full walkthrough, see [docs/project-overview.md](docs/project-overview.md)
 
 ---
 
+## Upgrading an existing vault
+
+Newer versions of `tmr` store entity relationships (managers, direct reports, team members,
+stakeholders, projects) in YAML **frontmatter** instead of Markdown body sections. If you created
+your vault with an older release, run:
+
+```bash
+tmr doctor --fix-frontmatter
+```
+
+This lifts structural body wiki-links into frontmatter, renames the legacy `manager:` key to
+`current_manager:`, and removes deprecated fields. It is **idempotent** — running it again is a
+safe no-op. Dated lists (`## 1on1s`, `## Feedbacks`, etc.) intentionally stay in the body; only a
+`last_<type>` summary scalar is recorded in frontmatter. Plain `tmr doctor` will warn you when a
+vault still contains legacy body links.
+
+If you deleted a profile, team, or project file by hand (or a write was interrupted), a relationship
+link can be left pointing at a file that no longer exists. To remove these dangling reciprocal links:
+
+```bash
+tmr doctor --prune-links
+```
+
+This scans every profile, team roster, and project overview and drops frontmatter relation entries
+(`direct_reports`, `leadership`, `members`, `stakeholders`, `projects`, `teams`) whose target file is
+missing. It only ever removes broken links — valid links and free-text values are left untouched — and
+is **idempotent**. Plain `tmr doctor` warns you when dangling links are present.
+
+---
+
 ## CLI Command Reference
 
 ### Core
@@ -36,6 +66,8 @@ For a full walkthrough, see [docs/project-overview.md](docs/project-overview.md)
 | `tmr init` | Guided vault setup — profile, leader, teams, members, skills |
 | `tmr init --scaffold-only` | Create files and folders only — skip network operations (offline / CI) |
 | `tmr doctor` | Check environment health: Node.js, Obsidian, Granola, vault, plugins |
+| `tmr doctor --fix-frontmatter` | Migrate a legacy vault's body wiki-links into frontmatter (idempotent) |
+| `tmr doctor --prune-links` | Remove dangling reciprocal frontmatter links whose target file no longer exists (idempotent) |
 | `tmr update` | Update all installed skills to latest versions |
 | `tmr show <email>` | Display profile for any email (self, team, leadership, company, contractor) |
 
@@ -80,6 +112,7 @@ For a full walkthrough, see [docs/project-overview.md](docs/project-overview.md)
 | Command | Description |
 |---------|-------------|
 | `tmr myself add performance-review` | Create a self performance review in `my-career/` |
+| `tmr myself set-manager <email>` | Change your current manager (moves the previous one to `previous_manager[]`, updates both `direct_reports`) |
 
 ---
 

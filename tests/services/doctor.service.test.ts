@@ -31,6 +31,14 @@ jest.unstable_mockModule('../../src/services/obsidian-plugin.service.js', () => 
   obsidianPluginService: {},
 }));
 
+// Mock file-system.service directly (Story 9.36 injects it into DoctorService) for the
+// same reason — its fs-extra import would otherwise break the node:fs partial mock above.
+// These health-check tests never touch the migration methods, so a stub is sufficient.
+jest.unstable_mockModule('../../src/services/file-system.service.js', () => ({
+  FileSystemService: class {},
+  fileSystemService: {},
+}));
+
 // ── Dynamic imports (after mocks) ─────────────────────────────────────────────
 
 const { DoctorService } = await import('../../src/services/doctor.service.js');
@@ -279,7 +287,8 @@ describe('DoctorService', () => {
 
     it('passes on macOS when CloudStorage GoogleDrive folder exists', async () => {
       setPlatform('darwin');
-      const cloudDir = `${process.env.HOME ?? '/Users/test'}/Library/CloudStorage`;
+      // Match the OS-native path the source builds via join(homedir(), ...).
+      const cloudDir = join(homedir(), 'Library', 'CloudStorage');
       mockExistsSync.mockImplementation((p) => p === cloudDir);
       mockReaddirSync.mockReturnValue(['GoogleDrive-test@example.com']);
       const results = await service.runChecks();
@@ -301,7 +310,7 @@ describe('DoctorService', () => {
 
   describe('Granola Sync check', () => {
     const VAULT = '/users/marlon/vault';
-    const CONFIG_PATH = `${VAULT}/.obsidian/plugins/granola-sync/data.json`;
+    const CONFIG_PATH = join(VAULT, '.obsidian', 'plugins', 'granola-sync', 'data.json');
 
     beforeEach(() => {
       mockGetWorkspacePath.mockReturnValue(VAULT);
@@ -370,7 +379,7 @@ describe('DoctorService', () => {
 
   describe('Community Plugins check', () => {
     const VAULT = '/users/marlon/vault';
-    const PLUGINS_JSON = `${VAULT}/.obsidian/community-plugins.json`;
+    const PLUGINS_JSON = join(VAULT, '.obsidian', 'community-plugins.json');
     const ALL_PLUGINS = ['obsidian-git', 'granola-sync', 'terminal', 'dataview'];
 
     beforeEach(() => {

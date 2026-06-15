@@ -4,28 +4,10 @@ import chalk from 'chalk';
 import { memberService, MemberService } from '../services/member.service.js';
 import { printError, printSuccess, printInfo, printWarning } from '../utils/display.js';
 import { InvalidEmailError } from '../errors/tmr-error.js';
-import { findSimilarEmail } from '../utils/email-similarity.js';
+import { resolveEmailWithSimilarCheck } from '../utils/email-guard.js';
 import { validateEmail } from '../utils/validation.js';
 import { resolveSelfEmail } from '../utils/self-email.js';
 import type { FileType } from '../types/member.types.js';
-
-// ── Shared guard ─────────────────────────────────────────────────────────────
-
-async function warnIfSimilarEmail(email: string, workspaceRoot: string): Promise<boolean> {
-  const similar = findSimilarEmail(email, workspaceRoot);
-  if (!similar) return true;
-
-  printWarning(`Similar email already exists: ${similar}`);
-  const { proceed } = await inquirer.prompt<{ proceed: boolean }>([
-    {
-      type: 'confirm',
-      name: 'proceed',
-      message: `Did you mean "${similar}"? (N = continue adding "${email}")`,
-      default: false,
-    },
-  ]);
-  return !proceed;
-}
 
 // ── Type guard ────────────────────────────────────────────────────────────────
 
@@ -54,12 +36,30 @@ export async function runMemberAdd(
 ): Promise<void> {
   // Routing: if first arg is a valid email → member-creation mode
   if (isEmail(typeArg)) {
-    const email = typeArg.trim().toLowerCase();
+    let email = typeArg.trim().toLowerCase();
 
     const ws = svc.getWorkspaceRoot();
 
-    const shouldContinue = await warnIfSimilarEmail(email, ws);
-    if (!shouldContinue) return;
+    email = await resolveEmailWithSimilarCheck(email, ws);
+
+    const selfEmail = await resolveSelfEmail(ws);
+    if (selfEmail && selfEmail === email.toLowerCase()) {
+      printError(
+        `"${email}" is your own profile — you can't add yourself as a member.`,
+        'Manage your own profile with tmr myself; use a different email for members.',
+      );
+      process.exitCode = 1;
+      return;
+    }
+
+    if (opts.team && !opts.contractor && !(await svc.teamExists(opts.team, ws))) {
+      printError(
+        `Team "${opts.team}" does not exist.`,
+        `Create it first with \`tmr team create ${opts.team}\`, then re-run this command.`,
+      );
+      process.exitCode = 1;
+      return;
+    }
 
     const { name, gender, role, location } = await inquirer.prompt<{
       name: string;
@@ -127,9 +127,11 @@ export async function runMemberAdd(
     } catch (err) {
       if (err instanceof InvalidEmailError) {
         printError(`Invalid email address: ${email}`);
+        process.exitCode = 1;
         return;
       }
       printError(err instanceof Error ? err.message : String(err));
+      process.exitCode = 1;
       return;
     }
 
@@ -197,8 +199,7 @@ export async function runMemberAdd(
   }
 
   // P12: Run similar-email guard before prompting for reviewer details
-  const shouldContinueTypePath = await warnIfSimilarEmail(email, ws);
-  if (!shouldContinueTypePath) return;
+  email = await resolveEmailWithSimilarCheck(email, ws);
 
   // ── Resolve reviewer email for feedback files ─────────────────────────────
   let fromEmail: string | undefined;
@@ -266,6 +267,11 @@ export async function runMemberAdd(
   process.stdout.write(`${chalk.green('✔')} Created: ${result.filePath}\n`);
   process.stdout.write(`${chalk.dim('  Profile updated:')} ${result.profilePath}\n`);
   process.stdout.write(`${chalk.dim('  Wiki-link:')} ${result.wikiLink}\n`);
+  if (result.createdReviewer) {
+    process.stdout.write(
+      `${chalk.yellow('ℹ')} Reviewer ${result.createdReviewer.email} didn't exist — created a new profile: ${result.createdReviewer.path}\n`,
+    );
+  }
 }
 
 // ── Command factory ───────────────────────────────────────────────────────────

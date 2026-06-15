@@ -1,11 +1,37 @@
 import { describe, it, expect } from '@jest/globals';
+import matter from 'gray-matter';
 import {
   generateActionItemsTemplate,
+  generateTaskFileTemplate,
   generateTeamMemberProfile,
   generateVaultReadme,
   INBOX_SAMPLE_FILES,
 } from '../../src/templates/onboarding.templates.js';
 import type { TeamMember } from '../../src/types/onboarding.types.js';
+
+describe('generateTaskFileTemplate (9.35)', () => {
+  const OWNER_LINK = '[[../my-career/me@co.com.md|me@co.com]]';
+
+  it('emits type frontmatter matching the task type', () => {
+    const { data } = matter(generateTaskFileTemplate('tasks', OWNER_LINK));
+    expect(data['type']).toBe('tasks');
+  });
+
+  it('emits owner frontmatter as the provided wiki-link', () => {
+    const { data } = matter(generateTaskFileTemplate('today', OWNER_LINK));
+    expect(data['owner']).toBe(OWNER_LINK);
+  });
+
+  it.each(['tasks', 'today', 'this-week', 'this-month', 'this-quarter'] as const)(
+    'produces valid frontmatter with type=%s and an owner',
+    (type) => {
+      const { data, content } = matter(generateTaskFileTemplate(type, OWNER_LINK));
+      expect(data['type']).toBe(type);
+      expect(data['owner']).toBe(OWNER_LINK);
+      expect(content).toContain('# Tasks —');
+    },
+  );
+});
 
 describe('generateActionItemsTemplate', () => {
   const EMAIL = 'dev@example.com';

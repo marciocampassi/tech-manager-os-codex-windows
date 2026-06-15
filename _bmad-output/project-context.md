@@ -209,6 +209,12 @@ they drop below.
 
 ### Anti-Patterns to Avoid
 
+- **DO NOT** duplicate interactive guard functions across command files. Any `async function`
+  that uses `inquirer.prompt` and appears in more than one command file MUST be extracted to
+  `src/utils/` and imported. If you find a copy-pasted guard (e.g. the old `warnIfSimilarEmail`),
+  extract it immediately. The canonical shared guard is `resolveEmailWithSimilarCheck` in
+  `src/utils/email-guard.ts`.
+
 - **DO NOT** add new fields to the AI categorization JSON schema without updating the
   response parser and the strict system prompt — schema drift silently breaks routing.
 - **DO NOT** use `chalk` directly in commands or services — always go through `display.ts`
@@ -267,15 +273,15 @@ Every member entity type uses the **nested folder pattern**: `<scope>/<email>/<e
 
 | Scope | Profile path | Subdirs created alongside profile |
 |---|---|---|
-| Self | `my-career/<email>.md` | *(flat, no subdir — single profile, no subdirs)* |
+| Self | `my-career/<email>.md` | `performance-reviews/` |
 | Direct report | `my-teams/members/<email>/<email>.md` | `1on1s/`, `feedbacks/`, `assessments/`, `performance-reviews/`, `<email>-shared/` |
 | Leadership | `my-leadership/<email>/<email>.md` | `1on1s/` |
 | Company member | `my-company/members/<email>/<email>.md` | `1on1s/`, `feedbacks/`, `assessments/`, `performance-reviews/` |
 | Contractor | `my-company/contractors/<email>/<email>.md` | `1on1s/`, `feedbacks/`, `assessments/`, `performance-reviews/` |
 
-All scopes (except Self and Leadership) get the full set of four subdirs. Contractors are treated identically to Company members for subdir scaffolding — no exceptions.
+All scopes (except Leadership) get typed subdirs for dated documents. Direct reports, company members, and contractors get the full set of four subdirs. Self gets `performance-reviews/` only. Contractors are treated identically to Company members for subdir scaffolding — no exceptions.
 
-- **`my-career/` is flat** — `my-career/<email>.md` only, no subfolder. This is the only exception.
+- **`my-career/` self-profile stays flat** — the profile lives at `my-career/<email>.md` (not nested). Dated performance reviews go in `my-career/performance-reviews/`. Do not move the profile into a nested folder.
 - NEVER write a profile as a flat `<email>.md` alongside other profiles in the same scope folder. The nested pattern is the enforced standard.
 
 ### Required Frontmatter Field: `relationship`
@@ -351,6 +357,34 @@ The `--from` flag on `tmr member add feedback` is optional. When omitted, the re
 - `src/services/relationship.service.ts` and `src/commands/relationship.command.ts` were **deleted in Epic 1 (Story 1.4)**. Do not reference or import these files — they no longer exist.
 - `EmailResolutionService._doResolve` step 4 now writes a company-scoped member profile inline (ISSUE-m1 shim). This shim is intentionally temporary — **Story 3.2** must replace it with `MemberService.addMember(email)`.
 - All three relationship test files have been deleted (`tests/commands/relationship.command.test.ts`, `tests/services/relationship.service.test.ts`, `tests/integration/relationship.integration.test.ts`).
+
+### Frontmatter-Native Relationship Model
+
+- **ALL structural entity-to-entity wiki-links MUST be written to frontmatter fields, not body sections.**
+  Canonical types are defined in `src/types/relations.types.ts` (`IEntityRelations`, `ITeamRelations`,
+  `IProjectRelations`, `ISelfRelations`).
+- All structural relationship mutations MUST use `src/utils/frontmatter-relations.ts`
+  (`addRelation`, `removeRelation`, `setScalar`) — never inline `matter.stringify()` for
+  relationship changes.
+- **Exception — dated artifact lists stay in body** (decision #2): `## 1on1s`, `## Feedbacks`,
+  `## Assessments`, `## Performance Reviews` body sections are retained for their unbounded
+  wiki-link lists. Only the `last_<type>` scalars (`last_1on1`, `last_feedback`,
+  `last_assessment`, `last_performance_review`) live in frontmatter.
+- Read paths use frontmatter only (hard cutover). Users with pre-migration vaults must run
+  `tmr doctor --fix-frontmatter` (Story 9.36).
+
+### Anti-Pattern (Critical — Body Link Regression)
+
+**DO NOT** call `SectionParserService.appendToFile(profilePath, sectionName, wikiLink)` or
+`appendToHashSection(content, sectionName, '- [[...]]')` for any **structural** relationship.
+Use `addRelation()` from `src/utils/frontmatter-relations.ts` instead.
+
+**Structural relationships (→ frontmatter):** `current_manager`, `previous_manager`,
+`direct_reports`, `leadership`, `other_leaderships`, `teams`, `projects`, `members`, `stakeholders`,
+`tasks`, `today`, `this_week`, `this_month`, `this_quarter`.
+
+**Dated artifact lists (→ body via `SectionParserService.appendToFile`, correct as-is):**
+`## 1on1s`, `## Feedbacks`, `## Assessments`, `## Performance Reviews`.
 
 ---
 

@@ -176,10 +176,11 @@ describe('SkillRegistryService', () => {
 
       service.installSkill('tmr-inbox', '<!-- version: 1.0.0 -->\n# Skill', '1.0.0');
 
-      expect(mockMkdirSync).toHaveBeenCalledWith(
-        expect.stringContaining(`.claude/skills/tmr-inbox`),
-        { recursive: true },
+      const mkdirCall = (mockMkdirSync.mock.calls as unknown[][]).find((args) =>
+        String(args[0]).replace(/\\/g, '/').includes('.claude/skills/tmr-inbox'),
       );
+      expect(mkdirCall).toBeDefined();
+      expect(mkdirCall![1]).toEqual({ recursive: true });
       expect(mockWriteFileSync).toHaveBeenCalledWith(
         expect.stringContaining('SKILL.md'),
         '<!-- version: 1.0.0 -->\n# Skill',

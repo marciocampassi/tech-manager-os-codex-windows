@@ -10,6 +10,7 @@
  */
 
 import { describe, it, expect, jest, beforeAll, afterAll } from '@jest/globals';
+import matter from 'gray-matter';
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -148,6 +149,12 @@ describe('Group 1 — Foundation & Workspace (9.1–9.5)', () => {
   });
 
   it('T-04 (9.1): member add creates nested team path with relationship: direct-report', async () => {
+    // The team must exist before a team-scoped member can be added (member-add team guard).
+    mkdirSync(join(WS, 'my-teams', 'teams', 'backend'), { recursive: true });
+    writeFileSync(
+      join(WS, 'my-teams', 'teams', 'backend', 'backend-context.md'),
+      '---\nteam: backend\n---\n',
+    );
     await memberService.addMember(
       'bob@company.com',
       {
@@ -327,24 +334,39 @@ describe('Group 3 — Project Commands (9.13–9.14)', () => {
     expect(content).toMatch(/project:|platform/);
   });
 
-  it('T-20 (9.14): link-member writes back-link under ## Projects in member profile', async () => {
+  it('T-20 (9.33): link-member writes back-link to projects frontmatter in member profile', async () => {
     await projectService.linkMember('platform', 'bob@company.com', WS);
     const content = readFileSync(
       join(WS, 'my-teams', 'members', 'bob@company.com', 'bob@company.com.md'),
       'utf-8',
     );
-    expect(content).toContain('## Projects');
-    expect(content).toMatch(/\[\[.*platform.*\]\]/);
+    const { data } = matter(content);
+    expect(Array.isArray(data['projects'])).toBe(true);
+    expect((data['projects'] as string[]).some((l) => /platform/.test(l))).toBe(true);
   });
 
-  it('T-21 (9.14): link-member is idempotent — duplicate back-link not written twice', async () => {
+  it('T-21 (9.33): link-member is idempotent — duplicate back-link not written twice', async () => {
     await projectService.linkMember('platform', 'bob@company.com', WS);
-    const content = readFileSync(
+
+    // Entity side: projects[] still has exactly one platform entry
+    const memberContent = readFileSync(
       join(WS, 'my-teams', 'members', 'bob@company.com', 'bob@company.com.md'),
       'utf-8',
     );
-    const matches = content.match(/\[\[.*platform.*\]\]/g) ?? [];
-    expect(matches.length).toBe(1);
+    const { data: memberData } = matter(memberContent);
+    const entityMatches = (memberData['projects'] as string[]).filter((l) => /platform/.test(l));
+    expect(entityMatches.length).toBe(1);
+
+    // Project side (AC4): members[] also has exactly one entry for bob
+    const overviewContent = readFileSync(
+      join(WS, 'my-company', 'projects', 'platform-project', 'platform-project.md'),
+      'utf-8',
+    );
+    const { data: overviewData } = matter(overviewContent);
+    const projectMatches = (overviewData['members'] as string[]).filter((l) =>
+      /bob@company\.com/.test(l),
+    );
+    expect(projectMatches.length).toBe(1);
   });
 });
 
@@ -367,7 +389,7 @@ describe('Group 4 — Self-Profile, Doctor & Init (9.15–9.18)', () => {
     const profile = await teamService.showProfile('dave@vendor.io', WS);
     expect(profile).not.toBeNull();
     expect(profile!.location).toBe('contractor');
-    expect(profile!.filePath).toContain('my-company/contractors');
+    expect(profile!.filePath.replace(/\\/g, '/')).toContain('my-company/contractors');
   });
 
   it('T-24 (9.16): myself add performance-review creates my-career/YYYY-MM-performance-review-<email>.md', async () => {

@@ -25,6 +25,7 @@ const VAULT_DIRS = [
   'my-company/projects',
   'my-leadership',
   'my-career',
+  'my-career/performance-reviews',
   'knowledge-base',
   'config',
   '.claude/skills',
@@ -161,25 +162,38 @@ export class InitService {
   ): Promise<void> {
     const email = opts.email.trim().toLowerCase();
     const filePath = path.join(vaultPath, 'my-career', `${email}.md`);
-    const fm = {
+
+    const taskLink = (file: string, label: string): string =>
+      formatWikiLink(path.join(vaultPath, 'my-tasks', file), filePath, label);
+
+    const fm: Record<string, unknown> = {
       email,
       name: opts.name,
       role: opts.role,
       relationship: 'self',
       date_added: todayIso(),
+      start_date: '',
+      current_manager: '',
+      previous_manager: [],
+      leadership: [],
+      other_leaderships: [],
+      direct_reports: [],
+      projects: [],
+      tasks: taskLink('tasks.md', 'tasks'),
+      today: taskLink('today.md', 'today'),
+      this_week: taskLink('this-week.md', 'this-week'),
+      this_month: taskLink('this-month.md', 'this-month'),
+      this_quarter: taskLink('this-quarter.md', 'this-quarter'),
     };
-
-    let body = '\n# Career Profile\n\n## Notes\n\n## Goals\n';
 
     if (opts.leaderEmail?.trim()) {
       const leaderEmail = opts.leaderEmail.trim().toLowerCase();
       const leaderFile = path.join(vaultPath, 'my-leadership', leaderEmail, `${leaderEmail}.md`);
-      const leaderLink = formatWikiLink(leaderFile, filePath, leaderEmail);
-      body += `\n## Leadership\n\n- ${leaderLink}\n`;
+      fm.current_manager = formatWikiLink(leaderFile, filePath, leaderEmail);
     }
 
-    const content = matter.stringify(body, fm);
-    await this._fs.writeFile(filePath, content);
+    const body = '\n# Career Profile\n\n## Notes\n\n## Performance Reviews\n';
+    await this._fs.writeFile(filePath, matter.stringify(body, fm));
   }
 
   /**
@@ -355,13 +369,15 @@ export class InitService {
       [
         '',
         'Next steps:',
-        '  1. Run `tmr config` to set your AI API key',
-        '  2. Run `tmr project add` to add your first project',
-        `  3. Open ${vaultPath} in Obsidian — plugins are ready`,
-        '  4. Run /tmr-myself-config in Claude Code to personalize your AI context (do this first)',
-        '  5. Run /tmr-inbox in Claude Code to process your inbox meeting notes',
-        '  6. Run /tmr-project-impact after changes to any project file to check impact',
-        '  7. Run `tmr --help` to explore all commands',
+        '  1. Open this vault in Obsidian:',
+        `       macOS/Linux → run: open -a Obsidian "${vaultPath}"`,
+        `       Windows     → run: start "" "obsidian://${vaultPath}"`,
+        `       Or open Obsidian and navigate to: ${vaultPath}`,
+        '  2. Run /tmr-myself-config in Claude Code to personalize your AI context (do this first)',
+        '  3. Run /tmr-inbox in Claude Code to process your inbox meeting notes',
+        '  4. Run `tmr --help` to explore all commands',
+        '',
+        'Upgrading an older vault? Run `tmr doctor --fix-frontmatter` to migrate body links to frontmatter (idempotent).',
         '',
         'Skills installed:',
         '  /tmr-myself-config      — personalize AI context across your vault',

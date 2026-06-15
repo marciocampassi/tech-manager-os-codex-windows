@@ -18,11 +18,9 @@ import {
 import { obsidianPluginService, REQUIRED_PLUGIN_IDS } from '../services/obsidian-plugin.service.js';
 import { generateClaudeMd } from '../services/claude-md.generator.js';
 import { generateTaskFileTemplate } from '../templates/onboarding.templates.js';
+import { formatWikiLink } from '../utils/wiki-link.js';
 import { startSpinner, printError, printInfo, printWarning } from '../utils/display.js';
 import type { TaskPeriod } from '../types/task.types.js';
-
-const TASKS_MD_TEMPLATE =
-  '# Tasks\n\n<!-- Backlog: add tasks here — tmr process will append extracted tasks automatically -->\n';
 
 export class InitCommand {
   constructor(
@@ -78,6 +76,7 @@ export class InitCommand {
     const answers: { name: string; email: string; role: string; company: string } = {
       ...nameEmail,
       ...roleCompany,
+      company: inferredDomain.toLowerCase(),
     };
     const leader = await promptLeaderDetails();
     const teamCount = await promptTeamCount();
@@ -131,20 +130,22 @@ export class InitCommand {
       return;
     }
 
-    const taskPeriods: TaskPeriod[] = ['today', 'this-week', 'this-month', 'this-quarter'];
-    const allTaskFiles: Array<[string, string]> = [
-      ['tasks.md', TASKS_MD_TEMPLATE],
-      ...taskPeriods.map((period): [string, string] => [
-        `${period}.md`,
-        generateTaskFileTemplate(period),
-      ]),
+    const ownerEmail = answers.email.trim().toLowerCase();
+    const selfProfilePath = join(workspacePath, 'my-career', `${ownerEmail}.md`);
+    const taskTypes: Array<'tasks' | TaskPeriod> = [
+      'tasks',
+      'today',
+      'this-week',
+      'this-month',
+      'this-quarter',
     ];
 
     await Promise.all(
-      allTaskFiles.map(async ([filename, content]) => {
-        const filePath = join(workspacePath, 'my-tasks', filename);
+      taskTypes.map(async (type) => {
+        const filePath = join(workspacePath, 'my-tasks', `${type}.md`);
         if (!(await fileSystemService.exists(filePath))) {
-          await fileSystemService.writeFile(filePath, content);
+          const ownerLink = formatWikiLink(selfProfilePath, filePath, ownerEmail);
+          await fileSystemService.writeFile(filePath, generateTaskFileTemplate(type, ownerLink));
         }
       }),
     );

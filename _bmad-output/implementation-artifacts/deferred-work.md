@@ -1,5 +1,27 @@
 # Deferred Work
 
+## Deferred from: code review of 9-28-member-add-team-updates-team-members-frontmatter (2026-06-10)
+
+- Concurrent read-modify-write on team-members file can lose updates — no file-lock pattern in codebase; single-user CLI assumption holds (see 9-26 deferred work).
+- `createTeam` early-return skips members file recreation when context exists but members file deleted — `addRelation` throws if members file missing; repair belongs in doctor/migration scope (Story 9.36).
+- Corrupt YAML in team-members file throws uncaught `matter()` parse error — acceptable for v1 per 9-26 deferred work; Story 9.36 doctor may add validation.
+- Duplicated team-members file path construction in MemberService vs TeamService — story spec explicitly inlined path; centralize in a future refactor.
+- MemberService has no symmetric `removeRelation` when member profile is deleted — lifecycle cleanup is Story 9.34 scope, not 9.28.
+
+## Deferred from: code review of 9-27-relation-types-and-project-context-rule (2026-06-10)
+
+- Hard cutover read paths without migration fallback — `project-context.md` mandates frontmatter-only reads and points to `tmr doctor --fix-frontmatter` (Story 9.36). No fallback read path in this story; pre-migration vaults may show empty relationships until doctor runs.
+- `last_*` scalar desync from body artifact lists — Dated lists stay in body while `last_1on1`/`last_feedback`/etc. live in frontmatter. Keeping them in sync is Story 9.31 scope, not this types/docs story.
+- RelationKey vs interface dual maintenance — `relations.types.ts` profile shapes complement `RelationKey`/`ScalarKey` in `frontmatter-relations.ts` per Dev Notes. Key drift risk acknowledged; shared codegen or exported unions deferred to Wave 2 integration.
+- Read-path YAML type coercion at cast sites — Interfaces are cast targets only; gray-matter may yield scalars where arrays expected, string booleans, or YAML null. Normalization guards belong in Wave 2 read/write stories (9.28–9.34), not this interface file.
+
+## Deferred from: code review of 9-26-frontmatter-relations-shared-utility (2026-06-10)
+
+- Corrupt frontmatter type mismatches (scalar in array key) silently coerced to `[]` on add — `addRelation`/`removeRelation` use `Array.isArray(data[key]) ? ... : []` without error. Acceptable for v1 utility; Story 9.36 doctor migration should detect and repair malformed relation fields.
+- Concurrent read-modify-write on same file can lose updates — no file-lock pattern exists in the codebase; single-user CLI assumption holds for now. Re-examine if parallel command execution is introduced.
+- Malformed YAML frontmatter throws uncaught gray-matter parse error — utility does not wrap `matter()` in try/catch. Callers receive the raw exception; acceptable for v1; doctor story may add validation.
+- File rewritten even when relation data unchanged — duplicate `addRelation`, no-op `removeRelation`, and matching scalar overwrites still call `writeFile`. Optimization not required by spec; reduces git noise in a future pass.
+
 ## Deferred from: Epic 1 readiness review (2026-05-09)
 
 - `normalizeSlug` does not strip leading or trailing hyphens from the result — e.g. `normalizeSlug('-team-')` returns `'-team-'`. The `-+` collapse regex fires only on runs of multiple hyphens, not on boundary positions. Could produce file paths with a leading hyphen. Add a `.replace(/^-+|-+$/g, '')` step, or validate at the command layer before this is called from Epic 2/3 interactive flows.
@@ -363,3 +385,97 @@ The following items were surfaced by the pre-launch AC audit (Epics 1–5) and a
 - D2 — `OBSIDIAN_PLUGINS` array elements no longer deeply readonly after explicit type annotation was added (`as const` removed). Internal private constant with zero public API exposure; practical risk is nil. [`src/services/obsidian-plugin.service.ts`]
 - D3 — One-directional compile-time drift: adding to `REQUIRED_PLUGIN_IDS` without updating `OBSIDIAN_PLUGINS` is not caught at compile time (the reverse direction IS caught via `RequiredPluginId` type constraint). [`src/services/obsidian-plugin.service.ts`]
 - D4 — No test for vault-configured-but-directory-absent branch of `checkCommunityPlugins`. Consistent gap with `checkGranolaSync` test pattern — neither service has this branch explicitly tested. [`tests/services/doctor.service.test.ts`]
+
+## Deferred from: code review of 9-22-remove-duplicate-company-domain-prompt (2026-06-09)
+
+- Stale `{ role, company }` mocks in `tests/fixtures/init-prompts.ts` and `init.integration.test.ts` — outside 4-file story scope; behavior still works because `company: inferredDomain` overrides spread.
+- Working tree mixes 9-23/9-24 changes unrelated to this story — branch hygiene, not a 9-22 code defect.
+- `promptRoleAndCompany` role field not trimmed on return (whitespace padding) — pre-existing; inconsistent with other prompts but not introduced by this story.
+
+## Deferred from: code review of 9-29-relationship-frontmatter-vocabulary-on-all-entity-profiles (2026-06-10)
+
+- `team add` writes `current_manager: ''` on a flat `my-career/` because `getManagerEmail` uses `listDirectories` (nested layout) → returns null; diverges from `member add --team` which resolves a real link. Pre-existing D1, explicitly out of 9.29 scope. [`src/services/team.service.ts:134-148`]
+- `_getSelfProfilePath` / `_resolveManagerLink` select `mdFiles[0]` from `my-career/`; non-deterministic if more than one top-level `.md` exists (filesystem `readdir` order). Mitigated by the flat self-profile design; mirrors deferred `_resolveManagerLink` behavior (D2). [`src/services/member.service.ts:308-318`, `src/services/team.service.ts:470-475`]
+- Existing member profiles are not backfilled with the new frontmatter vocabulary (relationship/teams/current_manager) when re-added; only `direct_reports`/team-members are synced. Migration is Story 9.36 (`tmr doctor --fix-frontmatter`) scope. [`src/services/member.service.ts:115-119`]
+- `_resolveTeamContextLink` generates a wiki-link to `<slug>-context.md` without verifying the team context file exists; `member add --team` against an uncreated team yields a dangling link. Intentional per Dev Notes (path generation, no FS read). [`src/services/member.service.ts:323-335`]
+- `_getSelfProfilePath` is duplicated in `member.service.ts` and `team.service.ts`; DRY nit — spec only "considered" extracting a shared helper. Risk of future divergence. [`src/services/team.service.ts:470-475`]
+- Pre-existing profiles keep old body sections, and on a legacy nested `my-career/` the `direct_reports` reciprocal is silently skipped (`_getSelfProfilePath` returns null). Covered by the 9.36 migration story. [`src/services/team.service.ts:226-235`]
+
+## Deferred from: code review of 9-24-email-similarity-shared-utility-and-fix (2026-06-09)
+
+- Dead `filteredEmails.length === 0` guard in `runProjectLinkMembers` / `runProjectLinkStakeholders` — unreachable after 9.24 because `resolveEmailWithSimilarCheck` always returns a string; story dev notes explicitly leave it harmless. [`src/commands/project.command.ts:140,230`]
+- No dedicated unit test for `email-guard.ts` inquirer Y/N branches — command tests mock the guard at module boundary per AC8/story spec; integration coverage deferred to a future test-hardening pass. [`src/utils/email-guard.ts`]
+- `inquirer.prompt` throws in non-TTY / SIGINT contexts propagate unhandled from guard call sites — pre-existing CLI pattern across all interactive commands (9-8 deferred D12). [`src/utils/email-guard.ts`, all command call sites]
+- Batch link commands (`runProjectLinkMembers`, `runProjectLinkStakeholders`) prompt sequentially per email with no dedup — pre-existing 9-8 behavior; not introduced by 9.24. [`src/commands/project.command.ts`]
+- Leadership decline-path test uses default mock passthrough rather than explicit N simulation — acceptable given mock design; does not block story acceptance. [`tests/commands/leadership.command.test.ts:248`]
+
+## Deferred from: code review of 9-30-leadership-add-bidirectional-reciprocal-frontmatter (2026-06-11)
+
+- Leader's `direct_reports` unconditionally gains self even when the leader is a skip-level (placed in my `leadership[]`) rather than my manager — spec-prescribed per the Reciprocity Map; semantic asymmetry is a spec-design observation, not a code defect. [`src/services/leadership.service.ts:113`]
+- `_getSelfProfilePath` returns `mdFiles[0]` non-deterministically and (unlike `MemberService._resolveManagerLink`) logs no warning when `my-career/` holds more than one `.md`. Pre-existing D2. [`src/services/leadership.service.ts:70-74`]
+- Reciprocal writes are non-transactional; malformed self-profile YAML or a mid-sequence throw leaves partial state after the leader file is already written. Consistent with the 9.28/9.29 reciprocal pattern; command layer surfaces errors per NFR2. [`src/services/leadership.service.ts:108-123`]
+- No guard against adding one's own email as a leadership contact (self-as-own-manager / self-as-own-report). Unspecified, low-probability. [`src/services/leadership.service.ts:109-123`]
+- `!selfFm['current_manager']` truthiness mishandles whitespace-only / non-string values; spec defines only "empty or absent". Low severity. [`src/services/leadership.service.ts:118`]
+- Leader can end up in both `current_manager` and `leadership[]` (no cross-field dedupe) when the self profile is pre-seeded with the link. Narrow edge. [`src/services/leadership.service.ts:118-122`]
+- Reciprocal org-graph edges are never backfilled if the self profile is created after the leader (creation-guard gates the reciprocal block). Backfill is Story 9.36 (`tmr doctor --fix-frontmatter`) scope. [`src/services/leadership.service.ts:98-123`]
+- Redundant double-write of the leader file: `buildLeadershipProfileMd` emits `direct_reports: []`, then `addRelation` re-reads/re-writes to append the self link. Micro-optimization; `addRelation` is the sanctioned idempotent path. [`src/services/leadership.service.ts:105-113`]
+- LEA-UNIT-034 does not assert `listFiles` is uncalled; new tests are coupled to helper call counts (`mockResolvedValueOnce` sequences). Test polish; low value. [`tests/services/leadership.service.test.ts:186-321`]
+
+## Deferred from: code review of 9-23-my-career-performance-review-subfolder (2026-06-09)
+
+- No migration for pre-9.23 flat performance-review files in `my-career/` — story intentionally supersedes 9.16 flat layout; old files remain flat with old wiki-link format; new reviews go to `performance-reviews/` subfolder. Out of story scope.
+- `resolveSelfEmail` / `_resolveManagerLink` lack dated-file filter when flat review files exist in `my-career/` — pre-existing from 9.16; 9.23 improves forward path by writing new reviews to subfolder (invisible to flat `readdir`). Already tracked as D2 in 9-3 deferred work; harden in a dedicated follow-up story.
+
+## Deferred from: code review of 9-31-dated-artifact-frontmatter-plus-body-wikilink-plus-last-scalar (2026-06-11)
+
+- `last_<type>` scalar overwrites unconditionally; creating an artifact with an older date after a newer one moves recency backward (`setScalar` has no max/compare). Spec chose last-write-wins (AC6); chronological-max is a future enhancement. [`src/services/member.service.ts:292`; `src/services/leadership.service.ts:168`]
+- `setScalar` calls `matter(content)` which throws on malformed profile frontmatter — runs after the dated-file write and section append, so a broken profile yields an uncaught error plus partial state. Pre-existing `setScalar`/`appendToFile` behavior (also present in 9.30). [`src/utils/frontmatter-relations.ts:103-115`]
+- No transaction across the dated-file → section-append → scalar write sequence; for feedback, `_buildDatedFileLinks` also auto-creates the reviewer stub as a side effect, so a later failure can leave orphaned files / an orphan reviewer profile. Consistent with the existing non-transactional architecture (TOCTOU/atomicity already deferred in prior reviews). [`src/services/member.service.ts:287-322`]
+- `_getSelfProfilePath` returns the first `.md` in `my-career/` with no email-format check and no multi-file warning (unlike `_resolveManagerLink`), so a stray `README.md` becomes a bogus `with` link and multiple profiles pick one silently. Explicitly deferred as D-9.3-D2. [`src/services/member.service.ts:361-366`; `src/services/leadership.service.ts:70-75`]
+- Empty-string `date` is non-nullish so it bypasses `?? todayIso()` and propagates into the dated-file frontmatter, filename, and the `last_<type>` scalar. Command layer validates date; pre-existing. [`src/services/member.service.ts:258`]
+- Re-running `createMemberFile`/`add1on1` for the same date appends a duplicate `- [[…]]` line to the profile section (`appendToFile` has no dedup); the scalar stays idempotent. Pre-existing; no-dup-file/dedup guard already deferred. [`src/services/section-parser.service.ts`]
+- New 9.31 tests assert `subject:`/`from:` presence and the email separately rather than asserting the email lives inside the link line; since the email also appears in the body heading, a malformed/empty wiki-link could still pass. Minor test-quality hardening. [`tests/services/*.test.ts`, `tests/integration/*.test.ts`]
+
+## Deferred from: code review of 9-32-myself-add-performance-review-body-wikilink-plus-frontmatter-scalar (2026-06-12)
+
+- No atomicity/rollback across the `writeFile` (dated file) → `appendToFile` (body) → `setScalar` (frontmatter) sequence; a failure at a later step leaves the dated review file on disk while the profile body link and/or `last_performance_review` scalar are never written. Same non-transactional pattern deferred in 9.30/9.31. [`src/services/myself.service.ts:86-91`]
+- `setScalar` calls `matter(content)` which throws on corrupt/invalid profile YAML — it runs after the body append already succeeded, so a broken profile yields an uncaught error plus partial state. Pre-existing `setScalar` behavior (also deferred in 9.31). [`src/utils/frontmatter-relations.ts:110-114`]
+- `profilePath` comes from `EmailResolutionService.resolve(ownEmail)`, which checks team → leadership → self; if the user's own email also exists in a higher-priority scope, `profilePath` (and thus the `subject` link target and body-append target) could point at a non-self profile. Pre-existing resolution behavior — `profilePath` was already the `appendToFile` target before 9.32, so 9.32 did not introduce the root cause. [`src/services/myself.service.ts:65-66`]
+- Multiple non-dated `.md` files in `my-career/` are resolved by logging a warning and picking `nonDatedFiles[0]` with no stable sort; `ownEmail`, the subject link, and the profile target all derive from that arbitrary pick. Pre-existing (D-9.3-D2 family — flat self-profile assumption). [`src/services/myself.service.ts:53-62`]
+- AC1 dated-file frontmatter (`type`/`date`/`subject`) is verified only at the `getTemplate`-argument level because `myself.service.test.ts` mocks `TemplateService`; the actual emitted frontmatter is covered indirectly by `template.service.test.ts`. Story 9.31's `member.service.test.ts` used a real `TemplateService` for stronger end-to-end frontmatter assertions. Test-quality enhancement; the 9.32 spec prescribed the mock approach. [`tests/services/myself.service.test.ts`]
+
+## Deferred from: code review of 9-33-project-link-member-stakeholder-frontmatter-both-sides (2026-06-13)
+
+- `_linkBatch` rechecks project existence (`this._fs.exists(overviewPath)`) on every email iteration — N identical stat calls against the same path per batch. Minor perf; the check could be hoisted above the loop. [`src/services/project.service.ts`]
+- `_linkBatch` is not atomic: if `_linkEntity` throws partway through a batch, earlier emails are already linked and later ones are not; the caller receives an error with no partial count. Pre-existing pattern (old loop also had no rollback). [`src/services/project.service.ts`]
+- `needsMigration` typed as optional (`?`) in `IProjectSummary` but `listProjects` always sets it — consumers face unnecessary `undefined`-handling. Pragmatic choice; making it required would break existing mocks. [`src/types/project.types.ts`]
+- Null/falsy YAML array elements inflate `memberCount`/`stakeholderCount` — `data.members!.length` counts any value including null. Theoretical: only reachable via hand-edited YAML; `addRelation` always writes clean string arrays. [`src/services/project.service.ts:155-156`]
+
+## Deferred from: code review of 9-34-team-fire-archive-frontmatter-cleanup-plus-manager-history (2026-06-13)
+
+- `_getSelfProfilePath` returns `mdFiles[0]` from `my-career/` with no email-format check or stable sort — a stray `README.md` (uppercase sorts first) would be picked as the "self" profile, so `direct_reports` cleanup mutates the wrong file. Pre-existing (D-9.3-D2 family — flat self-profile assumption); also affects `addMember`. [`src/services/team.service.ts:493-498`]
+- Full archive throws when `destDir` already exists (e.g. a prior date-filtered archive created `archived/{year}/{email}`, then a full archive calls `moveFile` with `overwrite: false`), leaving the member half-moved. Pre-existing `moveFile` semantics. [`src/services/team.service.ts:333`; `src/services/file-system.service.ts:80`]
+- Archive markers (`archived`/`archived_date`/`teams:[]`/manager rotation) and `fireMember` termination fields are silently skipped when `srcDir` exists but contains no `${email}.md` — the `exists(archivedProfile)` guard is false and no error surfaces. Pre-existing guard behavior. [`src/services/team.service.ts:337-338`, `:391`]
+- No rollback/atomicity across the `moveFile` → frontmatter `writeFile` → `_removeWikiLink` → self `removeRelation` sequence; a failure at any later step leaves earlier side effects committed. Pre-existing non-transactional pattern (deferred in 9.30–9.33). [`src/services/team.service.ts:333-371`]
+- `removeRelation` injects a spurious empty `direct_reports: []` key into the self profile on every archive when the key was previously absent (the filter branch always assigns the array). Pre-existing `removeRelation` utility behavior. [`src/utils/frontmatter-relations.ts:93-95`]
+
+## Deferred from: code review of 9-35-init-frontmatter-native-self-and-leader-profiles-plus-tasks-goals (2026-06-13)
+
+- AC4 leader-side `direct_reports` reciprocity is only unit-tested (`LEA-UNIT-031`), never exercised through the real `tmr init` orchestration — the integration harness's static `readFile` stub makes `_getSelfProfilePath` return null, so all `addLeadership` reciprocal writes are skipped during full init. Test-coverage enhancement: extend the integration mock to serve the self profile so init→leader reciprocity is proven end-to-end. [`tests/integration/init.integration.test.ts`]
+- `writeUserProfile` writes the self profile unconditionally (no `if (!exists)` guard), unlike the task-file loop which guards with `exists`. A re-run of init could overwrite manually-added Notes/Performance Reviews content. Pre-existing behavior (init is normally guarded upstream by vault detection). [`src/services/init.service.ts:196`]
+- Task files created by a prior version (no `type`/`owner` frontmatter) are never upgraded — the `if (!(await exists))` guard skips them forever, leaving a mixed population of frontmatter/no-frontmatter task files. Pre-existing idempotent-guard pattern; needs a migration story. [`src/commands/init.command.ts:145`]
+- Dead `generateTeamMemberProfile` and its test (`onboarding.templates.test.ts`) still emit/assert `action_items_gdoc: ''` and a `## Action Items` section — the exact anti-pattern AC7 forbids. No functional impact (live flow uses `buildMemberProfileMd`), but the passing test enshrines the forbidden structure. Out of 9.35 scope to delete. [`src/templates/onboarding.templates.ts:103`]
+
+## Deferred from: code review of 9-36-tmr-doctor-fix-frontmatter-migration (2026-06-14)
+
+- Unquoted date fields (`date_added`/`updated`/`created`) are reformatted to ISO timestamps (`2026-06-14` → `2026-06-14T00:00:00.000Z`) by gray-matter whenever a profile is rewritten. Pre-existing, project-wide: the identical `matter()/matter.stringify()` pattern in `src/utils/frontmatter-relations.ts` (used by team/member/leadership services) already does this; `--fix-frontmatter` just amplifies exposure (touches every file). Not data loss (ISO is valid). Recommended fix: a shared gray-matter wrapper using `js-yaml` `JSON_SCHEMA` so timestamps stay strings, applied across all services. [`src/services/doctor.service.ts`, `src/utils/frontmatter-relations.ts`]
+- `## Previous Leaderships` body links are never migrated — the section is generated by the member template but has no canonical `previous_leaderships` frontmatter key (absent from `RelationKey` and the canonical map). Needs a vocabulary decision before it can be migrated. [`src/templates/onboarding.templates.ts:125`]
+- Legacy self-profile `reports_to:` frontmatter key is not renamed to `current_manager`. `generateCareerProfile` (which writes it) has no callers in `src/` (dead post-9.35), and the body `## Current Manager` already populates `current_manager`, so the stale key is a harmless duplicate. Verify against a real legacy vault; add a rename if needed. [`src/templates/onboarding.templates.ts:21`]
+- `WIKILINK_BULLET` only matches `-` bullets at column 0 — `*`/`+`/indented markdown list markers under structural sections are not migrated. Live templates always emit `- [[...]]` at column 0, so low real risk; broaden the regex if hand-edited vaults surface. [`src/services/doctor.service.ts`]
+- `detectLegacyBodyLinks` parses every entity/roster/project file on every plain `tmr doctor` run, adding vault-wide IO to a previously fast environment check. Acceptable now; revisit if doctor latency becomes a concern (e.g. cache or gate behind a flag). [`src/commands/doctor.command.ts`]
+- `LAST_SCALAR_KEY` (`src/types/member.types.ts`) was not reused; a parallel `DATED_SECTIONS` map (keyed by section name) was introduced instead. Behaviorally equivalent (same scalar names) but two sources of truth — consolidate to prevent drift. [`src/services/doctor.service.ts`]
+
+## Deferred from: UAT round 2 — quick-dev scope split (2026-06-14)
+
+- Non-atomic write / no rollback across entity-creation sequences (`writeFile` profile → reciprocal `addRelation`/`setScalar` → body append). A failure (or a later manual file deletion) leaves a dangling reciprocal link — e.g. self-profile `direct_reports` pointing to a member profile that was never finalized. Surfaced during UAT when a member was added then removed. This is a cross-cutting architectural concern affecting `member`, `leadership`, `myself`, `team`, and `project` services (already noted piecemeal across 9.14/9.30/9.31/9.32/9.34 deferrals). Split off from the self-email-guard fix to a dedicated transactional-write story rather than fixed inline pre-launch. Candidate approach: a write-journal/temp-file-then-rename helper or a best-effort compensating cleanup on failure. [`src/services/member.service.ts`, `src/services/leadership.service.ts`, `src/services/myself.service.ts`, `src/services/team.service.ts`, `src/services/project.service.ts`]
+  - **Partially addressed (2026-06-14):** the *symptom* (dangling reciprocal links from either a partial write or a manual deletion) now has a consistency-repair via `tmr doctor --prune-links` (+ plain-doctor warning) — see `spec-doctor-prune-dangling-links.md`. The *prevention* half (compensating rollback / transactional writes inside the five services) remains deferred as above.

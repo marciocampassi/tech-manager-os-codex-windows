@@ -49,6 +49,12 @@ const { VaultNotFoundError } = await import('../../src/errors/tmr-error.js');
 
 // ── Tests ────────────────────────────────────────────────────────────────────
 
+// OS-native fixtures: getWorkspaceRoot() uses path.normalize / path.sep internally,
+// so test paths and expected hints must use the host separator (backslash on Windows).
+const CONFIGURED = path.normalize('/configured/workspace');
+const configuredHint = (root: string): string =>
+  `Your configured vault is at ${root} — cd into it, or run 'tmr init' to create a vault here.`;
+
 describe('getWorkspaceRoot', () => {
   let originalExitCode: number | undefined;
 
@@ -94,27 +100,27 @@ describe('getWorkspaceRoot', () => {
   // ── Config fallback ───────────────────────────────────────────────────────
 
   it('WS-004: returns configured path when no sentinel and CWD equals configured vault', () => {
-    jest.spyOn(process, 'cwd').mockReturnValue('/configured/workspace');
+    jest.spyOn(process, 'cwd').mockReturnValue(CONFIGURED);
     mockExistsSync.mockReturnValue(false);
-    jest.spyOn(configService, 'getWorkspacePath').mockReturnValue('/configured/workspace');
+    jest.spyOn(configService, 'getWorkspacePath').mockReturnValue(CONFIGURED);
 
-    expect(getWorkspaceRoot()).toBe('/configured/workspace');
+    expect(getWorkspaceRoot()).toBe(CONFIGURED);
     expect(mockPrintError).not.toHaveBeenCalled();
   });
 
   it('WS-004b: returns configured path when no sentinel and CWD is a subdirectory of configured vault', () => {
-    jest.spyOn(process, 'cwd').mockReturnValue('/configured/workspace/my-teams');
+    jest.spyOn(process, 'cwd').mockReturnValue(path.join(CONFIGURED, 'my-teams'));
     mockExistsSync.mockReturnValue(false);
-    jest.spyOn(configService, 'getWorkspacePath').mockReturnValue('/configured/workspace');
+    jest.spyOn(configService, 'getWorkspacePath').mockReturnValue(CONFIGURED);
 
-    expect(getWorkspaceRoot()).toBe('/configured/workspace');
+    expect(getWorkspaceRoot()).toBe(CONFIGURED);
     expect(mockPrintError).not.toHaveBeenCalled();
   });
 
   it('WS-004c: throws VaultNotFoundError when no sentinel and CWD is outside the configured vault', () => {
-    jest.spyOn(process, 'cwd').mockReturnValue('/projects/vault2');
+    jest.spyOn(process, 'cwd').mockReturnValue(path.normalize('/projects/vault2'));
     mockExistsSync.mockReturnValue(false);
-    jest.spyOn(configService, 'getWorkspacePath').mockReturnValue('/configured/workspace');
+    jest.spyOn(configService, 'getWorkspacePath').mockReturnValue(CONFIGURED);
 
     let error: unknown;
     try {
@@ -126,17 +132,15 @@ describe('getWorkspaceRoot', () => {
     expect(error).toBeInstanceOf(VaultNotFoundError);
     const ve = error as InstanceType<typeof VaultNotFoundError>;
     expect(ve.message).toBe('No tmr vault found in this directory or any parent.');
-    expect(ve.hint).toBe(
-      "Your configured vault is at /configured/workspace — cd into it, or run 'tmr init' to create a vault here.",
-    );
+    expect(ve.hint).toBe(configuredHint(CONFIGURED));
     expect(mockPrintError).not.toHaveBeenCalled();
   });
 
   it('WS-004d: throws VaultNotFoundError for path that is only a string-prefix of configured vault (no separator)', () => {
     // /configured/workspaceExtra should NOT be treated as inside /configured/workspace
-    jest.spyOn(process, 'cwd').mockReturnValue('/configured/workspaceExtra');
+    jest.spyOn(process, 'cwd').mockReturnValue(path.normalize('/configured/workspaceExtra'));
     mockExistsSync.mockReturnValue(false);
-    jest.spyOn(configService, 'getWorkspacePath').mockReturnValue('/configured/workspace');
+    jest.spyOn(configService, 'getWorkspacePath').mockReturnValue(CONFIGURED);
 
     let error: unknown;
     try {
@@ -147,9 +151,7 @@ describe('getWorkspaceRoot', () => {
 
     expect(error).toBeInstanceOf(VaultNotFoundError);
     const ve = error as InstanceType<typeof VaultNotFoundError>;
-    expect(ve.hint).toBe(
-      "Your configured vault is at /configured/workspace — cd into it, or run 'tmr init' to create a vault here.",
-    );
+    expect(ve.hint).toBe(configuredHint(CONFIGURED));
     expect(mockPrintError).not.toHaveBeenCalled();
   });
 

@@ -1,5 +1,5 @@
 # generated: 2026-04-27
-# last_updated: 2026-04-27
+# last_updated: 2026-06-09
 # project: tech-manager-os
 # project_key: NOKEY
 # tracking_system: file-system
@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-27
-last_updated: 2026-05-27 (story 9-16 review)
+last_updated: 2026-06-14 (9-36 done)
 project: tech-manager-os
 project_key: NOKEY
 tracking_system: file-system
@@ -76,20 +76,20 @@ development_status:
   epic-5-retrospective: optional
 
   # ── Epic 6: Self Profile & AI Context Personalization (tmr-myself-config) ──
-  epic-6: in-progress
+  epic-6: done
   6-1-tmr-myself-config-skill-setup-flow: done
   6-2-tmr-myself-config-update-delta-review-mode: done
   epic-6-retrospective: optional
 
   # ── Epic 7: Zero-Friction Setup ──
-  epic-7: in-progress
+  epic-7: done
   7-1-bootstrap-install-scripts: done
   7-2-tmr-doctor-environment-health-check: done
   epic-7-retrospective: optional
 
   # ── Epic 8: UAT Bug Fixes ──
   # Source: sprint-change-proposal-2026-05-19-uat-bug-fixes.md
-  epic-8: in-progress
+  epic-8: done
   8-1-wire-jest-md-transformer: done
   8-2-scaffold-deps-yaml-on-project-add: done
   8-3-domain-check-contractor-routing: done
@@ -117,4 +117,24 @@ development_status:
   9-16-myself-add-performance-review: done
   9-17-doctor-granola-plugins-check: done
   9-18-init-scaffold-only-plugin-regression-version-art: done
+  # ── Added 2026-06-09 via sprint-change-proposal-2026-06-09-post-uat-bugs-3.md ──
+  9-22-remove-duplicate-company-domain-prompt: done
+  9-23-my-career-performance-review-subfolder: done
+  9-24-email-similarity-shared-utility-and-fix: done
+  9-25-obsidian-open-hint-post-init-summary: done
+  # ── Added 2026-06-09 via sprint-change-proposal-2026-06-09-frontmatter-relationships.md ──
+  # Wave 1 (foundation — blockers for Wave 2):
+  9-26-frontmatter-relations-shared-utility: done
+  9-27-relation-types-and-project-context-rule: done
+  # Wave 2 (parallel command fixes — depend on Wave 1):
+  9-28-member-add-team-updates-team-members-frontmatter: done
+  9-29-relationship-frontmatter-vocabulary-on-all-entity-profiles: done
+  9-30-leadership-add-bidirectional-reciprocal-frontmatter: done
+  9-31-dated-artifact-frontmatter-plus-body-wikilink-plus-last-scalar: done
+  9-32-myself-add-performance-review-body-wikilink-plus-frontmatter-scalar: done
+  9-33-project-link-member-stakeholder-frontmatter-both-sides: done
+  9-34-team-fire-archive-frontmatter-cleanup-plus-manager-history: done
+  # Wave 3 (onboarding + migration):
+  9-35-init-frontmatter-native-self-and-leader-profiles-plus-tasks-goals: done
+  9-36-tmr-doctor-fix-frontmatter-migration: done
   epic-9-retrospective: optional

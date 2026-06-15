@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import { ContextService } from '../../src/services/context.service.js';
 import type { FileSystemService } from '../../src/services/file-system.service.js';
@@ -43,11 +44,19 @@ const MEMBER_EMAIL = 'john.doe@company.com';
 const LEADER_EMAIL = 'boss@company.com';
 const PROJECT_NAME = 'api-redesign';
 
-const MEMBER_DIR = `${WS}/my-teams/members/${MEMBER_EMAIL}`;
-const MEMBER_CTX = `${MEMBER_DIR}/context.md`;
-const LEADER_DIR = `${WS}/my-leadership/${LEADER_EMAIL}`;
-const LEADER_CTX = `${LEADER_DIR}/context.md`;
-const PROJECT_CTX = `${WS}/my-company/projects/${PROJECT_NAME}-project/context.md`;
+// Build path fixtures with path.join so they match the OS-native separators
+// produced by the service's path.join calls (backslashes on Windows).
+const MEMBER_DIR = path.join(WS, 'my-teams', 'members', MEMBER_EMAIL);
+const MEMBER_CTX = path.join(MEMBER_DIR, 'context.md');
+const LEADER_DIR = path.join(WS, 'my-leadership', LEADER_EMAIL);
+const LEADER_CTX = path.join(LEADER_DIR, 'context.md');
+const PROJECT_CTX = path.join(
+  WS,
+  'my-company',
+  'projects',
+  `${PROJECT_NAME}-project`,
+  'context.md',
+);
 
 const INSIGHTS = ['Career goal discussed', 'Needs PR review'];
 

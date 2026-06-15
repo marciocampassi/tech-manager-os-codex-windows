@@ -4,27 +4,9 @@ import chalk from 'chalk';
 import { teamService, TeamService } from '../services/team.service.js';
 import type { ProfileLocation } from '../types/team.types.js';
 import { memberService } from '../services/member.service.js';
-import { printError, printSuccess, printInfo, printWarning } from '../utils/display.js';
-import { findSimilarEmail } from '../utils/email-similarity.js';
+import { printError, printSuccess, printInfo } from '../utils/display.js';
+import { resolveEmailWithSimilarCheck } from '../utils/email-guard.js';
 import { InvalidEmailError } from '../errors/tmr-error.js';
-
-// ── Shared guard ─────────────────────────────────────────────────────────────
-
-async function warnIfSimilarEmail(email: string, workspaceRoot: string): Promise<boolean> {
-  const similar = findSimilarEmail(email, workspaceRoot);
-  if (!similar) return true;
-
-  printWarning(`Similar email already exists: ${similar}`);
-  const { proceed } = await inquirer.prompt<{ proceed: boolean }>([
-    {
-      type: 'confirm',
-      name: 'proceed',
-      message: `Did you mean "${similar}"? (N = continue adding "${email}")`,
-      default: false,
-    },
-  ]);
-  return !proceed;
-}
 
 // ── Formatting helpers ────────────────────────────────────────────────────────
 
@@ -97,7 +79,7 @@ async function runAdd(
 ): Promise<void> {
   const ws = svc.getWorkspaceRoot();
   let teamName = teamNameArg?.trim() ?? '';
-  let email = emailArg?.trim() ?? '';
+  let email = emailArg?.trim().toLowerCase() ?? '';
 
   if (!teamName || !email) {
     const answers = await inquirer.prompt<{ teamName: string; email: string }>(
@@ -117,11 +99,10 @@ async function runAdd(
       ].filter(Boolean) as Parameters<typeof inquirer.prompt>[0],
     );
     teamName = teamName || answers.teamName;
-    email = email || answers.email.trim();
+    email = email || answers.email.trim().toLowerCase();
   }
 
-  const shouldContinue = await warnIfSimilarEmail(email, ws);
-  if (!shouldContinue) return;
+  email = await resolveEmailWithSimilarCheck(email, ws);
 
   // Secondary prompts for optional fields — always run, skip if pre-filled via flags
   const secondaryAnswers = await inquirer.prompt<{
