@@ -112,6 +112,7 @@ is **idempotent**. Plain `tmr doctor` warns you when dangling links are present.
 | Command | Description |
 |---------|-------------|
 | `tmr myself add performance-review` | Create a self performance review in `my-career/` |
+| `tmr myself set-manager <email>` | Change your current manager (moves the previous one to `previous_manager[]`, updates both `direct_reports`) |
 
 ---
 

@@ -6,7 +6,12 @@ import type { EmailResolutionService } from '../../src/services/email-resolution
 import type { TemplateService } from '../../src/services/template.service.js';
 import type { SectionParserService } from '../../src/services/section-parser.service.js';
 import type { IDatedFileLinks } from '../../src/types/member.types.js';
-import { ConfigurationError, ValidationError } from '../../src/errors/tmr-error.js';
+import {
+  ConfigurationError,
+  ValidationError,
+  InvalidEmailError,
+} from '../../src/errors/tmr-error.js';
+import { formatWikiLink } from '../../src/utils/wiki-link.js';
 
 // ── Mock types ────────────────────────────────────────────────────────────────
 
@@ -274,6 +279,118 @@ describe('MyselfService', () => {
       const data = matter(profileContent).data;
       expect(data['last_performance_review']).toBe('2026-07');
       expect(Array.isArray(data['last_performance_review'])).toBe(false);
+    });
+  });
+
+  describe('setManager', () => {
+    const CHEF = 'chef@co.com';
+    const MARLON = 'marlon@co.com';
+    const CHEF_PATH = `${WORKSPACE}/my-leadership/${CHEF}/${CHEF}.md`;
+    const MARLON_PATH = `${WORKSPACE}/my-leadership/${MARLON}/${MARLON}.md`;
+
+    // Exact wiki-link strings as the service computes them
+    const chefLinkOnSelf = formatWikiLink(CHEF_PATH, PROFILE_PATH, CHEF);
+    const selfLinkOnChef = formatWikiLink(PROFILE_PATH, CHEF_PATH, OWN_EMAIL);
+    const marlonLinkOnSelf = formatWikiLink(MARLON_PATH, PROFILE_PATH, MARLON);
+    const selfLinkOnMarlon = formatWikiLink(PROFILE_PATH, MARLON_PATH, OWN_EMAIL);
+
+    let files: Map<string, string>;
+
+    function seed(p: string, data: Record<string, unknown>): void {
+      files.set(p, matter.stringify('# Profile\n', data));
+    }
+
+    function dataOf(p: string): Record<string, unknown> {
+      // gray-matter caches parse results globally and addRelation/removeRelation mutate the
+      // cached object in place — bypass the cache so assertions see the freshly-written content.
+      return matter(files.get(p) ?? '', { cache: false } as never).data as Record<string, unknown>;
+    }
+
+    beforeEach(() => {
+      files = new Map<string, string>();
+      mockFS.exists.mockImplementation(async (p: string) => files.has(p));
+      mockFS.readFile.mockImplementation(async (p: string) => files.get(p) ?? '');
+      mockFS.writeFile.mockImplementation(async (p: string, c: string) => {
+        files.set(p, c);
+      });
+      mockFS.listFiles.mockResolvedValue([PROFILE_PATH]);
+    });
+
+    it('moves old manager to previous_manager[], promotes new from leadership[], sets current_manager, and fixes both reciprocals', async () => {
+      seed(PROFILE_PATH, {
+        current_manager: marlonLinkOnSelf,
+        previous_manager: [],
+        leadership: [chefLinkOnSelf],
+      });
+      seed(MARLON_PATH, { direct_reports: [selfLinkOnMarlon] });
+      seed(CHEF_PATH, { direct_reports: [] });
+
+      const result = await svc.setManager(CHEF, WORKSPACE);
+
+      const self = dataOf(PROFILE_PATH);
+      expect(self['current_manager']).toBe(chefLinkOnSelf);
+      expect(self['previous_manager']).toContain(marlonLinkOnSelf);
+      expect(self['leadership']).not.toContain(chefLinkOnSelf);
+      expect(dataOf(CHEF_PATH)['direct_reports']).toContain(selfLinkOnChef);
+      expect(dataOf(MARLON_PATH)['direct_reports']).not.toContain(selfLinkOnMarlon);
+
+      expect(result.changed).toBe(true);
+      expect(result.previousManagerEmail).toBe(MARLON);
+      expect(result.newManagerEmail).toBe(CHEF);
+    });
+
+    it('sets current_manager and reciprocal direct_reports when there was no previous manager', async () => {
+      seed(PROFILE_PATH, { current_manager: '', leadership: [] });
+      seed(CHEF_PATH, { direct_reports: [] });
+
+      const result = await svc.setManager(CHEF, WORKSPACE);
+
+      expect(dataOf(PROFILE_PATH)['current_manager']).toBe(chefLinkOnSelf);
+      expect(dataOf(CHEF_PATH)['direct_reports']).toContain(selfLinkOnChef);
+      expect(result.previousManagerEmail).toBeNull();
+      expect(result.changed).toBe(true);
+    });
+
+    it('is a no-op when the email is already the current manager', async () => {
+      seed(PROFILE_PATH, { current_manager: chefLinkOnSelf });
+      seed(CHEF_PATH, { direct_reports: [] });
+
+      const result = await svc.setManager(CHEF, WORKSPACE);
+
+      expect(result.changed).toBe(false);
+      expect(result.previousManagerEmail).toBeNull();
+      // direct_reports on chef untouched
+      expect(dataOf(CHEF_PATH)['direct_reports']).toEqual([]);
+    });
+
+    it('normalizes the email to lowercase before resolving the leader', async () => {
+      seed(PROFILE_PATH, { current_manager: '', leadership: [] });
+      seed(CHEF_PATH, { direct_reports: [] });
+
+      const result = await svc.setManager('CHEF@CO.COM', WORKSPACE);
+
+      expect(result.newManagerEmail).toBe(CHEF);
+      expect(dataOf(PROFILE_PATH)['current_manager']).toBe(chefLinkOnSelf);
+    });
+
+    it('throws ValidationError when the new manager profile is absent in my-leadership/', async () => {
+      seed(PROFILE_PATH, { current_manager: '' });
+
+      await expect(svc.setManager(CHEF, WORKSPACE)).rejects.toThrow(ValidationError);
+      await expect(svc.setManager(CHEF, WORKSPACE)).rejects.toThrow(/not found in my-leadership/);
+      // Nothing written to the self profile
+      expect(dataOf(PROFILE_PATH)['current_manager']).toBe('');
+    });
+
+    it('throws ConfigurationError when no self profile exists', async () => {
+      mockFS.listFiles.mockResolvedValue([]);
+      seed(CHEF_PATH, { direct_reports: [] });
+
+      await expect(svc.setManager(CHEF, WORKSPACE)).rejects.toThrow(ConfigurationError);
+    });
+
+    it('throws InvalidEmailError for a malformed email', async () => {
+      await expect(svc.setManager('not-an-email', WORKSPACE)).rejects.toThrow(InvalidEmailError);
     });
   });
 });
