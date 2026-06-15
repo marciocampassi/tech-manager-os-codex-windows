@@ -495,6 +495,48 @@ describe('MemberService', () => {
       expect(content).not.toContain('2026-01-01');
       expect(content.match(/last_1on1:/g)).toHaveLength(1);
     });
+
+    // ── date granularity: frontmatter `date:` matches filename/last_* cadence ──
+
+    it('1on1 dated file keeps a full YYYY-MM-DD `date:` (day cadence)', async () => {
+      mockFS.exists.mockResolvedValue(true);
+      await svc.createMemberFile(EMAIL, '1on1', { date: '2026-03-07' }, WS);
+
+      const writtenContent = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
+      expect(writtenContent).toContain('date: 2026-03-07');
+    });
+
+    it('feedback dated file uses a YYYY-MM `date:` matching its filename prefix', async () => {
+      mockFS.exists.mockResolvedValue(true);
+      await svc.createMemberFile(
+        EMAIL,
+        'feedback',
+        { date: '2026-03-07', fromEmail: 'reviewer@co.com' },
+        WS,
+      );
+
+      const writtenContent = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
+      expect(writtenContent).toContain('date: 2026-03\n');
+      expect(writtenContent).not.toContain('2026-03-07');
+    });
+
+    it('assessment dated file uses a YYYY-MM `date:` (not day-precise)', async () => {
+      mockFS.exists.mockResolvedValue(true);
+      await svc.createMemberFile(EMAIL, 'assessment', { date: '2026-03-07' }, WS);
+
+      const writtenContent = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
+      expect(writtenContent).toContain('date: 2026-03\n');
+      expect(writtenContent).not.toContain('2026-03-07');
+    });
+
+    it('performance-review dated file uses a YYYY-MM `date:` (not day-precise)', async () => {
+      mockFS.exists.mockResolvedValue(true);
+      await svc.createMemberFile(EMAIL, 'performance-review', { date: '2026-03-07' }, WS);
+
+      const writtenContent = (mockFS.writeFile.mock.calls[0] as [string, string])[1];
+      expect(writtenContent).toContain('date: 2026-03\n');
+      expect(writtenContent).not.toContain('2026-03-07');
+    });
   });
 
   // ── addMember ─────────────────────────────────────────────────────────────────

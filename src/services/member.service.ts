@@ -322,7 +322,9 @@ export class MemberService {
       },
     );
 
-    const content = this._template.getTemplate(type, date, normalizedEmail, links);
+    // Use the cadence-correct prefix (full date for 1on1, YYYY-MM otherwise) so the file's
+    // frontmatter `date:` matches its filename and the profile `last_*` scalar.
+    const content = this._template.getTemplate(type, prefix, normalizedEmail, links);
     await this._fs.writeFile(filePath, content);
 
     const wikiLink = `- [[${config.subDir}/${fileName}]]`;

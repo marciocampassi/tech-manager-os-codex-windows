@@ -67,6 +67,23 @@ describe('findSimilarEmail', () => {
     expect(findSimilarEmail('abc@co.com', workspace)).toBeNull();
   });
 
+  // ── First-char guard (cuts false positives) ─────────────────────────────────
+
+  it('returns null when local-parts differ in their first char (carlos vs marlon, dist=2)', () => {
+    seedMember('marlon@co.com');
+    expect(findSimilarEmail('carlos@co.com', workspace)).toBeNull();
+  });
+
+  it('returns null when first char differs even at distance 1 (jon vs ron)', () => {
+    seedMember('ron@co.com');
+    expect(findSimilarEmail('jon@co.com', workspace)).toBeNull();
+  });
+
+  it('still matches a real typo at distance 2 when the first char is shared (usr vs user1)', () => {
+    seedMember('user1@co.com');
+    expect(findSimilarEmail('usr@co.com', workspace)).toBe('user1@co.com');
+  });
+
   // ── Domain boundary ────────────────────────────────────────────────────────
 
   it('returns null when domains differ even if local-parts are identical', () => {
