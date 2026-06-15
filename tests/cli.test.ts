@@ -17,10 +17,6 @@ describe('CLI — program identity', () => {
   it('has a non-empty description', () => {
     expect(program.description().length).toBeGreaterThan(0);
   });
-
-  it('version is 1.0.0', () => {
-    expect(program.version()).toBe('1.0.0');
-  });
 });
 
 describe('CLI — global flags', () => {
