@@ -4,7 +4,14 @@ import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals
 
 const mockGetWorkspaceRoot = jest.fn<() => string>().mockReturnValue('/fake/ws');
 const mockCreateMemberFile = jest
-  .fn<() => Promise<{ filePath: string; profilePath: string; wikiLink: string }>>()
+  .fn<
+    () => Promise<{
+      filePath: string;
+      profilePath: string;
+      wikiLink: string;
+      createdReviewer?: { email: string; path: string };
+    }>
+  >()
   .mockResolvedValue({
     filePath: '/fake/ws/my-teams/members/john@co.com/1on1s/2026-03-07-1on1-john@co.com.md',
     profilePath: '/fake/ws/my-teams/members/john@co.com/john@co.com.md',
@@ -607,6 +614,45 @@ describe('member command', () => {
         expect.objectContaining({ fromEmail: 'manager@co.com' }),
         '/fake/ws',
       );
+    });
+
+    it('prints a notice when the --from reviewer profile was auto-created', async () => {
+      mockCreateMemberFile.mockResolvedValueOnce({
+        filePath:
+          '/fake/ws/my-teams/members/john@co.com/feedbacks/2026-03-feedback-novo@co.com-john@co.com.md',
+        profilePath: '/fake/ws/my-teams/members/john@co.com/john@co.com.md',
+        wikiLink: '- [[feedbacks/2026-03-feedback-novo@co.com-john@co.com.md]]',
+        createdReviewer: {
+          email: 'novo@co.com',
+          path: '/fake/ws/my-company/members/novo@co.com/novo@co.com.md',
+        },
+      });
+
+      const cmd = createMemberCommand();
+      await cmd.parseAsync(['add', 'feedback', 'john@co.com', '--from', 'novo@co.com'], {
+        from: 'user',
+      });
+
+      const output = stdoutSpy.mock.calls.map((c: unknown[]) => c[0]).join('');
+      expect(output).toContain('novo@co.com');
+      expect(output).toContain('my-company/members/novo@co.com/novo@co.com.md');
+    });
+
+    it('does not print the auto-create notice when the reviewer already existed', async () => {
+      mockCreateMemberFile.mockResolvedValueOnce({
+        filePath:
+          '/fake/ws/my-teams/members/john@co.com/feedbacks/2026-03-feedback-manager@co.com-john@co.com.md',
+        profilePath: '/fake/ws/my-teams/members/john@co.com/john@co.com.md',
+        wikiLink: '- [[feedbacks/2026-03-feedback-manager@co.com-john@co.com.md]]',
+      });
+
+      const cmd = createMemberCommand();
+      await cmd.parseAsync(['add', 'feedback', 'john@co.com', '--from', 'manager@co.com'], {
+        from: 'user',
+      });
+
+      const output = stdoutSpy.mock.calls.map((c: unknown[]) => c[0]).join('');
+      expect(output).not.toContain("didn't exist");
     });
 
     it('9.9: non-feedback types do not resolve fromEmail (fromEmail undefined)', async () => {

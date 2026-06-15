@@ -267,6 +267,11 @@ export async function runMemberAdd(
   process.stdout.write(`${chalk.green('✔')} Created: ${result.filePath}\n`);
   process.stdout.write(`${chalk.dim('  Profile updated:')} ${result.profilePath}\n`);
   process.stdout.write(`${chalk.dim('  Wiki-link:')} ${result.wikiLink}\n`);
+  if (result.createdReviewer) {
+    process.stdout.write(
+      `${chalk.yellow('ℹ')} Reviewer ${result.createdReviewer.email} didn't exist — created a new profile: ${result.createdReviewer.path}\n`,
+    );
+  }
 }
 
 // ── Command factory ───────────────────────────────────────────────────────────

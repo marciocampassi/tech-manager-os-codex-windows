@@ -85,4 +85,9 @@ export interface ICreateFileResult {
   filePath: string;
   profilePath: string;
   wikiLink: string;
+  /**
+   * Set only when a feedback `--from` reviewer profile was auto-created during this run
+   * (the reviewer didn't exist in any scope). Lets the command surface the side effect.
+   */
+  createdReviewer?: { email: string; path: string };
 }

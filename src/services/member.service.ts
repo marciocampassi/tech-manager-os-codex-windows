@@ -311,11 +311,16 @@ export class MemberService {
         : `${prefix}-${config.fileSuffix}-${normalizedEmail}.md`;
     const filePath = path.join(subDirPath, fileName);
 
-    const links = await this._buildDatedFileLinks(type, normalizedOptions, normalizedEmail, {
-      profilePath,
-      filePath,
-      workspaceRoot,
-    });
+    const { links, createdReviewer } = await this._buildDatedFileLinks(
+      type,
+      normalizedOptions,
+      normalizedEmail,
+      {
+        profilePath,
+        filePath,
+        workspaceRoot,
+      },
+    );
 
     const content = this._template.getTemplate(type, date, normalizedEmail, links);
     await this._fs.writeFile(filePath, content);
@@ -325,7 +330,7 @@ export class MemberService {
 
     await setScalar(profilePath, LAST_SCALAR_KEY[type], prefix, this._fs);
 
-    return { filePath, profilePath, wikiLink };
+    return { filePath, profilePath, wikiLink, ...(createdReviewer ? { createdReviewer } : {}) };
   }
 
   // ── Private ──────────────────────────────────────────────────────────────────
@@ -344,7 +349,7 @@ export class MemberService {
     options: ICreateFileOptions,
     normalizedEmail: string,
     paths: { profilePath: string; filePath: string; workspaceRoot: string },
-  ): Promise<IDatedFileLinks> {
+  ): Promise<{ links: IDatedFileLinks; createdReviewer?: { email: string; path: string } }> {
     const { profilePath, filePath, workspaceRoot } = paths;
     const links: IDatedFileLinks = {
       subject: formatWikiLink(profilePath, filePath, normalizedEmail),
@@ -355,7 +360,15 @@ export class MemberService {
       const reviewerEmail = options.fromEmail;
       const reviewer = await this._emailResolver.resolve(reviewerEmail, workspaceRoot);
       links.from = formatWikiLink(reviewer.absolutePath, filePath, reviewerEmail);
-      return links;
+      // Surface the B5 auto-create so the command can warn the user (a typo'd reviewer
+      // otherwise silently spawns a ghost profile with no feedback in it).
+      if (reviewer.created) {
+        return {
+          links,
+          createdReviewer: { email: reviewerEmail, path: reviewer.absolutePath },
+        };
+      }
+      return { links };
     }
 
     const selfPath = await this._getSelfProfilePath(workspaceRoot);
@@ -363,7 +376,7 @@ export class MemberService {
       const selfEmail = path.basename(selfPath, '.md');
       links.with = formatWikiLink(selfPath, filePath, selfEmail);
     }
-    return links;
+    return { links };
   }
 
   /**

@@ -189,6 +189,54 @@ describe('MemberService', () => {
       ).rejects.toThrow('fromEmail is required for feedback type');
     });
 
+    it('returns createdReviewer when the --from reviewer profile is auto-created', async () => {
+      const reviewerPath = `${WS}/my-company/members/reviewer@co.com/reviewer@co.com.md`;
+      mockEmailResolver.resolve.mockImplementation(async (email: string) => {
+        if (email === 'reviewer@co.com') {
+          return { type: 'relationship', absolutePath: reviewerPath, created: true };
+        }
+        return { type: 'team', absolutePath: PROFILE_PATH, created: false };
+      });
+
+      const result = await svc.createMemberFile(
+        EMAIL,
+        'feedback',
+        { date: '2026-03-07', fromEmail: 'reviewer@co.com' },
+        WS,
+      );
+
+      expect(result.createdReviewer).toEqual({ email: 'reviewer@co.com', path: reviewerPath });
+    });
+
+    it('does not set createdReviewer when the --from reviewer already exists', async () => {
+      mockEmailResolver.resolve.mockResolvedValue({
+        type: 'team',
+        absolutePath: PROFILE_PATH,
+        created: false,
+      });
+
+      const result = await svc.createMemberFile(
+        EMAIL,
+        'feedback',
+        { date: '2026-03-07', fromEmail: 'reviewer@co.com' },
+        WS,
+      );
+
+      expect(result.createdReviewer).toBeUndefined();
+    });
+
+    it('never sets createdReviewer for non-feedback types even when the member is auto-created', async () => {
+      mockEmailResolver.resolve.mockResolvedValue({
+        type: 'relationship',
+        absolutePath: `${WS}/my-company/members/john@co.com/john@co.com.md`,
+        created: true,
+      });
+
+      const result = await svc.createMemberFile(EMAIL, '1on1', { date: '2026-03-07' }, WS);
+
+      expect(result.createdReviewer).toBeUndefined();
+    });
+
     it('creates the assessment file at correct path (year-month, suffix before email)', async () => {
       await svc.createMemberFile(EMAIL, 'assessment', { date: '2026-03-07' }, WS);
 
