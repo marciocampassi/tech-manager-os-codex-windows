@@ -15,11 +15,24 @@
 ```bash
 npm install -g @marlonvidal/tech-manager-os
 tmr init          # Guided setup: vault, your profile, leader, teams, members
-tmr doctor        # Verify your environment is ready
 ```
 
-`tmr init` automatically installs the `tmr-inbox`, `tmr-project-impact`, and `tmr-myself-config` skills. 
-Run `/tmr-myself-config` in Claude Code after init for personalized AI context and `/tmr-inbox` to process the raw notes from your inbox folder.
+After `tmr init` completes:
+
+1. **Open the vault in Obsidian**
+   - macOS/Linux: `open -a Obsidian "<vault-path>"`
+   - Windows: `start "" "obsidian://<vault-path>"`
+   - Or open Obsidian and navigate to the vault directory
+
+2. **Run `/tmr-myself-config` in Claude Code** — personalizes AI context across your vault *(do this first)*
+
+3. **Run `/tmr-inbox` in Claude Code** — processes inbox meeting notes into structured entries
+
+4. **Run `tmr --help`** to explore all available commands
+
+`tmr init` automatically installs three skills: `tmr-inbox`, `tmr-project-impact`, and `tmr-myself-config`, and configures Obsidian plugins: obsidian-git, granola-sync, terminal, and dataview.
+
+Upgrading an older vault? Run `tmr doctor --fix-frontmatter` to migrate body links to frontmatter (idempotent).
 
 For a full walkthrough, see [docs/project-overview.md](docs/project-overview.md).
 
