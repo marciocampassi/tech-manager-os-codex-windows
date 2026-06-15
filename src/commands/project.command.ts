@@ -2,7 +2,8 @@ import { Command } from 'commander';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { projectService, ProjectService } from '../services/project.service.js';
-import { printError } from '../utils/display.js';
+import { printError, printWarning } from '../utils/display.js';
+import { resolveEmailWithSimilarCheck } from '../utils/email-guard.js';
 import type { IProjectFileOptions } from '../types/project.types.js';
 
 // ── Formatting helpers ────────────────────────────────────────────────────────
@@ -18,6 +19,7 @@ export async function runProjectAdd(
   nameArg: string | undefined,
   _opts: IProjectFileOptions,
 ): Promise<void> {
+  const ws = svc.getWorkspaceRoot();
   let name = nameArg?.trim() ?? '';
 
   if (!name) {
@@ -32,8 +34,6 @@ export async function runProjectAdd(
     ]);
     name = resolvedName.trim();
   }
-
-  const ws = svc.getWorkspaceRoot();
   const result = await svc.addProject(name, ws);
 
   if (result.created) {
@@ -77,7 +77,7 @@ export async function runProjectLinkMember(
   emailArg: string | undefined,
 ): Promise<void> {
   const name = nameArg?.trim() ?? '';
-  const email = emailArg?.trim().toLowerCase() ?? '';
+  let email = emailArg?.trim().toLowerCase() ?? '';
 
   if (!name || !email) {
     printError(
@@ -89,6 +89,9 @@ export async function runProjectLinkMember(
   }
 
   const ws = svc.getWorkspaceRoot();
+
+  email = await resolveEmailWithSimilarCheck(email, ws);
+
   let result;
   try {
     result = await svc.linkMember(name, email, ws);
@@ -127,12 +130,23 @@ export async function runProjectLinkMembers(
     return;
   }
 
-  process.stdout.write(`Linking ${emails.length} member(s) to "${name}"…\n`);
   const ws = svc.getWorkspaceRoot();
+
+  const filteredEmails: string[] = [];
+  for (const rawEmail of emails) {
+    filteredEmails.push(await resolveEmailWithSimilarCheck(rawEmail, ws));
+  }
+
+  if (filteredEmails.length === 0) {
+    process.stdout.write(`${chalk.dim('ℹ')} All emails were skipped.\n`);
+    return;
+  }
+
+  process.stdout.write(`Linking ${filteredEmails.length} member(s) to "${name}"…\n`);
 
   let result;
   try {
-    result = await svc.linkMembers(name, emails, ws);
+    result = await svc.linkMembers(name, filteredEmails, ws);
   } catch (err) {
     printError(
       err instanceof Error ? err.message : String(err),
@@ -153,7 +167,7 @@ export async function runProjectLinkStakeholder(
   emailArg: string | undefined,
 ): Promise<void> {
   const name = nameArg?.trim() ?? '';
-  const email = emailArg?.trim().toLowerCase() ?? '';
+  let email = emailArg?.trim().toLowerCase() ?? '';
 
   if (!name || !email) {
     printError(
@@ -165,6 +179,9 @@ export async function runProjectLinkStakeholder(
   }
 
   const ws = svc.getWorkspaceRoot();
+
+  email = await resolveEmailWithSimilarCheck(email, ws);
+
   let result;
   try {
     result = await svc.linkStakeholder(name, email, ws);
@@ -203,12 +220,23 @@ export async function runProjectLinkStakeholders(
     return;
   }
 
-  process.stdout.write(`Linking ${emails.length} stakeholder(s) to "${name}"…\n`);
   const ws = svc.getWorkspaceRoot();
+
+  const filteredEmails: string[] = [];
+  for (const rawEmail of emails) {
+    filteredEmails.push(await resolveEmailWithSimilarCheck(rawEmail, ws));
+  }
+
+  if (filteredEmails.length === 0) {
+    process.stdout.write(`${chalk.dim('ℹ')} All emails were skipped.\n`);
+    return;
+  }
+
+  process.stdout.write(`Linking ${filteredEmails.length} stakeholder(s) to "${name}"…\n`);
 
   let result;
   try {
-    result = await svc.linkStakeholders(name, emails, ws);
+    result = await svc.linkStakeholders(name, filteredEmails, ws);
   } catch (err) {
     printError(
       err instanceof Error ? err.message : String(err),
@@ -241,6 +269,13 @@ export async function runProjectList(svc: ProjectService): Promise<void> {
       `${padEnd(row.name, 30)}  ${padEnd(String(row.memberCount), 10)}  ${row.stakeholderCount}\n`,
     );
   }
+
+  if (rows.some((r) => r.needsMigration)) {
+    printWarning(
+      'Some projects use the old body-section format and show 0 counts. ' +
+        'Run `tmr doctor --fix-frontmatter` to migrate them.',
+    );
+  }
 }
 
 // ── Command factory ───────────────────────────────────────────────────────────
@@ -267,8 +302,9 @@ export function createProjectCommand(): Command {
   cmd
     .command('standup <name>')
     .description('create a standup note for a project')
-    .action(async (name: string) => {
-      await runProjectStandup(svc, name, {});
+    .option('--date <date>', 'date for the standup file (YYYY-MM-DD), defaults to today')
+    .action(async (name: string, opts: { date?: string }) => {
+      await runProjectStandup(svc, name, opts);
     });
 
   cmd

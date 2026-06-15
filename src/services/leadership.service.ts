@@ -4,6 +4,8 @@ import { FileSystemService, fileSystemService } from './file-system.service.js';
 import { SectionParserService, sectionParserService } from './section-parser.service.js';
 import { TemplateService, templateService } from './template.service.js';
 import { getWorkspaceRoot as resolveWorkspaceRoot } from '../utils/workspace.js';
+import { addRelation, setScalar } from '../utils/frontmatter-relations.js';
+import { formatWikiLink } from '../utils/wiki-link.js';
 import type {
   IAddLeadershipOptions,
   ILeadershipFrontmatter,
@@ -37,9 +39,17 @@ function buildLeadershipProfileMd(email: string, opts: IAddLeadershipOptions): s
     email,
     name: opts.name ?? '',
     role: opts.role ?? '',
+    ...(opts.location ? { location: opts.location } : {}),
     ...(opts.gender ? { gender: opts.gender } : {}),
     areas_of_responsibility: opts.areas_of_responsibility ?? '',
+    relationship: 'leadership',
     date_added: date,
+    start_date: '',
+    current_manager: '',
+    previous_manager: [],
+    other_leaderships: [],
+    direct_reports: [],
+    projects: [],
   };
   return matter.stringify(`\n# Leadership — ${email}\n\n## Notes\n\n## 1on1s\n`, frontmatter);
 }
@@ -55,6 +65,13 @@ export class LeadershipService {
 
   getWorkspaceRoot(): string {
     return resolveWorkspaceRoot();
+  }
+
+  private async _getSelfProfilePath(workspaceRoot: string): Promise<string | null> {
+    const careerRoot = path.join(workspaceRoot, 'my-career');
+    if (!(await this._fs.exists(careerRoot))) return null;
+    const mdFiles = await this._fs.listFiles(careerRoot, '.md');
+    return mdFiles.length > 0 ? (mdFiles[0] as string) : null;
   }
 
   /**
@@ -75,7 +92,7 @@ export class LeadershipService {
     opts: IAddLeadershipOptions,
     workspaceRoot: string,
   ): Promise<{ created: boolean }> {
-    const normalizedEmail = email.toLowerCase();
+    const normalizedEmail = email.trim().toLowerCase();
     const profilePath = leadershipProfilePath(workspaceRoot, normalizedEmail);
 
     if (await this._fs.exists(profilePath)) {
@@ -87,6 +104,26 @@ export class LeadershipService {
 
     const content = buildLeadershipProfileMd(normalizedEmail, opts);
     await this._fs.writeFile(profilePath, content);
+
+    // ── Reciprocal writes ─────────────────────────────────────────────────────
+    const selfProfile = await this._getSelfProfilePath(workspaceRoot);
+    if (selfProfile) {
+      const selfEmail = path.basename(selfProfile, '.md');
+      const selfLinkOnLeader = formatWikiLink(selfProfile, profilePath, selfEmail);
+      await addRelation(profilePath, 'direct_reports', selfLinkOnLeader, this._fs);
+
+      const leaderLinkOnMe = formatWikiLink(profilePath, selfProfile, normalizedEmail);
+      const selfContent = await this._fs.readFile(selfProfile);
+      const selfFm = matter(selfContent).data as Record<string, unknown>;
+      if (!selfFm['current_manager']) {
+        await setScalar(selfProfile, 'current_manager', leaderLinkOnMe, this._fs);
+      } else if (selfFm['current_manager'] !== leaderLinkOnMe) {
+        // Different leader (skip-level / upward chain) → record in leadership[].
+        await addRelation(selfProfile, 'leadership', leaderLinkOnMe, this._fs);
+      }
+      // else: this leader already IS the current_manager — no-op (avoids duplicating
+      // the current manager into leadership[]).
+    }
 
     return { created: true };
   }
@@ -113,14 +150,25 @@ export class LeadershipService {
     const oneOnOneDir = path.join(leadershipDir(workspaceRoot, normalizedEmail), '1on1s');
     await this._fs.createDirectory(oneOnOneDir);
 
-    const fileName = `${date}-${normalizedEmail}-1on1.md`;
+    const fileName = `${date}-1on1-${normalizedEmail}.md`;
     const filePath = path.join(oneOnOneDir, fileName);
 
-    const content = this._template.getLeadership1on1Template(date, normalizedEmail);
+    const links: { subject: string; with?: string } = {
+      subject: formatWikiLink(profilePath, filePath, normalizedEmail),
+    };
+    const selfProfile = await this._getSelfProfilePath(workspaceRoot);
+    if (selfProfile) {
+      const selfEmail = path.basename(selfProfile, '.md');
+      links.with = formatWikiLink(selfProfile, filePath, selfEmail);
+    }
+
+    const content = this._template.getLeadership1on1Template(date, normalizedEmail, links);
     await this._fs.writeFile(filePath, content);
 
     const wikiLink = `- [[1on1s/${fileName}]]`;
     await this._sectionParser.appendToFile(profilePath, '1on1s', wikiLink);
+
+    await setScalar(profilePath, 'last_1on1', date, this._fs);
 
     return { filePath, profilePath, wikiLink };
   }

@@ -86,54 +86,80 @@ describe('EmailResolutionService', () => {
 
   describe('resolve', () => {
     it('resolves to team when team profile exists', async () => {
-      mockFS.exists.mockImplementation(async (p: string) => p.includes('my-teams/members'));
+      mockFS.exists.mockImplementation(async (p: string) =>
+        p.replace(/\\/g, '/').includes('my-teams/members'),
+      );
 
       const result = await svc.resolve('alice@co.com', WS);
 
       expect(result.type).toBe('team');
-      expect(result.absolutePath).toContain('my-teams/members/alice@co.com/alice@co.com.md');
+      expect(result.absolutePath.replace(/\\/g, '/')).toContain(
+        'my-teams/members/alice@co.com/alice@co.com.md',
+      );
       expect(result.created).toBe(false);
     });
 
     it('resolves to leadership when leadership profile exists (no team)', async () => {
       mockFS.exists.mockImplementation(async (p: string) => {
-        if (p.includes('my-teams/members')) return false;
-        return p.includes('my-leadership');
+        if (p.replace(/\\/g, '/').includes('my-teams/members')) return false;
+        return p.replace(/\\/g, '/').includes('my-leadership');
       });
 
       const result = await svc.resolve('boss@co.com', WS);
 
       expect(result.type).toBe('leadership');
-      expect(result.absolutePath).toContain('my-leadership/boss@co.com/boss@co.com.md');
+      expect(result.absolutePath.replace(/\\/g, '/')).toContain(
+        'my-leadership/boss@co.com/boss@co.com.md',
+      );
       expect(result.created).toBe(false);
     });
 
     it('resolves to self when career profile exists (no team/leadership)', async () => {
       mockFS.exists.mockImplementation(async (p: string) => {
-        if (p.includes('my-teams/members')) return false;
-        if (p.includes('my-leadership')) return false;
-        return p.includes('my-career');
+        if (p.replace(/\\/g, '/').includes('my-teams/members')) return false;
+        if (p.replace(/\\/g, '/').includes('my-leadership')) return false;
+        return p.replace(/\\/g, '/').includes('my-career');
       });
 
       const result = await svc.resolve('me@co.com', WS);
 
       expect(result.type).toBe('self');
-      expect(result.absolutePath).toContain('my-career/me@co.com/me@co.com.md');
+      expect(result.absolutePath.replace(/\\/g, '/')).toContain('my-career/me@co.com.md');
       expect(result.created).toBe(false);
     });
 
     it('resolves to relationship when relationship exists (no team/leadership/self)', async () => {
       mockFS.exists.mockImplementation(async (p: string) => {
-        if (p.includes('my-teams/members')) return false;
-        if (p.includes('my-leadership')) return false;
-        if (p.includes('my-career')) return false;
-        return p.includes('my-company/members');
+        if (p.replace(/\\/g, '/').includes('my-teams/members')) return false;
+        if (p.replace(/\\/g, '/').includes('my-leadership')) return false;
+        if (p.replace(/\\/g, '/').includes('my-career')) return false;
+        return p.replace(/\\/g, '/').includes('my-company/members');
       });
 
       const result = await svc.resolve('partner@co.com', WS);
 
       expect(result.type).toBe('relationship');
-      expect(result.absolutePath).toContain('my-company/members/partner@co.com/partner@co.com.md');
+      expect(result.absolutePath.replace(/\\/g, '/')).toContain(
+        'my-company/members/partner@co.com/partner@co.com.md',
+      );
+      expect(result.created).toBe(false);
+    });
+
+    it('resolves to contractor when contractor profile exists (no team/leadership/self/relationship)', async () => {
+      mockFS.exists.mockImplementation(async (p: string) => {
+        if (p.replace(/\\/g, '/').includes('my-teams/members')) return false;
+        if (p.replace(/\\/g, '/').includes('my-leadership')) return false;
+        if (p.replace(/\\/g, '/').includes('my-career')) return false;
+        if (p.replace(/\\/g, '/').includes('my-company/members')) return false;
+        return p.replace(/\\/g, '/').includes('my-company/contractors');
+      });
+
+      const result = await svc.resolve('user@x.com', WS);
+
+      expect(result.type).toBe('contractor');
+      expect(result.absolutePath.replace(/\\/g, '/')).toContain(
+        'my-company/contractors/user@x.com/user@x.com.md',
+      );
       expect(result.created).toBe(false);
     });
 
@@ -156,6 +182,16 @@ describe('EmailResolutionService', () => {
       );
     });
 
+    it('9.5: auto-created profile writes relationship: company-member (not relationship_type)', async () => {
+      mockFS.exists.mockResolvedValue(false);
+
+      await svc.resolve('new@co.com', WS);
+
+      const [, content] = mockFS.writeFile.mock.calls[0] as [string, string];
+      expect(content).toContain('relationship: "company-member"');
+      expect(content).not.toContain('relationship_type');
+    });
+
     it('throws Error with message matching /Invalid email/ for invalid email', async () => {
       await expect(svc.resolve('not-an-email', WS)).rejects.toThrow(/Invalid email/i);
     });
@@ -165,7 +201,9 @@ describe('EmailResolutionService', () => {
     });
 
     it('normalizes uppercase email to lowercase before resolution', async () => {
-      mockFS.exists.mockImplementation(async (p: string) => p.includes('my-teams/members'));
+      mockFS.exists.mockImplementation(async (p: string) =>
+        p.replace(/\\/g, '/').includes('my-teams/members'),
+      );
 
       const result = await svc.resolve('ALICE@CO.COM', WS);
 
@@ -174,7 +212,9 @@ describe('EmailResolutionService', () => {
     });
 
     it('returns consistent absolutePath using path.join (OS-native separators)', async () => {
-      mockFS.exists.mockImplementation(async (p: string) => p.includes('my-teams/members'));
+      mockFS.exists.mockImplementation(async (p: string) =>
+        p.replace(/\\/g, '/').includes('my-teams/members'),
+      );
 
       const result = await svc.resolve('user@co.com', WS);
       const expected = path.join(WS, 'my-teams', 'members', 'user@co.com', 'user@co.com.md');
@@ -186,7 +226,9 @@ describe('EmailResolutionService', () => {
 
   describe('caching', () => {
     it('returns cached result on second call without hitting the filesystem', async () => {
-      mockFS.exists.mockImplementation(async (p: string) => p.includes('my-teams/members'));
+      mockFS.exists.mockImplementation(async (p: string) =>
+        p.replace(/\\/g, '/').includes('my-teams/members'),
+      );
 
       await svc.resolve('alice@co.com', WS);
       mockFS.exists.mockClear();
@@ -197,13 +239,15 @@ describe('EmailResolutionService', () => {
     });
 
     it('caches result by email+ws key (different ws resolves separately)', async () => {
-      mockFS.exists.mockImplementation(async (p: string) => p.includes('my-teams/members'));
+      mockFS.exists.mockImplementation(async (p: string) =>
+        p.replace(/\\/g, '/').includes('my-teams/members'),
+      );
 
       const r1 = await svc.resolve('alice@co.com', '/ws1');
       const r2 = await svc.resolve('alice@co.com', '/ws2');
 
-      expect(r1.absolutePath).toContain('/ws1');
-      expect(r2.absolutePath).toContain('/ws2');
+      expect(r1.absolutePath.replace(/\\/g, '/')).toContain('/ws1');
+      expect(r2.absolutePath.replace(/\\/g, '/')).toContain('/ws2');
     });
 
     it('clearCache() allows fresh resolution after clear', async () => {
@@ -219,7 +263,9 @@ describe('EmailResolutionService', () => {
     });
 
     it('clearCache() resets all cached entries', async () => {
-      mockFS.exists.mockImplementation(async (p: string) => p.includes('my-teams/members'));
+      mockFS.exists.mockImplementation(async (p: string) =>
+        p.replace(/\\/g, '/').includes('my-teams/members'),
+      );
       await svc.resolve('a@co.com', WS);
       await svc.resolve('b@co.com', WS);
 

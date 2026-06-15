@@ -79,6 +79,7 @@ export function printJson(data: unknown): void {
 export interface SpinnerHandle {
   succeed(text?: string): void;
   fail(text?: string): void;
+  warn(text?: string): void;
   update(text: string): void;
 }
 
@@ -104,6 +105,9 @@ export function startSpinner(text: string, plain: boolean): SpinnerHandle {
       fail: (t = text): void => {
         process.stderr.write(`✗ ${t} ${elapsed()}\n`);
       },
+      warn: (t = text): void => {
+        process.stdout.write(`⚠ ${t} ${elapsed()}\n`);
+      },
       update: (t: string): void => {
         process.stdout.write(`  ${t}...\n`);
       },
@@ -117,6 +121,9 @@ export function startSpinner(text: string, plain: boolean): SpinnerHandle {
     },
     fail: (t = text): void => {
       spinner.fail(`${t} ${elapsed()}`);
+    },
+    warn: (t = text): void => {
+      spinner.warn(`${t} ${elapsed()}`);
     },
     update: (t: string): void => {
       spinner.text = t;

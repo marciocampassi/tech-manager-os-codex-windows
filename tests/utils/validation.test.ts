@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@jest/globals';
-import { validateEmail } from '../../src/utils/validation.js';
+import { validateEmail, isValidDomain } from '../../src/utils/validation.js';
 import { InvalidEmailError } from '../../src/errors/tmr-error.js';
 
 describe('validateEmail', () => {
@@ -74,5 +74,47 @@ describe('validateEmail', () => {
     } catch (err) {
       expect((err as InvalidEmailError).message).toContain('bad-input');
     }
+  });
+});
+
+describe('isValidDomain', () => {
+  // ── Valid inputs ────────────────────────────────────────────────────────────
+
+  it('returns true for a simple domain', () => {
+    expect(isValidDomain('example.com')).toBe(true);
+  });
+
+  it('returns true for a subdomain', () => {
+    expect(isValidDomain('mail.example.co.uk')).toBe(true);
+  });
+
+  it('returns true for domain with leading/trailing whitespace (trimmed internally)', () => {
+    expect(isValidDomain('  company.com  ')).toBe(true);
+  });
+
+  it('returns true for hyphenated domain', () => {
+    expect(isValidDomain('company-eu.com')).toBe(true);
+  });
+
+  // ── Invalid inputs ──────────────────────────────────────────────────────────
+
+  it('returns false for empty string', () => {
+    expect(isValidDomain('')).toBe(false);
+  });
+
+  it('returns false for whitespace-only string', () => {
+    expect(isValidDomain('   ')).toBe(false);
+  });
+
+  it('returns false when value contains @', () => {
+    expect(isValidDomain('user@example.com')).toBe(false);
+  });
+
+  it('returns false when value contains a space', () => {
+    expect(isValidDomain('not a domain')).toBe(false);
+  });
+
+  it('returns false when value has no dot (bare label)', () => {
+    expect(isValidDomain('nodot')).toBe(false);
   });
 });

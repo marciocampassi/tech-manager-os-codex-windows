@@ -2,10 +2,10 @@ import path from 'node:path';
 import matter from 'gray-matter';
 import { FileSystemService, fileSystemService } from './file-system.service.js';
 import { getWorkspaceRoot as resolveWorkspaceRoot } from '../utils/workspace.js';
-import { generateActionItemsTemplate } from '../templates/onboarding.templates.js';
 import { normalizeSlug } from '../utils/normalization.js';
 import { formatWikiLink } from '../utils/wiki-link.js';
 import { validateEmail } from '../utils/validation.js';
+import { addRelation, removeRelation } from '../utils/frontmatter-relations.js';
 import type {
   IAddMemberOptions,
   IArchiveOptions,
@@ -75,7 +75,7 @@ created: ${todayIso()}
 }
 
 function buildMembersMd(): string {
-  return '# Team Members\n';
+  return `---\nmembers: []\n---\n\n# Team Members\n`;
 }
 
 function buildMemberProfileMd(
@@ -85,53 +85,41 @@ function buildMemberProfileMd(
   managerEmail: string | null,
   workspaceRoot: string,
 ): string {
-  const teamsYaml = teams.map((t) => `  - ${t}`).join('\n');
   const managerLink = managerEmail
     ? formatWikiLink(
-        path.join(workspaceRoot, 'my-career', managerEmail, `${managerEmail}.md`),
+        path.join(workspaceRoot, 'my-career', `${managerEmail}.md`),
         memberProfilePath(workspaceRoot, email),
         managerEmail,
       )
     : '';
 
-  return `---
-email: "${email}"
-name: ${options.name ?? ''}
-role: ${options.role ?? ''}
-gender: ${options.gender ?? ''}
-location: ${options.location ?? ''}
-teams:
-${teamsYaml}
-action_items_gdoc: ''
-date_added: ${todayIso()}
----
+  const teamLinks = teams.map((slug) =>
+    formatWikiLink(
+      path.join(workspaceRoot, 'my-teams', 'teams', slug, `${slug}-context.md`),
+      memberProfilePath(workspaceRoot, email),
+      slug,
+    ),
+  );
 
-## Current Manager
+  const fm: Record<string, unknown> = {
+    email,
+    name: options.name ?? '',
+    role: options.role ?? '',
+    gender: options.gender ?? '',
+    location: options.location ?? '',
+    relationship: 'direct-report',
+    date_added: todayIso(),
+    start_date: '',
+    current_manager: managerLink,
+    previous_manager: [],
+    other_leaderships: [],
+    teams: teamLinks,
+    projects: [],
+  };
 
-${managerLink}
-
-## Previous Managers
-
-## Other Leaderships
-
-## Previous Leaderships
-
-## Performance Reviews
-
-## 1on1s
-
-## Assessments
-
-## Feedbacks
-
-## Action Items
-
-- [[action-items-${email}|Action Items Tracker]]
-`;
-}
-
-function buildWikiLink(email: string, workspaceRoot: string, teamSlug: string): string {
-  return `- ${formatWikiLink(memberProfilePath(workspaceRoot, email), teamMembersPath(workspaceRoot, teamSlug), email)}`;
+  const body =
+    '\n## 1on1s\n\n## Feedbacks\n\n## Assessments\n\n## Performance Reviews\n\n## Notes\n';
+  return matter.stringify(body, fm);
 }
 
 // ── Service ───────────────────────────────────────────────────────────────────
@@ -146,6 +134,9 @@ export class TeamService {
   async getManagerEmail(workspaceRoot: string): Promise<string | null> {
     const careerRoot = path.join(workspaceRoot, 'my-career');
     if (!(await this._fs.exists(careerRoot))) return null;
+    // TODO(Story 9.3): my-career is flat after 9.3 — change to:
+    //   const profilePath = path.join(careerRoot, `${email}.md`);
+    //   and replace listDirectories() with listFiles() filtered to .md
     const subdirs = await this._fs.listDirectories(careerRoot);
     if (subdirs.length === 0) return null;
     const email = subdirs[0] as string;
@@ -185,17 +176,11 @@ export class TeamService {
     const memberExists = await this._fs.exists(profilePath);
 
     if (memberExists) {
-      // Member already belongs to another team — append team to their list
-      const content = await this._fs.readFile(profilePath);
-      const parsed = matter(content);
-      const existing = parsed.data as Partial<ITeamMemberFrontmatter>;
-      const teams: string[] = Array.isArray(existing.teams) ? existing.teams : [];
-      if (!teams.includes(slug)) {
-        teams.push(slug);
-        existing.teams = teams;
-        const updated = matter.stringify(parsed.content, existing);
-        await this._fs.writeFile(profilePath, updated);
-      }
+      // Member already belongs to another team — append the team context wiki-link
+      // to their `teams` list. Uses addRelation (idempotent + matches the wiki-link
+      // format written by buildMemberProfileMd) to avoid duplicate / mixed-format entries.
+      const teamLink = formatWikiLink(teamContextPath(workspaceRoot, slug), profilePath, slug);
+      await addRelation(profilePath, 'teams', teamLink, this._fs);
     } else {
       // New member — create full directory + profile
       const managerEmail = await this.getManagerEmail(workspaceRoot);
@@ -217,26 +202,30 @@ export class TeamService {
       await this._fs.createDirectory(
         path.join(memberDir(workspaceRoot, normalizedEmail), 'performance-reviews'),
       );
-      await this._fs.writeFile(profilePath, profileMd);
-
-      // Create action items tracker file (idempotent)
-      const actionItemsPath = path.join(
-        memberDir(workspaceRoot, normalizedEmail),
-        `action-items-${normalizedEmail}.md`,
+      await this._fs.createDirectory(
+        path.join(memberDir(workspaceRoot, normalizedEmail), `${normalizedEmail}-shared`),
       );
-      if (!(await this._fs.exists(actionItemsPath))) {
-        await this._fs.writeFile(actionItemsPath, generateActionItemsTemplate(normalizedEmail));
-      }
+      await this._fs.writeFile(profilePath, profileMd);
     }
 
-    // Append wiki-link to team members file
+    // Append wiki-link to team members file (frontmatter)
     const membersPath = teamMembersPath(workspaceRoot, slug);
-    const wikiLink = buildWikiLink(normalizedEmail, workspaceRoot, slug);
-    const currentMembers = await this._fs.readFile(membersPath);
+    const link = formatWikiLink(
+      memberProfilePath(workspaceRoot, normalizedEmail),
+      membersPath,
+      normalizedEmail,
+    );
+    await addRelation(membersPath, 'members', link, this._fs);
 
-    // Avoid duplicate links
-    if (!currentMembers.includes(wikiLink)) {
-      await this._fs.appendFile(membersPath, `${wikiLink}\n`);
+    // Reciprocal: self-profile gets direct_reports += member
+    const selfPath = await this._getSelfProfilePath(workspaceRoot);
+    if (selfPath) {
+      const selfLink = formatWikiLink(
+        memberProfilePath(workspaceRoot, normalizedEmail),
+        selfPath,
+        normalizedEmail,
+      );
+      await addRelation(selfPath, 'direct_reports', selfLink, this._fs);
     }
   }
 
@@ -252,7 +241,9 @@ export class TeamService {
       let memberCount = 0;
       if (await this._fs.exists(membersPath)) {
         const content = await this._fs.readFile(membersPath);
-        memberCount = (content.match(/^\s*-\s+\[\[/gm) ?? []).length;
+        const { data } = matter(content);
+        const members = Array.isArray(data['members']) ? (data['members'] as string[]) : [];
+        memberCount = members.length;
       }
       summaries.push({ teamName, memberCount });
     }
@@ -264,9 +255,14 @@ export class TeamService {
     if (!(await this._fs.exists(membersPath))) return [];
 
     const content = await this._fs.readFile(membersPath);
-    // Capture the display text after '|' which is the email address (no .md extension)
-    const emailMatches = [...content.matchAll(/\[\[.*?\|([^\]]+)\]\]/g)];
-    const emails = emailMatches.map((m) => m[1] as string);
+    const { data } = matter(content);
+    const members = Array.isArray(data['members']) ? (data['members'] as string[]) : [];
+    const emails = members
+      .map((link) => {
+        const match = /\[\[.*?\|([^\]]+)\]\]/.exec(link);
+        return match?.[1] ?? null;
+      })
+      .filter((e): e is string => e !== null);
 
     const summaries: IMemberSummary[] = [];
     for (const email of emails) {
@@ -302,6 +298,12 @@ export class TeamService {
     const year = new Date().getFullYear().toString();
     const destDir = path.join(archivedRoot(workspaceRoot), year, normalizedEmail);
 
+    // Capture original path and self path BEFORE the move — the wiki-link for
+    // self-profile direct_reports cleanup must match what addMember originally wrote
+    // (computed from the pre-archive member path, not the archived destination).
+    const originalMemberPath = memberProfilePath(workspaceRoot, normalizedEmail);
+    const selfPath = await this._getSelfProfilePath(workspaceRoot);
+
     const hasDateFilter = options.from !== undefined || options.to !== undefined;
 
     if (hasDateFilter) {
@@ -331,19 +333,52 @@ export class TeamService {
       await this._fs.moveFile(srcDir, destDir);
     }
 
-    // Update frontmatter in the archived profile
+    // Update frontmatter in the archived profile (single batch read-parse-write)
     const archivedProfile = path.join(destDir, `${normalizedEmail}.md`);
     if (await this._fs.exists(archivedProfile)) {
       const content = await this._fs.readFile(archivedProfile);
       const parsed = matter(content);
-      const fm = { ...parsed.data } as ITeamMemberFrontmatter;
-      fm.archived = true;
-      fm.archived_date = todayIso();
+      const fm = { ...parsed.data } as Record<string, unknown>;
+
+      // Archive markers (AC1)
+      fm['archived'] = true;
+      fm['archived_date'] = todayIso();
+
+      // Clear team membership — member is no longer on any active team (AC2 / B6 fix)
+      fm['teams'] = [];
+
+      // Move current_manager into history then clear (AC3)
+      const currentManager = typeof fm['current_manager'] === 'string' ? fm['current_manager'] : '';
+      if (currentManager) {
+        // Coerce existing previous_manager into an array — tolerate a scalar
+        // string (hand-edited frontmatter) so prior history is never dropped.
+        const existing = fm['previous_manager'];
+        const prevManagers = Array.isArray(existing)
+          ? [...(existing as string[])]
+          : typeof existing === 'string' && existing
+            ? [existing]
+            : [];
+        if (!prevManagers.includes(currentManager)) prevManagers.push(currentManager);
+        fm['previous_manager'] = prevManagers;
+      }
+      fm['current_manager'] = '';
+
       await this._fs.writeFile(archivedProfile, matter.stringify(parsed.content, fm));
     }
 
-    // Remove wiki-link from team members file
-    await this._removeWikiLink(slug, normalizedEmail, workspaceRoot);
+    // Relationship teardown only applies to a FULL archive — a date-range
+    // partial archive (--from/--to) keeps the member active, so it must not
+    // detach them from the team roster or their manager's direct_reports.
+    if (!hasDateFilter) {
+      // Remove wiki-link from team members file (uses removeRelation)
+      await this._removeWikiLink(slug, normalizedEmail, workspaceRoot);
+
+      // Reciprocal: remove from self-profile direct_reports (AC4)
+      if (selfPath) {
+        const selfLink = formatWikiLink(originalMemberPath, selfPath, normalizedEmail);
+        await removeRelation(selfPath, 'direct_reports', selfLink, this._fs);
+      }
+    }
   }
 
   async fireMember(
@@ -378,6 +413,16 @@ export class TeamService {
 
   async showProfile(email: string, workspaceRoot: string): Promise<IProfileResult | null> {
     const normalizedEmail = email.toLowerCase();
+
+    // 0. Self (my-career/<email>.md — flat layout per Story 9.3)
+    const selfPath = path.join(workspaceRoot, 'my-career', `${normalizedEmail}.md`);
+    if (await this._fs.exists(selfPath)) {
+      return {
+        location: 'self',
+        filePath: selfPath,
+        content: await this._fs.readFile(selfPath),
+      };
+    }
 
     // 1. Active team member
     const memberPath = memberProfilePath(workspaceRoot, normalizedEmail);
@@ -436,7 +481,30 @@ export class TeamService {
       };
     }
 
+    // 5. Contractor (my-company/contractors/<email>/<email>.md)
+    const contractorPath = path.join(
+      workspaceRoot,
+      'my-company',
+      'contractors',
+      normalizedEmail,
+      `${normalizedEmail}.md`,
+    );
+    if (await this._fs.exists(contractorPath)) {
+      return {
+        location: 'contractor',
+        filePath: contractorPath,
+        content: await this._fs.readFile(contractorPath),
+      };
+    }
+
     return null;
+  }
+
+  private async _getSelfProfilePath(workspaceRoot: string): Promise<string | null> {
+    const careerRoot = path.join(workspaceRoot, 'my-career');
+    if (!(await this._fs.exists(careerRoot))) return null;
+    const mdFiles = await this._fs.listFiles(careerRoot, '.md');
+    return mdFiles.length > 0 ? (mdFiles[0] as string) : null;
   }
 
   private async _removeWikiLink(
@@ -444,16 +512,11 @@ export class TeamService {
     email: string,
     workspaceRoot: string,
   ): Promise<void> {
-    const membersPath = teamMembersPath(workspaceRoot, normalizeSlug(teamName));
+    const slug = normalizeSlug(teamName);
+    const membersPath = teamMembersPath(workspaceRoot, slug);
     if (!(await this._fs.exists(membersPath))) return;
-
-    const content = await this._fs.readFile(membersPath);
-    const wikiLink = buildWikiLink(email, workspaceRoot, normalizeSlug(teamName));
-    const updated = content
-      .split('\n')
-      .filter((line) => line.trim() !== wikiLink.trim())
-      .join('\n');
-    await this._fs.writeFile(membersPath, updated);
+    const link = formatWikiLink(memberProfilePath(workspaceRoot, email), membersPath, email);
+    await removeRelation(membersPath, 'members', link, this._fs);
   }
 }
 

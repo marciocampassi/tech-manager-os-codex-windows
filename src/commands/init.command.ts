@@ -6,26 +6,27 @@ import { fileSystemService } from '../services/file-system.service.js';
 import { initService } from '../services/init.service.js';
 import {
   promptWorkspacePath,
-  promptMinimalOnboarding,
+  promptNameAndEmail,
+  promptAdditionalDomains,
+  promptRoleAndCompany,
   promptLeaderDetails,
   promptTeamCount,
   promptTeamName,
   promptMemberEmail,
   promptMemberDetails,
 } from '../workflows/onboarding.prompts.js';
-import { obsidianPluginService } from '../services/obsidian-plugin.service.js';
+import { obsidianPluginService, REQUIRED_PLUGIN_IDS } from '../services/obsidian-plugin.service.js';
 import { generateClaudeMd } from '../services/claude-md.generator.js';
 import { generateTaskFileTemplate } from '../templates/onboarding.templates.js';
-import { startSpinner, printError } from '../utils/display.js';
+import { formatWikiLink } from '../utils/wiki-link.js';
+import { startSpinner, printError, printInfo, printWarning } from '../utils/display.js';
 import type { TaskPeriod } from '../types/task.types.js';
-
-const TASKS_MD_TEMPLATE =
-  '# Tasks\n\n<!-- Backlog: add tasks here — tmr process will append extracted tasks automatically -->\n';
 
 export class InitCommand {
   constructor(
     private readonly version: string = '1.0.0',
     private readonly plain: boolean = false,
+    private readonly scaffoldOnly: boolean = false,
   ) {}
 
   /**
@@ -52,12 +53,31 @@ export class InitCommand {
   }
 
   async run(): Promise<void> {
+    const existingVault = initService.findExistingVault(process.cwd());
+    if (existingVault) {
+      printError(
+        `A tmr vault already exists at: ${existingVault}`,
+        'Use the existing vault or choose a different directory.',
+        this.plain,
+      );
+      process.exitCode = 1;
+      return;
+    }
+
     this.displayWelcomeBanner();
 
     // ── Prompt phase — collect all user input before any file writes ──────────
     const rawPath = await promptWorkspacePath();
     const workspacePath = initService.resolveVaultPath(rawPath);
-    const answers = await promptMinimalOnboarding();
+    const nameEmail = await promptNameAndEmail();
+    const inferredDomain = nameEmail.email.split('@')[1] ?? '';
+    const additionalDomains = inferredDomain ? await promptAdditionalDomains(inferredDomain) : [];
+    const roleCompany = await promptRoleAndCompany();
+    const answers: { name: string; email: string; role: string; company: string } = {
+      ...nameEmail,
+      ...roleCompany,
+      company: inferredDomain.toLowerCase(),
+    };
     const leader = await promptLeaderDetails();
     const teamCount = await promptTeamCount();
     const teamNames: string[] = [];
@@ -110,20 +130,22 @@ export class InitCommand {
       return;
     }
 
-    const taskPeriods: TaskPeriod[] = ['today', 'this-week', 'this-month', 'this-quarter'];
-    const allTaskFiles: Array<[string, string]> = [
-      ['tasks.md', TASKS_MD_TEMPLATE],
-      ...taskPeriods.map((period): [string, string] => [
-        `${period}.md`,
-        generateTaskFileTemplate(period),
-      ]),
+    const ownerEmail = answers.email.trim().toLowerCase();
+    const selfProfilePath = join(workspacePath, 'my-career', `${ownerEmail}.md`);
+    const taskTypes: Array<'tasks' | TaskPeriod> = [
+      'tasks',
+      'today',
+      'this-week',
+      'this-month',
+      'this-quarter',
     ];
 
     await Promise.all(
-      allTaskFiles.map(async ([filename, content]) => {
-        const filePath = join(workspacePath, 'my-tasks', filename);
+      taskTypes.map(async (type) => {
+        const filePath = join(workspacePath, 'my-tasks', `${type}.md`);
         if (!(await fileSystemService.exists(filePath))) {
-          await fileSystemService.writeFile(filePath, content);
+          const ownerLink = formatWikiLink(selfProfilePath, filePath, ownerEmail);
+          await fileSystemService.writeFile(filePath, generateTaskFileTemplate(type, ownerLink));
         }
       }),
     );
@@ -132,7 +154,7 @@ export class InitCommand {
 
     const orgConfigSpinner = startSpinner('Writing org config', this.plain);
     try {
-      await initService.writeOrgConfig(workspacePath, answers.email);
+      await initService.writeOrgConfig(workspacePath, answers.email, additionalDomains);
     } catch (err) {
       printError(`Failed to write org config: ${err instanceof Error ? err.message : String(err)}`);
       orgConfigSpinner.fail('Org config write failed');
@@ -200,9 +222,40 @@ export class InitCommand {
     await fileSystemService.writeFile(join(workspacePath, 'CLAUDE.md'), generateClaudeMd(answers));
     claudeSpinner.succeed('CLAUDE.md generated');
 
-    const pluginSpinner = startSpinner('Downloading Obsidian plugins', this.plain);
-    await obsidianPluginService.installPlugins(workspacePath);
-    pluginSpinner.succeed('Obsidian plugins installed');
+    if (!this.scaffoldOnly) {
+      const pluginSpinner = startSpinner('Downloading Obsidian plugins', this.plain);
+      try {
+        const failedPlugins = await obsidianPluginService.installPlugins(workspacePath);
+        const installedCount = REQUIRED_PLUGIN_IDS.length - failedPlugins.length;
+        if (installedCount === 0) {
+          pluginSpinner.warn(`Obsidian plugins installed (0/${REQUIRED_PLUGIN_IDS.length})`);
+        } else {
+          pluginSpinner.succeed(
+            `Obsidian plugins installed (${installedCount}/${REQUIRED_PLUGIN_IDS.length})`,
+          );
+        }
+        for (const id of failedPlugins) {
+          printWarning(
+            `Plugin "${id}" download failed — install manually: https://obsidian.md/plugins`,
+            this.plain,
+          );
+        }
+      } catch (err) {
+        pluginSpinner.fail(
+          `Plugin installation failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+
+      const skillSpinner = startSpinner('Installing default skills', this.plain);
+      try {
+        await initService.installDefaultSkill(workspacePath);
+      } catch {
+        // installDefaultSkill never throws — safety net only
+      }
+      skillSpinner.succeed('Default skills installed');
+    } else {
+      printInfo('Scaffold-only mode: skipped plugin downloads and skill installs.', this.plain);
+    }
 
     const sampleSpinner = startSpinner('Copying sample files', this.plain);
     try {
@@ -215,14 +268,6 @@ export class InitCommand {
       return;
     }
     sampleSpinner.succeed('Sample files ready');
-
-    const skillSpinner = startSpinner('Installing default skills', this.plain);
-    try {
-      await initService.installDefaultSkill(workspacePath);
-    } catch {
-      // installDefaultSkill never throws — safety net only
-    }
-    skillSpinner.succeed('Default skills installed');
 
     const readmeSpinner = startSpinner('Writing README', this.plain);
     try {

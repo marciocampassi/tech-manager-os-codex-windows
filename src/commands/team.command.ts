@@ -2,7 +2,10 @@ import { Command } from 'commander';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { teamService, TeamService } from '../services/team.service.js';
-import { printError, printSuccess } from '../utils/display.js';
+import type { ProfileLocation } from '../types/team.types.js';
+import { memberService } from '../services/member.service.js';
+import { printError, printSuccess, printInfo } from '../utils/display.js';
+import { resolveEmailWithSimilarCheck } from '../utils/email-guard.js';
 import { InvalidEmailError } from '../errors/tmr-error.js';
 
 // ── Formatting helpers ────────────────────────────────────────────────────────
@@ -44,6 +47,7 @@ function printMembersTable(
 // ── Sub-command handlers ──────────────────────────────────────────────────────
 
 async function runCreate(svc: TeamService, teamNameArg: string | undefined): Promise<void> {
+  const ws = svc.getWorkspaceRoot();
   let teamName = teamNameArg?.trim() ?? '';
   if (!teamName) {
     const { name } = await inquirer.prompt<{ name: string }>([
@@ -56,8 +60,6 @@ async function runCreate(svc: TeamService, teamNameArg: string | undefined): Pro
     ]);
     teamName = name.trim();
   }
-
-  const ws = svc.getWorkspaceRoot();
   try {
     await svc.createTeam(teamName, ws);
   } catch (err) {
@@ -75,8 +77,9 @@ async function runAdd(
   emailArg: string | undefined,
   opts: { name?: string; role?: string; gender?: string; location?: string },
 ): Promise<void> {
+  const ws = svc.getWorkspaceRoot();
   let teamName = teamNameArg?.trim() ?? '';
-  let email = emailArg?.trim() ?? '';
+  let email = emailArg?.trim().toLowerCase() ?? '';
 
   if (!teamName || !email) {
     const answers = await inquirer.prompt<{ teamName: string; email: string }>(
@@ -96,8 +99,10 @@ async function runAdd(
       ].filter(Boolean) as Parameters<typeof inquirer.prompt>[0],
     );
     teamName = teamName || answers.teamName;
-    email = email || answers.email.trim();
+    email = email || answers.email.trim().toLowerCase();
   }
+
+  email = await resolveEmailWithSimilarCheck(email, ws);
 
   // Secondary prompts for optional fields — always run, skip if pre-filled via flags
   const secondaryAnswers = await inquirer.prompt<{
@@ -119,7 +124,6 @@ async function runAdd(
   const gender = opts.gender?.trim() ?? secondaryAnswers.gender?.trim() ?? '';
   const location = opts.location?.trim() ?? secondaryAnswers.location?.trim() ?? '';
 
-  const ws = svc.getWorkspaceRoot();
   try {
     await svc.addMember(teamName, email, { name, role, gender, location }, ws);
   } catch (err) {
@@ -130,6 +134,31 @@ async function runAdd(
     throw err;
   }
   printSuccess(`Member "${email}" added to team "${teamName}"`);
+
+  // "Remember domain" offer — fires when the domain is external (not in org config)
+  const domain = email.split('@')[1]?.toLowerCase() ?? '';
+  if (domain) {
+    let internalDomains: string[] = [];
+    try {
+      internalDomains = await memberService.getInternalDomains(ws);
+    } catch {
+      // org.yaml unreadable — skip
+    }
+    if (internalDomains.length > 0 && !internalDomains.includes(domain)) {
+      const { remember } = await inquirer.prompt<{ remember: boolean }>([
+        {
+          type: 'confirm',
+          name: 'remember',
+          message: `Remember "${domain}" as an internal domain for future members?`,
+          default: false,
+        },
+      ]);
+      if (remember) {
+        await memberService.appendInternalDomain(domain, ws);
+        printInfo(`Domain "${domain}" added to config/organization.yaml`);
+      }
+    }
+  }
 }
 
 async function runList(svc: TeamService, teamNameArg: string | undefined): Promise<void> {
@@ -149,6 +178,7 @@ async function runArchive(
   emailArg: string | undefined,
   opts: { from?: string; to?: string },
 ): Promise<void> {
+  const ws = svc.getWorkspaceRoot();
   let teamName = teamNameArg?.trim() ?? '';
   let email = emailArg?.trim() ?? '';
 
@@ -172,8 +202,6 @@ async function runArchive(
     teamName = teamName || answers.teamName;
     email = email || answers.email;
   }
-
-  const ws = svc.getWorkspaceRoot();
   await svc.archiveMember(teamName, email, { from: opts.from, to: opts.to }, ws);
   process.stdout.write(`${chalk.green('✔')} Member "${email}" archived from team "${teamName}"\n`);
 }
@@ -183,6 +211,7 @@ async function runFire(
   teamNameArg: string | undefined,
   emailArg: string | undefined,
 ): Promise<void> {
+  const ws = svc.getWorkspaceRoot();
   let teamName = teamNameArg?.trim() ?? '';
   let email = emailArg?.trim() ?? '';
 
@@ -215,8 +244,6 @@ async function runFire(
     },
   ]);
   const note = terminationNote.trim() || undefined;
-
-  const ws = svc.getWorkspaceRoot();
   await svc.fireMember(teamName, email, ws, note);
   process.stdout.write(
     `${chalk.green('✔')} Member "${email}" terminated and archived from team "${teamName}"\n`,
@@ -235,13 +262,15 @@ export async function runShow(email: string): Promise<void> {
     );
     return;
   }
-  const locationLabel: Record<string, string> = {
+  const locationLabel: Record<ProfileLocation, string> = {
     member: 'Active team member',
     archived: 'Archived member',
     leadership: 'Leadership',
-    relationship: 'Relationship',
+    relationship: 'Company member',
+    self: 'Self',
+    contractor: 'Contractor',
   };
-  process.stdout.write(`${chalk.dim(`[${locationLabel[result.location] ?? result.location}]`)}\n`);
+  process.stdout.write(`${chalk.dim(`[${locationLabel[result.location]}]`)}\n`);
   process.stdout.write(`${result.content}\n`);
 }
 

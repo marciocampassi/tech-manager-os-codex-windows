@@ -75,7 +75,8 @@ describe('Team Integration', () => {
     const { data } = matter(profileContent);
     expect(data['email']).toBe('john@co.com');
     expect(data['role']).toBe('Engineer');
-    expect(data['teams']).toContain('alpha');
+    // teams: array now contains wiki-links pointing to <slug>-context.md (Story 9.29)
+    expect((data['teams'] as string[]).some((t) => t.includes('alpha'))).toBe(true);
 
     // Subdirectories created
     expect(fs.existsSync(path.join(workspace, 'my-teams', 'members', 'john@co.com', '1on1s'))).toBe(
@@ -148,7 +149,13 @@ describe('Team Integration', () => {
       'shared@co.com.md',
     );
     const { data } = matter(fs.readFileSync(profilePath, 'utf8'));
-    expect((data['teams'] as string[]).sort()).toEqual(['alpha', 'beta']);
+    // Both teams are now stored as consistent context-file wiki-links (Story 9.29 review patch):
+    // the existing-member append path uses addRelation with the same format as buildMemberProfileMd.
+    const teamsArr = data['teams'] as string[];
+    expect(teamsArr).toHaveLength(2);
+    expect(teamsArr.every((t) => /\[\[.*-context\.md\|.*\]\]/.test(t))).toBe(true);
+    expect(teamsArr.some((t) => t.includes('alpha-context.md|alpha'))).toBe(true);
+    expect(teamsArr.some((t) => t.includes('beta-context.md|beta'))).toBe(true);
   });
 
   it('fire adds termination fields in addition to archive', async () => {

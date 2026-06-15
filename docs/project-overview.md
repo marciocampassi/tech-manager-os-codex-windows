@@ -47,17 +47,18 @@ Everything runs locally — no cloud backend, no database, no vendor lock-in. Da
 ## Key Commands
 
 | Command | What it does |
-|---------|-------------|
-| `tmr init` | Interactive setup: creates vault folder structure, generates `CLAUDE.md`, installs Obsidian plugins |
-| `tmr config` | Set/view AI provider and API key |
-| `tmr process` | AI pipeline: scan inbox → categorize notes → update context → extract tasks → organize files |
-| `tmr watch` | Auto-process inbox when new files are added |
-| `tmr install <skill>` | Install a Claude Code skill from the GitHub registry |
+| `tmr --help` | Show all commands |
+| `tmr --version` | Show version |
+| `tmr init` | Guided vault setup — profile, leader, teams, members, skills |
+| `tmr init --scaffold-only` | Create files and folders only — skip network operations (offline / CI) |
+| `tmr config` | Configure AI provider and API key |
+| `tmr doctor` | Check environment health: Node.js, Obsidian, Granola, vault, plugins |
+| `tmr process` | AI-powered inbox processing (requires API key) |
+| `tmr process --dry-run` | Preview routing decisions without moving files |
+| `tmr watch` | Auto-process inbox on file changes |
+| `tmr install <skill>` | Install a Claude Code skill into `.claude/skills/` |
 | `tmr update` | Update all installed skills to latest versions |
-| `tmr team *` | Manage teams and team members |
-| `tmr leadership *` | Track leadership contacts |
-| `tmr project *` | Manage projects |
-| `tmr show <email>` | Display unified profile for any email |
+| `tmr show <email>` | Display profile for any email (self, team, leadership, company, contractor) |
 
 ---
 

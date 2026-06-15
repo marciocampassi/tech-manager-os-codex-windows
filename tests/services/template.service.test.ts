@@ -137,11 +137,15 @@ describe('TemplateService', () => {
       expect(result).toContain('name: platform');
       expect(result).toContain('type: project');
       expect(result).toContain(`date_created: ${DATE}`);
+      expect(result).toContain('members: []');
+      expect(result).toContain('stakeholders: []');
       expect(result).toContain('# platform');
       expect(result).toContain('## Overview');
       expect(result).toContain('## Goals');
       expect(result).toContain('## Timeline');
       expect(result).toContain('## Notes');
+      expect(result).not.toContain('# Team Members');
+      expect(result).not.toContain('# Stakeholders');
     });
   });
 
@@ -155,6 +159,14 @@ describe('TemplateService', () => {
       expect(result).toContain('## Today');
       expect(result).toContain('## Blockers');
     });
+
+    it('9.13: embeds wiki-link in project frontmatter when paths are provided', () => {
+      const ovPath = '/ws/my-company/projects/platform-project/platform-project.md';
+      const fromPath =
+        '/ws/my-company/projects/platform-project/standups/2026-05-20-platform-project-standup.md';
+      const result = svc.getStandupTemplate(DATE, 'platform-project', ovPath, fromPath);
+      expect(result).toContain('project: "[[../platform-project.md|platform-project]]"');
+    });
   });
 
   it('substitutes different dates and emails correctly', () => {
@@ -162,5 +174,67 @@ describe('TemplateService', () => {
     expect(result).toContain('date: 2025-12-01');
     expect(result).toContain('member: alice@example.com');
     expect(result).toContain('# 1:1 with alice@example.com');
+  });
+
+  // ── 9.31: dated-file frontmatter with links (subject/with/from) ──────────────
+
+  describe('9.31: getTemplate with links', () => {
+    const SUBJECT = '[[../john@co.com.md|john@co.com]]';
+    const WITH = '[[../../../my-career/me@co.com.md|me@co.com]]';
+    const FROM = '[[../../reviewer@co.com/reviewer@co.com.md|reviewer@co.com]]';
+
+    it('1on1 emits type/date/subject/with and drops legacy member:', () => {
+      const result = svc.getTemplate('1on1', DATE, EMAIL, { subject: SUBJECT, with: WITH });
+      expect(result).toContain('type: 1on1');
+      expect(result).toContain(`date: ${DATE}`);
+      expect(result).toContain(`subject: "${SUBJECT}"`);
+      expect(result).toContain(`with: "${WITH}"`);
+      expect(result).not.toContain(`member: ${EMAIL}`);
+    });
+
+    it('omits with when not provided (AC7)', () => {
+      const result = svc.getTemplate('1on1', DATE, EMAIL, { subject: SUBJECT });
+      expect(result).toContain(`subject: "${SUBJECT}"`);
+      expect(result).not.toContain('with:');
+    });
+
+    it('feedback emits from instead of with', () => {
+      const result = svc.getTemplate('feedback', DATE, EMAIL, { subject: SUBJECT, from: FROM });
+      expect(result).toContain('type: feedback');
+      expect(result).toContain(`from: "${FROM}"`);
+      expect(result).not.toContain('with:');
+    });
+
+    it('assessment and performance-review emit subject/with', () => {
+      const a = svc.getTemplate('assessment', DATE, EMAIL, { subject: SUBJECT, with: WITH });
+      const p = svc.getTemplate('performance-review', DATE, EMAIL, {
+        subject: SUBJECT,
+        with: WITH,
+      });
+      expect(a).toContain('type: assessment');
+      expect(a).toContain(`with: "${WITH}"`);
+      expect(p).toContain('type: performance-review');
+      expect(p).toContain(`subject: "${SUBJECT}"`);
+    });
+  });
+
+  describe('9.31: getLeadership1on1Template with links', () => {
+    const SUBJECT = '[[../boss@co.com.md|boss@co.com]]';
+    const WITH = '[[../../../my-career/me@co.com.md|me@co.com]]';
+
+    it('emits unified type: 1on1 (not leadership-1on1) with subject/with', () => {
+      const result = svc.getLeadership1on1Template(DATE, EMAIL, { subject: SUBJECT, with: WITH });
+      expect(result).toContain('type: 1on1');
+      expect(result).not.toContain('type: leadership-1on1');
+      expect(result).toContain(`subject: "${SUBJECT}"`);
+      expect(result).toContain(`with: "${WITH}"`);
+      expect(result).not.toContain(`member: ${EMAIL}`);
+    });
+
+    it('still emits legacy type: leadership-1on1 when no links passed', () => {
+      const result = svc.getLeadership1on1Template(DATE, EMAIL);
+      expect(result).toContain('type: leadership-1on1');
+      expect(result).toContain(`member: ${EMAIL}`);
+    });
   });
 });

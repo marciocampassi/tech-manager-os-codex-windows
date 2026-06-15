@@ -1,2 +1,4 @@
-. ~/.nvm/nvm.sh
+if [ -s "$HOME/.nvm/nvm.sh" ]; then
+  . "$HOME/.nvm/nvm.sh"
+fi
 npx lint-staged

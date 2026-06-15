@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 import chalk from 'chalk';
+import matter from 'gray-matter';
 import { format, startOfWeek, endOfWeek } from 'date-fns';
 import { fileSystemService } from './file-system.service.js';
 import { FileSystemError } from '../errors/tmr-error.js';
@@ -19,7 +20,10 @@ export class TaskViewService {
     const filePath = join(workspaceRoot, PERIOD_FILE_MAP[period]);
     try {
       const content = await fileSystemService.readFile(filePath);
-      return content.trim().length === 0 ? '' : content;
+      // Strip YAML frontmatter (type/owner shell metadata) so it never leaks
+      // into the rendered task view.
+      const body = matter(content).content;
+      return body.trim().length === 0 ? '' : body;
     } catch (err) {
       if (err instanceof FileSystemError) {
         return '';

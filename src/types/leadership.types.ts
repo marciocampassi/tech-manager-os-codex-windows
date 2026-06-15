@@ -12,9 +12,18 @@ export interface ILeadershipFrontmatter {
   email: string;
   name: string;
   role: string;
+  location?: string;
   gender?: string;
   areas_of_responsibility: string;
+  relationship: 'leadership';
   date_added: string;
+  // ── Story 9.30: Relationship vocabulary ──
+  start_date?: string;
+  current_manager?: string;
+  previous_manager?: string[];
+  other_leaderships?: string[];
+  direct_reports?: string[];
+  projects?: string[];
 }
 
 /** Options accepted by LeadershipService.addLeadership() and add1on1() */
@@ -22,6 +31,7 @@ export interface IAddLeadershipOptions {
   name?: string;
   role?: string;
   gender?: string;
+  location?: string;
   areas_of_responsibility?: string;
   date?: string;
   noEdit?: boolean;

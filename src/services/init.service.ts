@@ -25,6 +25,7 @@ const VAULT_DIRS = [
   'my-company/projects',
   'my-leadership',
   'my-career',
+  'my-career/performance-reviews',
   'knowledge-base',
   'config',
   '.claude/skills',
@@ -121,11 +122,38 @@ export class InitService {
   async scaffold(vaultPath: string): Promise<void> {
     await Promise.all(VAULT_DIRS.map((dir) => this._fs.createDirectory(path.join(vaultPath, dir))));
     await this._fs.writeFile(path.join(vaultPath, 'CLAUDE.md'), buildClaudeMdStub());
+    await this.writeSentinel(vaultPath);
   }
 
   /**
-   * Writes the user's own career profile to `my-career/<email>/<email>.md`.
-   * Creates the parent directory if it does not yet exist.
+   * Writes the .tmr sentinel file at the vault root.
+   * Makes the vault self-identifying — `getWorkspaceRoot()` walks up from cwd
+   * until it finds this file.
+   */
+  async writeSentinel(vaultPath: string): Promise<void> {
+    const content = JSON.stringify({ version: '1.0.0', created: todayIso() }, null, 2);
+    await this._fs.writeFile(path.join(vaultPath, '.tmr'), content);
+  }
+
+  /**
+   * Walks up the directory tree from `fromDir` looking for a `.tmr` sentinel file.
+   * Returns the vault root path if found, null otherwise.
+   * Synchronous — mirrors `getWorkspaceRoot()` walk-up logic.
+   */
+  findExistingVault(fromDir: string): string | null {
+    let dir = fromDir;
+    while (true) {
+      if (fs.existsSync(path.join(dir, '.tmr'))) return dir;
+      const parent = path.dirname(dir);
+      if (parent === dir) break; // reached filesystem root
+      dir = parent;
+    }
+    return null;
+  }
+
+  /**
+   * Writes the user's own career profile to `my-career/<email>.md` (flat — no subdirectory).
+   * `my-career/` is guaranteed to exist after `scaffold()`, so no directory creation is needed.
    * Throws on any file system failure.
    */
   async writeUserProfile(
@@ -133,22 +161,39 @@ export class InitService {
     opts: { email: string; name: string; role: string; leaderEmail?: string },
   ): Promise<void> {
     const email = opts.email.trim().toLowerCase();
-    const dir = path.join(vaultPath, 'my-career', email);
-    const filePath = path.join(dir, `${email}.md`);
-    const fm = { email, name: opts.name, role: opts.role, date_added: todayIso() };
+    const filePath = path.join(vaultPath, 'my-career', `${email}.md`);
 
-    let body = '\n# Career Profile\n\n## Notes\n\n## Goals\n';
+    const taskLink = (file: string, label: string): string =>
+      formatWikiLink(path.join(vaultPath, 'my-tasks', file), filePath, label);
+
+    const fm: Record<string, unknown> = {
+      email,
+      name: opts.name,
+      role: opts.role,
+      relationship: 'self',
+      date_added: todayIso(),
+      start_date: '',
+      current_manager: '',
+      previous_manager: [],
+      leadership: [],
+      other_leaderships: [],
+      direct_reports: [],
+      projects: [],
+      tasks: taskLink('tasks.md', 'tasks'),
+      today: taskLink('today.md', 'today'),
+      this_week: taskLink('this-week.md', 'this-week'),
+      this_month: taskLink('this-month.md', 'this-month'),
+      this_quarter: taskLink('this-quarter.md', 'this-quarter'),
+    };
 
     if (opts.leaderEmail?.trim()) {
       const leaderEmail = opts.leaderEmail.trim().toLowerCase();
       const leaderFile = path.join(vaultPath, 'my-leadership', leaderEmail, `${leaderEmail}.md`);
-      const leaderLink = formatWikiLink(leaderFile, filePath, leaderEmail);
-      body += `\n## Leadership\n\n- ${leaderLink}\n`;
+      fm.current_manager = formatWikiLink(leaderFile, filePath, leaderEmail);
     }
 
-    const content = matter.stringify(body, fm);
-    await this._fs.createDirectory(dir);
-    await this._fs.writeFile(filePath, content);
+    const body = '\n# Career Profile\n\n## Notes\n\n## Performance Reviews\n';
+    await this._fs.writeFile(filePath, matter.stringify(body, fm));
   }
 
   /**
@@ -159,11 +204,11 @@ export class InitService {
    */
   async writeLeaderProfile(
     vaultPath: string,
-    opts: { email: string; name: string; role: string },
+    opts: { email: string; name: string; role: string; location?: string },
   ): Promise<void> {
     await this._leadership.addLeadership(
       opts.email,
-      { name: opts.name, role: opts.role },
+      { name: opts.name, role: opts.role, location: opts.location },
       vaultPath,
     );
   }
@@ -279,13 +324,29 @@ export class InitService {
   }
 
   /**
-   * Writes `config/organization.yaml` to the vault with the domain extracted from the
-   * manager's email address. The `config/` directory is guaranteed to exist after `scaffold()`.
+   * Writes `config/organization.yaml` to the vault with the domain inferred from the
+   * manager's email address, plus any additional validated domains collected at init.
+   * The `config/` directory is guaranteed to exist after `scaffold()`.
    * Throws on any file system failure — org config is vault-critical context.
    */
-  async writeOrgConfig(vaultPath: string, managerEmail: string): Promise<void> {
-    const domain = managerEmail.split('@')[1] ?? managerEmail;
-    const content = `internal_domains:\n  - ${domain}\n`;
+  async writeOrgConfig(
+    vaultPath: string,
+    managerEmail: string,
+    additionalDomains: string[] = [],
+  ): Promise<void> {
+    const inferred = (managerEmail.split('@')[1] ?? managerEmail).toLowerCase();
+    const uniqueDomains = [
+      inferred,
+      ...additionalDomains.map((d) => d.toLowerCase()).filter((d) => d !== inferred),
+    ];
+    const seen = new Set<string>();
+    const deduped = uniqueDomains.filter((d) => {
+      if (seen.has(d)) return false;
+      seen.add(d);
+      return true;
+    });
+    const lines = deduped.map((d) => `  - ${d}`).join('\n');
+    const content = `internal_domains:\n${lines}\n`;
     await this._fs.writeFile(path.join(vaultPath, 'config', 'organization.yaml'), content);
   }
 
@@ -308,13 +369,15 @@ export class InitService {
       [
         '',
         'Next steps:',
-        '  1. Run `tmr config` to set your AI API key',
-        '  2. Run `tmr project add` to add your first project',
-        `  3. Open ${vaultPath} in Obsidian — plugins are ready`,
-        '  4. Run /tmr-myself-config in Claude Code to personalize your AI context (do this first)',
-        '  5. Run /tmr-inbox in Claude Code to process your inbox meeting notes',
-        '  6. Run /tmr-project-impact after changes to any project file to check impact',
-        '  7. Run `tmr --help` to explore all commands',
+        '  1. Open this vault in Obsidian:',
+        `       macOS/Linux → run: open -a Obsidian "${vaultPath}"`,
+        `       Windows     → run: start "" "obsidian://${vaultPath}"`,
+        `       Or open Obsidian and navigate to: ${vaultPath}`,
+        '  2. Run /tmr-myself-config in Claude Code to personalize your AI context (do this first)',
+        '  3. Run /tmr-inbox in Claude Code to process your inbox meeting notes',
+        '  4. Run `tmr --help` to explore all commands',
+        '',
+        'Upgrading an older vault? Run `tmr doctor --fix-frontmatter` to migrate body links to frontmatter (idempotent).',
         '',
         'Skills installed:',
         '  /tmr-myself-config      — personalize AI context across your vault',

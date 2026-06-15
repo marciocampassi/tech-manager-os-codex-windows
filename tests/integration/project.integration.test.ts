@@ -47,7 +47,7 @@ describe('Project Integration', () => {
 
   // ── AC1: addProject ───────────────────────────────────────────────────────────
 
-  it('AC1: creates overview with Team Members/Stakeholders, and standups/meetings directories', async () => {
+  it('AC1: creates overview with members/stakeholders frontmatter, and standups/meetings directories', async () => {
     const result = await svc.addProject('platform', workspace);
 
     expect(result.created).toBe(true);
@@ -69,11 +69,13 @@ describe('Project Integration', () => {
     const { data } = matter(overviewContent);
     expect(data['name']).toBe('platform-project');
     expect(data['type']).toBe('project');
+    expect(data['members']).toEqual([]);
+    expect(data['stakeholders']).toEqual([]);
     expect(overviewContent).toContain('## Overview');
     expect(overviewContent).toContain('## Goals');
     expect(overviewContent).toContain('## Timeline');
-    expect(overviewContent).toContain('# Team Members');
-    expect(overviewContent).toContain('# Stakeholders');
+    expect(overviewContent).not.toContain('# Team Members');
+    expect(overviewContent).not.toContain('# Stakeholders');
   });
 
   it('AC1: returns created: false when project already exists (idempotent)', async () => {
@@ -137,7 +139,8 @@ describe('Project Integration', () => {
 
     const content = fs.readFileSync(expectedPath, 'utf8');
     expect(content).toContain('type: standup');
-    expect(content).toContain('project: platform-project');
+    // 9.13: project field is a complete wiki-link one level up from standups/
+    expect(content).toContain('project: "[[../platform-project.md|platform-project]]"');
     expect(content).toContain('## Yesterday');
     expect(content).toContain('## Today');
     expect(content).toContain('## Blockers');
@@ -149,7 +152,7 @@ describe('Project Integration', () => {
 
   // ── AC5: linkMember (team member) ─────────────────────────────────────────────
 
-  it('AC5: links an existing team member to Team Members section in overview file', async () => {
+  it('AC5: links an existing team member to members frontmatter + reciprocal projects array', async () => {
     await svc.addProject('platform', workspace);
 
     const memberDir = path.join(workspace, 'my-teams', 'members', 'alice@co.com');
@@ -168,12 +171,14 @@ describe('Project Integration', () => {
       'platform-project',
       'platform-project.md',
     );
-    const content = fs.readFileSync(overviewPath, 'utf8');
-    expect(content).toContain('alice@co.com');
+    const overview = matter(fs.readFileSync(overviewPath, 'utf8'));
+    expect(overview.data['members']).toHaveLength(1);
+    expect((overview.data['members'] as string[])[0]).toContain('alice@co.com');
 
-    const teamMembersIdx = content.indexOf('# Team Members');
-    const aliceIdx = content.indexOf('alice@co.com');
-    expect(aliceIdx).toBeGreaterThan(teamMembersIdx);
+    // Reciprocal: member profile gains a projects[] entry pointing back at the project
+    const member = matter(fs.readFileSync(path.join(memberDir, 'alice@co.com.md'), 'utf8'));
+    expect(Array.isArray(member.data['projects'])).toBe(true);
+    expect((member.data['projects'] as string[])[0]).toContain('platform-project');
   });
 
   it('AC5: auto-creates relationship profile for unknown email', async () => {
@@ -207,9 +212,68 @@ describe('Project Integration', () => {
     expect(result.created).toBe(1);
   });
 
+  it('AC6: batch linkMembers writes reciprocal projects[] to each entity profile (AC5)', async () => {
+    await svc.addProject('platform', workspace);
+
+    const m1Dir = path.join(workspace, 'my-teams', 'members', 'batch1@co.com');
+    fs.ensureDirSync(m1Dir);
+    fs.writeFileSync(path.join(m1Dir, 'batch1@co.com.md'), '---\nemail: batch1@co.com\n---\n');
+
+    const m2Dir = path.join(workspace, 'my-teams', 'members', 'batch2@co.com');
+    fs.ensureDirSync(m2Dir);
+    fs.writeFileSync(path.join(m2Dir, 'batch2@co.com.md'), '---\nemail: batch2@co.com\n---\n');
+
+    await svc.linkMembers('platform', ['batch1@co.com', 'batch2@co.com'], workspace);
+
+    const p1 = matter(fs.readFileSync(path.join(m1Dir, 'batch1@co.com.md'), 'utf8'));
+    expect(Array.isArray(p1.data['projects'])).toBe(true);
+    expect((p1.data['projects'] as string[])[0]).toContain('platform-project');
+
+    const p2 = matter(fs.readFileSync(path.join(m2Dir, 'batch2@co.com.md'), 'utf8'));
+    expect(Array.isArray(p2.data['projects'])).toBe(true);
+    expect((p2.data['projects'] as string[])[0]).toContain('platform-project');
+  });
+
+  it('AC6: batch linkStakeholders writes stakeholders[] and reciprocal projects[] on both sides (AC5)', async () => {
+    await svc.addProject('platform', workspace);
+
+    const s1Dir = path.join(workspace, 'my-company', 'members', 'sstake1@co.com');
+    fs.ensureDirSync(s1Dir);
+    fs.writeFileSync(path.join(s1Dir, 'sstake1@co.com.md'), '---\nemail: sstake1@co.com\n---\n');
+
+    const s2Dir = path.join(workspace, 'my-company', 'members', 'sstake2@co.com');
+    fs.ensureDirSync(s2Dir);
+    fs.writeFileSync(path.join(s2Dir, 'sstake2@co.com.md'), '---\nemail: sstake2@co.com\n---\n');
+
+    const result = await svc.linkStakeholders(
+      'platform',
+      ['sstake1@co.com', 'sstake2@co.com'],
+      workspace,
+    );
+    expect(result.linked).toBe(2);
+
+    const overviewPath = path.join(
+      workspace,
+      'my-company',
+      'projects',
+      'platform-project',
+      'platform-project.md',
+    );
+    const overview = matter(fs.readFileSync(overviewPath, 'utf8'));
+    const stakeholders = overview.data['stakeholders'] as string[];
+    expect(stakeholders.some((l) => l.includes('sstake1@co.com'))).toBe(true);
+    expect(stakeholders.some((l) => l.includes('sstake2@co.com'))).toBe(true);
+
+    const st1 = matter(fs.readFileSync(path.join(s1Dir, 'sstake1@co.com.md'), 'utf8'));
+    expect((st1.data['projects'] as string[])[0]).toContain('platform-project');
+
+    const st2 = matter(fs.readFileSync(path.join(s2Dir, 'sstake2@co.com.md'), 'utf8'));
+    expect((st2.data['projects'] as string[])[0]).toContain('platform-project');
+  });
+
   // ── AC7: linkStakeholder ──────────────────────────────────────────────────────
 
-  it('AC7: links stakeholder to Stakeholders section in overview file', async () => {
+  it('AC7: links stakeholder to stakeholders frontmatter + reciprocal projects array', async () => {
     await svc.addProject('platform', workspace);
 
     const relDir = path.join(workspace, 'my-company', 'members', 'vendor@co.com');
@@ -227,11 +291,12 @@ describe('Project Integration', () => {
       'platform-project',
       'platform-project.md',
     );
-    const content = fs.readFileSync(overviewPath, 'utf8');
+    const overview = matter(fs.readFileSync(overviewPath, 'utf8'));
+    expect(overview.data['stakeholders']).toHaveLength(1);
+    expect((overview.data['stakeholders'] as string[])[0]).toContain('vendor@co.com');
 
-    const stakeholdersIdx = content.indexOf('# Stakeholders');
-    const vendorIdx = content.indexOf('vendor@co.com');
-    expect(vendorIdx).toBeGreaterThan(stakeholdersIdx);
+    const vendor = matter(fs.readFileSync(path.join(relDir, 'vendor@co.com.md'), 'utf8'));
+    expect((vendor.data['projects'] as string[])[0]).toContain('platform-project');
   });
 
   // ── AC9: listProjects ─────────────────────────────────────────────────────────

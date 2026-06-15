@@ -257,5 +257,43 @@ describe('team command', () => {
         expect.stringContaining('Profile not found for nobody@co.com'),
       );
     });
+
+    // ── 9.15 tests ──────────────────────────────────────────────────────────────
+
+    it('outputs [Company member] label for relationship location', async () => {
+      mockShowProfile.mockResolvedValueOnce({
+        location: 'relationship',
+        filePath: '/fake/my-company/members/ext@co.com/ext@co.com.md',
+        content: 'relationship content',
+      } as never);
+
+      await runShow('ext@co.com');
+
+      expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('Company member'));
+    });
+
+    it('9.15: outputs [Self] label for self location', async () => {
+      mockShowProfile.mockResolvedValueOnce({
+        location: 'self',
+        filePath: '/fake/my-career/me@co.com.md',
+        content: 'self content',
+      } as never);
+
+      await runShow('me@co.com');
+
+      expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('Self'));
+    });
+
+    it('9.15: outputs [Contractor] label for contractor location', async () => {
+      mockShowProfile.mockResolvedValueOnce({
+        location: 'contractor',
+        filePath: '/fake/my-company/contractors/ext@v.com/ext@v.com.md',
+        content: 'contractor content',
+      } as never);
+
+      await runShow('ext@v.com');
+
+      expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('Contractor'));
+    });
   });
 });

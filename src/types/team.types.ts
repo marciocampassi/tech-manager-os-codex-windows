@@ -14,8 +14,16 @@ export interface ITeamMemberFrontmatter {
   role: string;
   gender?: string;
   location: string;
-  teams: string[];
+  relationship?: string;
+  teams: string[]; // wiki-link strings pointing to <slug>-context.md
   date_added: string;
+  // ── New fields (Story 9.29) ──
+  start_date?: string;
+  current_manager?: string;
+  previous_manager?: string[];
+  other_leaderships?: string[];
+  projects?: string[];
+  // ── Archive fields ──
   archived?: boolean;
   archived_date?: string;
   termination?: boolean;
@@ -58,7 +66,13 @@ export interface IArchiveOptions {
 }
 
 /** Location result from TeamService.findProfile() */
-export type ProfileLocation = 'member' | 'archived' | 'leadership' | 'relationship';
+export type ProfileLocation =
+  | 'member'
+  | 'archived'
+  | 'leadership'
+  | 'relationship'
+  | 'self'
+  | 'contractor';
 
 export interface IProfileResult {
   location: ProfileLocation;

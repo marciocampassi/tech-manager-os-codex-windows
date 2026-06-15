@@ -209,6 +209,12 @@ they drop below.
 
 ### Anti-Patterns to Avoid
 
+- **DO NOT** duplicate interactive guard functions across command files. Any `async function`
+  that uses `inquirer.prompt` and appears in more than one command file MUST be extracted to
+  `src/utils/` and imported. If you find a copy-pasted guard (e.g. the old `warnIfSimilarEmail`),
+  extract it immediately. The canonical shared guard is `resolveEmailWithSimilarCheck` in
+  `src/utils/email-guard.ts`.
+
 - **DO NOT** add new fields to the AI categorization JSON schema without updating the
   response parser and the strict system prompt — schema drift silently breaks routing.
 - **DO NOT** use `chalk` directly in commands or services — always go through `display.ts`
@@ -251,6 +257,77 @@ they drop below.
 
 ---
 
+## ⚠ CRITICAL: Canonical Entity Resolution & Vault Structure
+
+### Single Resolution Method — Non-Negotiable
+
+- **`EmailResolutionService.resolve(email, ws)`** (`src/services/email-resolution.service.ts`) is the **single authoritative method** for locating any entity (self, team member, leader, company member, contractor) by email in the workspace.
+- **ALL** commands and services that look up a person by email MUST call `EmailResolutionService.resolve()` — never build entity paths inline.
+- **`MemberService.findMemberGlobally()` has been deleted.** It was a divergent parallel lookup that caused resolution inconsistencies. There is no replacement — use `EmailResolutionService.resolve()`.
+- **`MemberService.createMember()` has been deleted.** It was a duplicate of `addMember()` with `--team`. Use `MemberService.addMember(email, { team: '...' }, ws)` instead.
+- If you see either of these method names anywhere in the codebase, that code is stale and must be updated immediately.
+
+### Vault Folder Structure — Single Pattern
+
+Every member entity type uses the **nested folder pattern**: `<scope>/<email>/<email>.md` with typed subdirectories alongside the profile:
+
+| Scope | Profile path | Subdirs created alongside profile |
+|---|---|---|
+| Self | `my-career/<email>.md` | `performance-reviews/` |
+| Direct report | `my-teams/members/<email>/<email>.md` | `1on1s/`, `feedbacks/`, `assessments/`, `performance-reviews/`, `<email>-shared/` |
+| Leadership | `my-leadership/<email>/<email>.md` | `1on1s/` |
+| Company member | `my-company/members/<email>/<email>.md` | `1on1s/`, `feedbacks/`, `assessments/`, `performance-reviews/` |
+| Contractor | `my-company/contractors/<email>/<email>.md` | `1on1s/`, `feedbacks/`, `assessments/`, `performance-reviews/` |
+
+All scopes (except Leadership) get typed subdirs for dated documents. Direct reports, company members, and contractors get the full set of four subdirs. Self gets `performance-reviews/` only. Contractors are treated identically to Company members for subdir scaffolding — no exceptions.
+
+- **`my-career/` self-profile stays flat** — the profile lives at `my-career/<email>.md` (not nested). Dated performance reviews go in `my-career/performance-reviews/`. Do not move the profile into a nested folder.
+- NEVER write a profile as a flat `<email>.md` alongside other profiles in the same scope folder. The nested pattern is the enforced standard.
+
+### Required Frontmatter Field: `relationship`
+
+Every entity profile MUST include a `relationship` frontmatter field with the appropriate value:
+
+| Entity | `relationship` value |
+|---|---|
+| Self | `self` |
+| Direct report (team-scoped) | `direct-report` |
+| Leadership | `leadership` |
+| Company member | `company-member` |
+| Contractor | `contractor` |
+
+### Domain Routing — `config/domains.md`
+
+- Internal email domains are stored in `<vault>/config/domains.md` (plain Markdown list).
+- `tmr member add <email>` checks the email domain against `config/domains.md`:
+  - Domain found → route to `my-company/members/<email>/<email>.md`
+  - Domain not found → route to `my-company/contractors/<email>/<email>.md` (with confirmation)
+  - `--contractor` flag → always routes to contractor scope, no prompt
+- NEVER read `config/organization.yaml` for domain checks in new code — that file is deprecated for domain storage.
+
+### Dated File Naming Convention
+
+**1on1 files use the full date** (`YYYY-MM-DD`) because they occur frequently (weekly) and multiple files in the same month must be distinguishable.
+
+**All other dated files use year-month only** (`YYYY-MM`) — feedback, assessment, and performance-review happen at most once per month, so the day is not needed.
+
+Extraction helpers:
+- Full date: use the ISO date string as-is (`"2026-05-22"`)
+- Year-month: `date.slice(0, 7)` → `"2026-05"`
+
+| Command | Prefix | Output filename example |
+|---|---|---|
+| `tmr member add 1on1 <email>` | `YYYY-MM-DD` | `2026-05-22-1on1-user@co.com.md` |
+| `tmr member add feedback <email>` | `YYYY-MM` | `2026-05-feedback-manager@co.com-user@co.com.md` |
+| `tmr member add feedback <email> --from <f>` | `YYYY-MM` | `2026-05-feedback-<f>-user@co.com.md` |
+| `tmr member add assessment <email>` | `YYYY-MM` | `2026-05-assessment-user@co.com.md` |
+| `tmr member add performance-review <email>` | `YYYY-MM` | `2026-05-performance-review-user@co.com.md` |
+| `tmr leadership add 1on1 <email>` | `YYYY-MM-DD` | `2026-05-22-1on1-leader@co.com.md` |
+
+The `--from` flag on `tmr member add feedback` is optional. When omitted, the reviewer defaults to the application user's own email resolved from `my-career/<email>.md`. `--from` is used when recording feedback given by someone other than the manager (e.g. peer feedback).
+
+---
+
 ## Shared Utilities — Brownfield State & Rules
 
 ### Email Validation
@@ -281,6 +358,34 @@ they drop below.
 - `EmailResolutionService._doResolve` step 4 now writes a company-scoped member profile inline (ISSUE-m1 shim). This shim is intentionally temporary — **Story 3.2** must replace it with `MemberService.addMember(email)`.
 - All three relationship test files have been deleted (`tests/commands/relationship.command.test.ts`, `tests/services/relationship.service.test.ts`, `tests/integration/relationship.integration.test.ts`).
 
+### Frontmatter-Native Relationship Model
+
+- **ALL structural entity-to-entity wiki-links MUST be written to frontmatter fields, not body sections.**
+  Canonical types are defined in `src/types/relations.types.ts` (`IEntityRelations`, `ITeamRelations`,
+  `IProjectRelations`, `ISelfRelations`).
+- All structural relationship mutations MUST use `src/utils/frontmatter-relations.ts`
+  (`addRelation`, `removeRelation`, `setScalar`) — never inline `matter.stringify()` for
+  relationship changes.
+- **Exception — dated artifact lists stay in body** (decision #2): `## 1on1s`, `## Feedbacks`,
+  `## Assessments`, `## Performance Reviews` body sections are retained for their unbounded
+  wiki-link lists. Only the `last_<type>` scalars (`last_1on1`, `last_feedback`,
+  `last_assessment`, `last_performance_review`) live in frontmatter.
+- Read paths use frontmatter only (hard cutover). Users with pre-migration vaults must run
+  `tmr doctor --fix-frontmatter` (Story 9.36).
+
+### Anti-Pattern (Critical — Body Link Regression)
+
+**DO NOT** call `SectionParserService.appendToFile(profilePath, sectionName, wikiLink)` or
+`appendToHashSection(content, sectionName, '- [[...]]')` for any **structural** relationship.
+Use `addRelation()` from `src/utils/frontmatter-relations.ts` instead.
+
+**Structural relationships (→ frontmatter):** `current_manager`, `previous_manager`,
+`direct_reports`, `leadership`, `other_leaderships`, `teams`, `projects`, `members`, `stakeholders`,
+`tasks`, `today`, `this_week`, `this_month`, `this_quarter`.
+
+**Dated artifact lists (→ body via `SectionParserService.appendToFile`, correct as-is):**
+`## 1on1s`, `## Feedbacks`, `## Assessments`, `## Performance Reviews`.
+
 ---
 
 ## Usage Guidelines
@@ -299,4 +404,4 @@ they drop below.
 - Update when the technology stack, architecture, or conventions change.
 - Review quarterly for outdated rules.
 
-_Last Updated: 2026-04-27 (added Shared Utilities — Brownfield State & Rules section)_
+_Last Updated: 2026-05-22 (added ⚠ CRITICAL: Canonical Entity Resolution & Vault Structure section — high-priority rules for entity resolution, folder structure, relationship frontmatter, domain routing, and dated file naming)_

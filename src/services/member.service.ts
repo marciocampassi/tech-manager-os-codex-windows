@@ -3,35 +3,36 @@ import matter from 'gray-matter';
 import { FileSystemService, fileSystemService } from './file-system.service.js';
 import { SectionParserService, sectionParserService } from './section-parser.service.js';
 import { TemplateService, templateService } from './template.service.js';
+import { EmailResolutionService, emailResolutionService } from './email-resolution.service.js';
 import { getWorkspaceRoot as resolveWorkspaceRoot } from '../utils/workspace.js';
 import { validateEmail } from '../utils/validation.js';
+import { ValidationError } from '../errors/tmr-error.js';
 import { formatWikiLink } from '../utils/wiki-link.js';
+import { addRelation, setScalar } from '../utils/frontmatter-relations.js';
+import { normalizeSlug } from '../utils/normalization.js';
 import { logger } from '../utils/logger.js';
 import {
   FILE_TYPE_CONFIG,
+  LAST_SCALAR_KEY,
   type FileType,
   type IAddMemberOptions,
   type ICreateFileOptions,
   type ICreateFileResult,
-  type ICreateMemberOptions,
+  type IDatedFileLinks,
 } from '../types/member.types.js';
 
 // ── Path helpers ──────────────────────────────────────────────────────────────
 
-function membersRoot(ws: string): string {
-  return path.join(ws, 'my-teams', 'members');
-}
-
-function memberDir(ws: string, email: string): string {
-  return path.join(membersRoot(ws), email);
-}
-
-function memberProfilePath(ws: string, email: string): string {
-  return path.join(memberDir(ws, email), `${email}.md`);
-}
-
 function todayIso(): string {
   return new Date().toISOString().split('T')[0] as string;
+}
+
+function yearMonth(isoDate: string): string {
+  return isoDate.slice(0, 7);
+}
+
+function filePrefix(type: FileType, isoDate: string): string {
+  return type === '1on1' ? isoDate : yearMonth(isoDate);
 }
 
 /**
@@ -54,6 +55,7 @@ export class MemberService {
     private readonly _fs: FileSystemService,
     private readonly _sectionParser: SectionParserService,
     private readonly _template: TemplateService,
+    private readonly _emailResolver: EmailResolutionService = emailResolutionService,
   ) {}
 
   getWorkspaceRoot(): string {
@@ -61,96 +63,30 @@ export class MemberService {
   }
 
   /**
-   * Creates a new member profile with the full directory tree under my-teams/members/.
-   * Idempotent — skips creation if profile already exists.
-   */
-  async createMember(
-    email: string,
-    opts: ICreateMemberOptions,
-    workspaceRoot: string,
-  ): Promise<{ created: boolean }> {
-    const normalizedEmail = email.toLowerCase();
-    const profilePath = memberProfilePath(workspaceRoot, normalizedEmail);
-
-    if (await this._fs.exists(profilePath)) {
-      return { created: false };
-    }
-
-    const date = todayIso();
-    const fm: Record<string, unknown> = {
-      email: `[[${normalizedEmail}]]`,
-      name: opts.name ?? '',
-      role: opts.role ?? '',
-      gender: opts.gender ?? '',
-      location: '',
-      teams: [],
-      date_added: date,
-    };
-
-    const body =
-      '\n## Current Manager\n\n## Previous Managers\n\n## Other Leaderships\n\n## Previous Leaderships\n\n## Performance Reviews\n\n## 1on1s\n\n## Assessments\n\n## Feedbacks\n';
-    const profileMd = matter.stringify(body, fm);
-
-    await this._fs.createDirectory(path.join(memberDir(workspaceRoot, normalizedEmail), '1on1s'));
-    await this._fs.createDirectory(
-      path.join(memberDir(workspaceRoot, normalizedEmail), 'feedback'),
-    );
-    await this._fs.createDirectory(
-      path.join(memberDir(workspaceRoot, normalizedEmail), 'assessments'),
-    );
-    await this._fs.createDirectory(
-      path.join(memberDir(workspaceRoot, normalizedEmail), 'performance-reviews'),
-    );
-    await this._fs.writeFile(profilePath, profileMd);
-
-    return { created: true };
-  }
-
-  /**
    * Returns the member profile path if the member exists, null otherwise.
-   * Searches only the legacy nested path (my-teams/members/<email>/<email>.md).
-   * Use findMemberGlobally() when all scopes must be searched.
+   * Searches only the nested path (my-teams/members/<email>/<email>.md).
    */
   async findMember(email: string, workspaceRoot: string): Promise<string | null> {
-    const profilePath = memberProfilePath(workspaceRoot, email.toLowerCase());
+    const normalizedEmail = email.toLowerCase();
+    const profilePath = path.join(
+      workspaceRoot,
+      'my-teams',
+      'members',
+      normalizedEmail,
+      `${normalizedEmail}.md`,
+    );
     const exists = await this._fs.exists(profilePath);
     return exists ? profilePath : null;
   }
 
   /**
-   * Searches all member scopes in priority order:
-   *   1. my-teams/members/<email>.md                           (flat team-scoped)
-   *   2. my-company/members/<email>.md                         (flat company-scoped)
-   *   3. my-company/contractors/<email>/<email>.md             (contractor-scoped)
-   *   4. my-teams/members/<email>/<email>.md                   (nested legacy, TeamService)
-   * Returns the first matching path, or null if the member is not found in any scope.
-   */
-  async findMemberGlobally(email: string, workspaceRoot: string): Promise<string | null> {
-    const normalizedEmail = email.toLowerCase();
-    const candidates = [
-      path.join(workspaceRoot, 'my-teams', 'members', `${normalizedEmail}.md`),
-      path.join(workspaceRoot, 'my-company', 'members', `${normalizedEmail}.md`),
-      path.join(
-        workspaceRoot,
-        'my-company',
-        'contractors',
-        normalizedEmail,
-        `${normalizedEmail}.md`,
-      ),
-      memberProfilePath(workspaceRoot, normalizedEmail),
-    ];
-    for (const p of candidates) {
-      if (await this._fs.exists(p)) return p;
-    }
-    return null;
-  }
-
-  /**
-   * Routes a new member profile to the correct scope:
+   * Routes a new member profile to the correct scope using the nested folder convention:
    * - Contractor scope (contractor: true): my-company/contractors/<email>/<email>.md
-   *   Also creates my-company/contractors/<email>/1on1s/ for future meeting notes.
-   * - Team scope (team provided): my-teams/members/<email>.md with manager wiki-link
-   * - Company scope (default): my-company/members/<email>.md
+   * - Team scope (team provided): my-teams/members/<email>/<email>.md with manager wiki-link
+   * - Company scope (default): my-company/members/<email>/<email>.md
+   *
+   * All scopes scaffold subdirs: 1on1s/, feedbacks/, assessments/, performance-reviews/
+   * Team scope additionally creates <email>-shared/.
    * Idempotent — returns { created: false } if profile already exists.
    */
   async addMember(
@@ -161,6 +97,33 @@ export class MemberService {
     validateEmail(email);
     const normalizedEmail = email.toLowerCase();
 
+    const selfPath = await this._getSelfProfilePath(workspaceRoot);
+    if (selfPath) {
+      const selfFileEmail = path.basename(selfPath, '.md').toLowerCase();
+      let selfFrontmatterEmail = '';
+      try {
+        const selfData = matter(await this._fs.readFile(selfPath)).data as Record<string, unknown>;
+        if (typeof selfData['email'] === 'string') {
+          selfFrontmatterEmail = selfData['email'].trim().toLowerCase();
+        }
+      } catch {
+        // Unreadable/invalid self profile — fall back to the filename check only.
+      }
+      if (selfFileEmail === normalizedEmail || selfFrontmatterEmail === normalizedEmail) {
+        throw new ValidationError(
+          `Cannot add "${normalizedEmail}" as a member — it is your own (self) profile. Manage your own profile with tmr myself.`,
+        );
+      }
+    }
+
+    // Team scope requires a pre-existing team — adding to a non-existent team would write a
+    // dangling `teams` link (the context file doesn't exist) with no reciprocal roster entry.
+    if (opts.team && !opts.contractor && !(await this.teamExists(opts.team, workspaceRoot))) {
+      throw new ValidationError(
+        `Team "${opts.team}" does not exist. Create it first with \`tmr team create ${opts.team}\`, then add the member.`,
+      );
+    }
+
     const profilePath = opts.contractor
       ? path.join(
           workspaceRoot,
@@ -170,14 +133,25 @@ export class MemberService {
           `${normalizedEmail}.md`,
         )
       : opts.team
-        ? path.join(workspaceRoot, 'my-teams', 'members', `${normalizedEmail}.md`)
-        : path.join(workspaceRoot, 'my-company', 'members', `${normalizedEmail}.md`);
+        ? path.join(workspaceRoot, 'my-teams', 'members', normalizedEmail, `${normalizedEmail}.md`)
+        : path.join(
+            workspaceRoot,
+            'my-company',
+            'members',
+            normalizedEmail,
+            `${normalizedEmail}.md`,
+          );
 
     if (await this._fs.exists(profilePath)) {
+      await this._syncTeamMembersFrontmatter(opts, profilePath, normalizedEmail, workspaceRoot);
+      await this._syncDirectReports(opts, profilePath, normalizedEmail, workspaceRoot);
       return { created: false };
     }
 
-    const managerLink = opts.team ? await this._resolveManagerLink(profilePath, workspaceRoot) : '';
+    const isDirectReport = !!opts.team && !opts.contractor;
+    const currentManagerLink = isDirectReport
+      ? await this._resolveManagerLink(profilePath, workspaceRoot)
+      : '';
 
     const fm: Record<string, unknown> = {
       email: normalizedEmail,
@@ -185,44 +159,58 @@ export class MemberService {
       role: opts.role ?? '',
       gender: opts.gender ?? '',
       location: opts.location ?? '',
+      relationship: opts.contractor ? 'contractor' : opts.team ? 'direct-report' : 'company-member',
       date_added: todayIso(),
-      ...(opts.contractor
-        ? { relationship: 'contractor', ...(opts.company ? { company: opts.company } : {}) }
+      start_date: '',
+      current_manager: currentManagerLink,
+      previous_manager: [],
+      other_leaderships: [],
+      ...(isDirectReport
+        ? { teams: [this._resolveTeamContextLink(opts.team as string, profilePath, workspaceRoot)] }
         : {}),
-      ...(opts.team ? { manager: managerLink } : {}),
+      projects: [],
     };
 
-    const body = '\n## Performance Reviews\n\n## Feedbacks\n';
+    const body =
+      '\n## 1on1s\n\n## Feedbacks\n\n## Assessments\n\n## Performance Reviews\n\n## Notes\n';
     const profileMd = matter.stringify(body, fm);
 
-    await this._fs.createDirectory(path.dirname(profilePath));
-    if (opts.contractor) {
-      await this._fs.createDirectory(path.join(path.dirname(profilePath), '1on1s'));
+    const entityDir = path.dirname(profilePath);
+    const commonSubDirs = ['1on1s', 'feedbacks', 'assessments', 'performance-reviews'];
+    for (const subDir of commonSubDirs) {
+      await this._fs.createDirectory(path.join(entityDir, subDir));
+    }
+    if (opts.team) {
+      await this._fs.createDirectory(path.join(entityDir, `${normalizedEmail}-shared`));
     }
     await this._fs.writeFile(profilePath, profileMd);
+
+    await this._syncTeamMembersFrontmatter(opts, profilePath, normalizedEmail, workspaceRoot);
+    await this._syncDirectReports(opts, profilePath, normalizedEmail, workspaceRoot);
 
     return { created: true };
   }
 
-  /**
-   * Resolves the manager's wiki-link from the `my-career/` directory.
-   * Assumes a single career profile subdirectory (the current user's own career folder).
-   * If multiple subdirectories are found, the first alphabetically is used and a warning is logged.
-   */
-  private async _resolveManagerLink(memberPath: string, workspaceRoot: string): Promise<string> {
-    const careerRoot = path.join(workspaceRoot, 'my-career');
-    if (!(await this._fs.exists(careerRoot))) return '';
-    const subdirs = await this._fs.listDirectories(careerRoot);
-    if (subdirs.length === 0) return '';
-    if (subdirs.length > 1) {
-      logger.warn(
-        `_resolveManagerLink: found ${subdirs.length} entries in my-career/ — expected 1. Using "${subdirs[0]}" as manager.`,
-      );
+  private async _syncTeamMembersFrontmatter(
+    opts: IAddMemberOptions,
+    profilePath: string,
+    normalizedEmail: string,
+    workspaceRoot: string,
+  ): Promise<void> {
+    if (!opts.team) return;
+
+    const slug = normalizeSlug(opts.team);
+    const teamMembersFilePath = path.join(
+      workspaceRoot,
+      'my-teams',
+      'teams',
+      slug,
+      `${slug}-members.md`,
+    );
+    if (await this._fs.exists(teamMembersFilePath)) {
+      const link = formatWikiLink(profilePath, teamMembersFilePath, normalizedEmail);
+      await addRelation(teamMembersFilePath, 'members', link, this._fs);
     }
-    const managerEmail = subdirs[0] as string;
-    const managerProfilePath = path.join(careerRoot, managerEmail, `${managerEmail}.md`);
-    if (!(await this._fs.exists(managerProfilePath))) return '';
-    return formatWikiLink(managerProfilePath, memberPath, managerEmail);
   }
 
   /**
@@ -255,10 +243,37 @@ export class MemberService {
   }
 
   /**
+   * Appends `domain` to the `internal_domains` list in `config/organization.yaml`.
+   * Idempotent — if the domain is already present (case-insensitive), does nothing.
+   * Creates the file with the key if it does not exist yet.
+   * Uses the same line-by-line format as `getInternalDomains()` — no external YAML lib.
+   */
+  async appendInternalDomain(domain: string, workspaceRoot: string): Promise<void> {
+    const normalizedDomain = domain.toLowerCase();
+    const existing = await this.getInternalDomains(workspaceRoot);
+    if (existing.includes(normalizedDomain)) return;
+
+    const orgPath = path.join(workspaceRoot, 'config', 'organization.yaml');
+    const line = `  - ${normalizedDomain}\n`;
+
+    if (!(await this._fs.exists(orgPath))) {
+      await this._fs.writeFile(orgPath, `internal_domains:\n${line}`);
+      return;
+    }
+
+    const content = await this._fs.readFile(orgPath);
+    if (content.includes('internal_domains:')) {
+      await this._fs.writeFile(orgPath, content.trimEnd() + '\n' + line);
+    } else {
+      await this._fs.writeFile(orgPath, content.trimEnd() + '\ninternal_domains:\n' + line);
+    }
+  }
+
+  /**
    * Creates a dated member file (1on1, feedback, assessment, performance-review),
    * then appends its wiki-link to the corresponding section in the member profile.
    *
-   * Searches all scopes via findMemberGlobally() — flat team, flat company, and nested legacy.
+   * Resolves the member profile via EmailResolutionService across all scopes.
    * If the member is not found in any scope, a company-scoped profile is auto-created.
    */
   async createMemberFile(
@@ -271,12 +286,8 @@ export class MemberService {
     const date = options.date ?? todayIso();
     const config = FILE_TYPE_CONFIG[type];
 
-    // Global lookup across all three scopes; auto-create if not found (FR24)
-    let profilePath = await this.findMemberGlobally(normalizedEmail, workspaceRoot);
-    if (!profilePath) {
-      await this.addMember(normalizedEmail, {}, workspaceRoot);
-      profilePath = path.join(workspaceRoot, 'my-company', 'members', `${normalizedEmail}.md`);
-    }
+    const resolution = await this._emailResolver.resolve(normalizedEmail, workspaceRoot);
+    const profilePath = resolution.absolutePath;
 
     const subDirPath = path.join(
       memberSubDirFromProfile(profilePath, normalizedEmail),
@@ -284,16 +295,168 @@ export class MemberService {
     );
     await this._fs.createDirectory(subDirPath);
 
-    const fileName = `${date}-${normalizedEmail}-${config.fileSuffix}.md`;
+    const prefix = filePrefix(type, date);
+    if (type === 'feedback' && !options.fromEmail) {
+      throw new Error('fromEmail is required for feedback type');
+    }
+    // Normalize the reviewer once so the filename, the `from` wiki-link, and the
+    // resolved/auto-created reviewer profile all agree on casing.
+    const normalizedOptions: ICreateFileOptions = {
+      ...options,
+      fromEmail: options.fromEmail?.toLowerCase(),
+    };
+    const fileName =
+      type === 'feedback'
+        ? `${prefix}-feedback-${normalizedOptions.fromEmail}-${normalizedEmail}.md`
+        : `${prefix}-${config.fileSuffix}-${normalizedEmail}.md`;
     const filePath = path.join(subDirPath, fileName);
 
-    const content = this._template.getTemplate(type, date, normalizedEmail);
+    const { links, createdReviewer } = await this._buildDatedFileLinks(
+      type,
+      normalizedOptions,
+      normalizedEmail,
+      {
+        profilePath,
+        filePath,
+        workspaceRoot,
+      },
+    );
+
+    // Use the cadence-correct prefix (full date for 1on1, YYYY-MM otherwise) so the file's
+    // frontmatter `date:` matches its filename and the profile `last_*` scalar.
+    const content = this._template.getTemplate(type, prefix, normalizedEmail, links);
     await this._fs.writeFile(filePath, content);
 
     const wikiLink = `- [[${config.subDir}/${fileName}]]`;
     await this._sectionParser.appendToFile(profilePath, config.sectionName, wikiLink);
 
-    return { filePath, profilePath, wikiLink };
+    await setScalar(profilePath, LAST_SCALAR_KEY[type], prefix, this._fs);
+
+    return { filePath, profilePath, wikiLink, ...(createdReviewer ? { createdReviewer } : {}) };
+  }
+
+  // ── Private ──────────────────────────────────────────────────────────────────
+
+  /**
+   * Builds the frontmatter wiki-link set for a dated file (Story 9.31).
+   *
+   * - `subject` always points to the member the artifact is about.
+   * - For feedback, the reviewer (`fromEmail`) is resolved via EmailResolutionService —
+   *   auto-creating a stub profile when absent (fixes B5) — and emitted as `from`.
+   * - For all other types, the self profile (if present) is emitted as `with`; omitted
+   *   entirely when no self profile exists.
+   */
+  private async _buildDatedFileLinks(
+    type: FileType,
+    options: ICreateFileOptions,
+    normalizedEmail: string,
+    paths: { profilePath: string; filePath: string; workspaceRoot: string },
+  ): Promise<{ links: IDatedFileLinks; createdReviewer?: { email: string; path: string } }> {
+    const { profilePath, filePath, workspaceRoot } = paths;
+    const links: IDatedFileLinks = {
+      subject: formatWikiLink(profilePath, filePath, normalizedEmail),
+    };
+
+    if (type === 'feedback' && options.fromEmail) {
+      // `fromEmail` is already lowercased by the caller.
+      const reviewerEmail = options.fromEmail;
+      const reviewer = await this._emailResolver.resolve(reviewerEmail, workspaceRoot);
+      links.from = formatWikiLink(reviewer.absolutePath, filePath, reviewerEmail);
+      // Surface the B5 auto-create so the command can warn the user (a typo'd reviewer
+      // otherwise silently spawns a ghost profile with no feedback in it).
+      if (reviewer.created) {
+        return {
+          links,
+          createdReviewer: { email: reviewerEmail, path: reviewer.absolutePath },
+        };
+      }
+      return { links };
+    }
+
+    const selfPath = await this._getSelfProfilePath(workspaceRoot);
+    if (selfPath) {
+      const selfEmail = path.basename(selfPath, '.md');
+      links.with = formatWikiLink(selfPath, filePath, selfEmail);
+    }
+    return { links };
+  }
+
+  /**
+   * Resolves the manager's wiki-link from the `my-career/` directory.
+   * Scans for `.md` files directly (flat structure — one profile per vault).
+   * If multiple files are found, the first alphabetically is used and a warning is logged.
+   */
+  private async _resolveManagerLink(memberPath: string, workspaceRoot: string): Promise<string> {
+    const careerRoot = path.join(workspaceRoot, 'my-career');
+    if (!(await this._fs.exists(careerRoot))) return '';
+
+    const mdFiles = await this._fs.listFiles(careerRoot, '.md');
+    if (mdFiles.length === 0) return '';
+
+    const managerProfilePath = mdFiles[0] as string;
+    const managerEmail = path.basename(managerProfilePath, '.md');
+    if (mdFiles.length > 1) {
+      logger.warn(
+        `_resolveManagerLink: found ${mdFiles.length} .md files in my-career/ — expected 1. Using "${managerEmail}" as manager.`,
+      );
+    }
+
+    return formatWikiLink(managerProfilePath, memberPath, managerEmail);
+  }
+
+  /**
+   * Returns the first `.md` file path found in `my-career/`, or null if absent.
+   * Used by `_syncDirectReports` to locate the self profile for reciprocal writes.
+   */
+  private async _getSelfProfilePath(workspaceRoot: string): Promise<string | null> {
+    const careerRoot = path.join(workspaceRoot, 'my-career');
+    if (!(await this._fs.exists(careerRoot))) return null;
+    const mdFiles = await this._fs.listFiles(careerRoot, '.md');
+    return mdFiles.length > 0 ? (mdFiles[0] as string) : null;
+  }
+
+  /**
+   * True when a team exists, keyed on its context file (`my-teams/teams/<slug>/<slug>-context.md`) —
+   * the exact target the member's `teams` wiki-link points at. Used to reject `--team` adds for
+   * non-existent teams (which would otherwise create a dangling link).
+   */
+  async teamExists(teamName: string, workspaceRoot: string): Promise<boolean> {
+    const slug = normalizeSlug(teamName);
+    const contextPath = path.join(workspaceRoot, 'my-teams', 'teams', slug, `${slug}-context.md`);
+    return this._fs.exists(contextPath);
+  }
+
+  /**
+   * Computes the wiki-link pointing to a team's context file.
+   * Synchronous — no filesystem reads needed; generates path without verifying existence.
+   */
+  private _resolveTeamContextLink(
+    teamName: string,
+    fromPath: string,
+    workspaceRoot: string,
+  ): string {
+    const slug = normalizeSlug(teamName);
+    const contextPath = path.join(workspaceRoot, 'my-teams', 'teams', slug, `${slug}-context.md`);
+    return formatWikiLink(contextPath, fromPath, slug);
+  }
+
+  /**
+   * Writes a `direct_reports` reciprocal link on the self profile when the member being
+   * added is a direct report (team scope, not contractor). Silent no-op if self profile absent.
+   */
+  private async _syncDirectReports(
+    opts: IAddMemberOptions,
+    profilePath: string,
+    normalizedEmail: string,
+    workspaceRoot: string,
+  ): Promise<void> {
+    if (!opts.team || opts.contractor) return;
+
+    const selfPath = await this._getSelfProfilePath(workspaceRoot);
+    if (!selfPath) return;
+
+    const memberLink = formatWikiLink(profilePath, selfPath, normalizedEmail);
+    await addRelation(selfPath, 'direct_reports', memberLink, this._fs);
   }
 }
 
@@ -301,4 +464,5 @@ export const memberService = new MemberService(
   fileSystemService,
   sectionParserService,
   templateService,
+  emailResolutionService,
 );

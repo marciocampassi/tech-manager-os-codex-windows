@@ -99,15 +99,19 @@ describe('Leadership Integration', () => {
     expect(fs.existsSync(result.filePath)).toBe(true);
 
     const fileContent = fs.readFileSync(result.filePath, 'utf8');
-    expect(fileContent).toContain('type: leadership-1on1');
-    expect(fileContent).toContain('member: boss@co.com');
+    // Story 9.31: dated 1on1 now carries `type: 1on1` + a `subject` wiki-link (not `member:`)
+    expect(fileContent).toContain('type: 1on1');
+    expect(fileContent).toContain('subject:');
+    expect(fileContent).toContain('boss@co.com');
     expect(fileContent).toContain('## Alignment Topics');
     expect(fileContent).toContain('## Support Needed');
     expect(fileContent).toContain('## Feedback Requested');
     expect(fileContent).toContain('## Notes');
 
     const profileContent = fs.readFileSync(result.profilePath, 'utf8');
-    expect(profileContent).toContain('[[1on1s/2026-03-09-boss@co.com-1on1.md]]');
+    expect(profileContent).toContain('[[1on1s/2026-03-09-1on1-boss@co.com.md]]');
+    // Story 9.31: last_1on1 recency scalar set on the leader profile frontmatter
+    expect(matter(profileContent).data['last_1on1']).toBe('2026-03-09');
   });
 
   it('AC2: throws descriptive error when leadership contact not found', async () => {
@@ -159,9 +163,9 @@ describe('Leadership Integration', () => {
     );
 
     expect(fs.existsSync(filePath)).toBe(true);
-    expect(wikiLink).toBe('- [[1on1s/2026-03-09-boss@co.com-1on1.md]]');
+    expect(wikiLink).toBe('- [[1on1s/2026-03-09-1on1-boss@co.com.md]]');
     expect(fs.readFileSync(profilePath, 'utf8')).toContain(
-      '[[1on1s/2026-03-09-boss@co.com-1on1.md]]',
+      '[[1on1s/2026-03-09-1on1-boss@co.com.md]]',
     );
 
     const rows = await svc.listLeadership(workspace);
@@ -182,7 +186,7 @@ describe('Leadership Integration', () => {
     const profilePath = path.join(workspace, 'my-leadership', 'boss@co.com', 'boss@co.com.md');
     const content = fs.readFileSync(profilePath, 'utf8');
 
-    expect(content).toContain('2026-02-01-boss@co.com-1on1.md');
-    expect(content).toContain('2026-03-09-boss@co.com-1on1.md');
+    expect(content).toContain('2026-02-01-1on1-boss@co.com.md');
+    expect(content).toContain('2026-03-09-1on1-boss@co.com.md');
   });
 });

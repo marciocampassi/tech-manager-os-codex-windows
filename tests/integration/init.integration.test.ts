@@ -8,6 +8,7 @@
  * are captured in a Map to assert correct paths and content end-to-end.
  */
 import { describe, it, expect, jest, afterAll, beforeAll } from '@jest/globals';
+import matter from 'gray-matter';
 
 // ── Mock declarations (must precede dynamic imports) ──────────────────────────
 
@@ -49,7 +50,20 @@ jest.unstable_mockModule('chalk', () => ({
   },
 }));
 
-// Capture all writeFile / appendFile calls to assert content without touching real disk
+// Normalizes OS-native paths (Windows backslashes) to POSIX forward slashes so
+// captured path keys and substring assertions compare identically on all platforms.
+const toPosix = (p: string): string => p.replace(/\\/g, '/');
+
+// `addRelation` (frontmatter-relations utility) throws when the target file does
+// not exist, so `addMember` requires the `<team>-members.md` roster to report as
+// existing. The mock returns true for those roster files (matched OS-agnostically)
+// and false for everything else, mirroring the guard in
+// tests/commands/init.command.test.ts. `<team>-context.md` is intentionally NOT
+// matched so `TeamService.createTeam` still writes both team files.
+const membersFileExists = async (p: string): Promise<boolean> => toPosix(p).endsWith('-members.md');
+
+// Capture all writeFile / appendFile calls to assert content without touching real disk.
+// Keys are normalized to forward slashes so lookups/assertions are OS-agnostic.
 const writtenFiles = new Map<string, string>();
 const appendedContent = new Map<string, string[]>();
 
@@ -57,18 +71,21 @@ const mockCreateDirectory = jest.fn<(path: string) => Promise<void>>().mockResol
 const mockWriteFile = jest
   .fn<(path: string, content: string) => Promise<void>>()
   .mockImplementation(async (filePath, content) => {
-    writtenFiles.set(filePath, content);
+    writtenFiles.set(toPosix(filePath), content);
   });
-const mockFsExists = jest.fn<(path: string) => Promise<boolean>>().mockResolvedValue(false);
+const mockFsExists = jest
+  .fn<(path: string) => Promise<boolean>>()
+  .mockImplementation(membersFileExists);
 const mockReadFile = jest
   .fn<(path: string) => Promise<string>>()
   .mockResolvedValue('# Team Members\n');
 const mockAppendFile = jest
   .fn<(path: string, content: string) => Promise<void>>()
   .mockImplementation(async (filePath, content) => {
-    const existing = appendedContent.get(filePath) ?? [];
+    const key = toPosix(filePath);
+    const existing = appendedContent.get(key) ?? [];
     existing.push(content);
-    appendedContent.set(filePath, existing);
+    appendedContent.set(key, existing);
   });
 const mockListDirectories = jest.fn<(path: string) => Promise<string[]>>().mockResolvedValue([]);
 
@@ -84,11 +101,12 @@ jest.unstable_mockModule('../../src/services/file-system.service.js', () => ({
 }));
 
 const mockInstallPlugins = jest
-  .fn<(workspacePath: string) => Promise<void>>()
-  .mockResolvedValue(undefined);
+  .fn<(workspacePath: string) => Promise<string[]>>()
+  .mockResolvedValue([]);
 
 jest.unstable_mockModule('../../src/services/obsidian-plugin.service.js', () => ({
   obsidianPluginService: { installPlugins: mockInstallPlugins },
+  REQUIRED_PLUGIN_IDS: ['obsidian-git', 'granola-sync', 'terminal', 'dataview'],
 }));
 
 jest.unstable_mockModule('../../src/services/config.service.js', () => ({
@@ -178,62 +196,62 @@ describe('InitCommand integration (Story 2.3 — member collection loop)', () =>
   // security/) are now out of scope for init. .obsidian/** is handled by obsidianPluginService.
   describe('directory structure — template directories (AC: 2)', () => {
     it('creates inbox/ directory', () => {
-      const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
+      const dirs = mockCreateDirectory.mock.calls.map((c) => toPosix(c[0]));
       expect(dirs.some((d) => d.endsWith('inbox'))).toBe(true);
     });
 
     it('creates archive/ directory', () => {
-      const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
+      const dirs = mockCreateDirectory.mock.calls.map((c) => toPosix(c[0]));
       expect(dirs.some((d) => d.endsWith('archive'))).toBe(true);
     });
 
     it('creates my-tasks/ directory', () => {
-      const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
+      const dirs = mockCreateDirectory.mock.calls.map((c) => toPosix(c[0]));
       expect(dirs.some((d) => d.endsWith('my-tasks'))).toBe(true);
     });
 
     it('creates my-career/ directory', () => {
-      const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
+      const dirs = mockCreateDirectory.mock.calls.map((c) => toPosix(c[0]));
       expect(dirs.some((d) => d.endsWith('my-career'))).toBe(true);
     });
 
     it('creates my-company/members/ directory', () => {
-      const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
+      const dirs = mockCreateDirectory.mock.calls.map((c) => toPosix(c[0]));
       expect(dirs.some((d) => d.includes('my-company/members'))).toBe(true);
     });
 
     it('creates my-teams/members/ directory', () => {
-      const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
+      const dirs = mockCreateDirectory.mock.calls.map((c) => toPosix(c[0]));
       expect(dirs.some((d) => d.includes('my-teams/members'))).toBe(true);
     });
 
     it('does NOT create my-teams/feedback-templates/ directory (Story 2.1 AC3)', () => {
-      const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
+      const dirs = mockCreateDirectory.mock.calls.map((c) => toPosix(c[0]));
       expect(dirs.some((d) => d.includes('my-teams/feedback-templates'))).toBe(false);
     });
 
     it('creates .claude/skills/ directory', () => {
-      const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
+      const dirs = mockCreateDirectory.mock.calls.map((c) => toPosix(c[0]));
       expect(dirs.some((d) => d.includes('.claude/skills'))).toBe(true);
     });
 
     it('creates .cursor/rules/tmr/ directory', () => {
-      const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
+      const dirs = mockCreateDirectory.mock.calls.map((c) => toPosix(c[0]));
       expect(dirs.some((d) => d.includes('.cursor/rules/tmr'))).toBe(true);
     });
 
     it('creates my-teams/teams/ directory', () => {
-      const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
+      const dirs = mockCreateDirectory.mock.calls.map((c) => toPosix(c[0]));
       expect(dirs.some((d) => d.includes('my-teams/teams'))).toBe(true);
     });
 
     it('creates knowledge-base/ directory', () => {
-      const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
+      const dirs = mockCreateDirectory.mock.calls.map((c) => toPosix(c[0]));
       expect(dirs.some((d) => d.endsWith('knowledge-base'))).toBe(true);
     });
 
     it('creates my-leadership/ directory', () => {
-      const dirs = mockCreateDirectory.mock.calls.map((c) => c[0]);
+      const dirs = mockCreateDirectory.mock.calls.map((c) => toPosix(c[0]));
       expect(dirs.some((d) => d.includes('my-leadership'))).toBe(true);
     });
   });
@@ -307,6 +325,17 @@ describe('InitCommand integration (Story 2.3 — member collection loop)', () =>
       const paths = Array.from(writtenFiles.keys());
       expect(paths.some((p) => p.includes('my-tasks/this-quarter.md'))).toBe(true);
     });
+
+    it('9.35: each task file has type + owner frontmatter pointing at self profile', () => {
+      const types = ['tasks', 'today', 'this-week', 'this-month', 'this-quarter'];
+      for (const type of types) {
+        const content = writtenFiles.get(`${WORKSPACE}/my-tasks/${type}.md`);
+        expect(content).toBeDefined();
+        const { data } = matter(content as string);
+        expect(data['type']).toBe(type);
+        expect(data['owner']).toContain(USER_EMAIL);
+      }
+    });
   });
 
   describe('Obsidian plugin installation (AC: 3)', () => {
@@ -316,28 +345,44 @@ describe('InitCommand integration (Story 2.3 — member collection loop)', () =>
   });
 
   describe('user profile (AC: 1 — INIT-UNIT-004)', () => {
-    it('writes my-career/<email>/<email>.md', () => {
+    it('writes my-career/<email>.md (flat — no subdirectory)', () => {
       const paths = Array.from(writtenFiles.keys());
-      expect(paths.some((p) => p.includes(`my-career/${USER_EMAIL}/${USER_EMAIL}.md`))).toBe(true);
+      expect(paths.some((p) => p.endsWith(`my-career/${USER_EMAIL}.md`))).toBe(true);
     });
 
     it('user profile contains the user email in frontmatter', () => {
-      const profilePath = `${WORKSPACE}/my-career/${USER_EMAIL}/${USER_EMAIL}.md`;
+      const profilePath = `${WORKSPACE}/my-career/${USER_EMAIL}.md`;
       const content = writtenFiles.get(profilePath);
       expect(content).toBeDefined();
       expect(content).toContain(USER_EMAIL);
     });
 
     it('user profile contains the user name', () => {
-      const profilePath = `${WORKSPACE}/my-career/${USER_EMAIL}/${USER_EMAIL}.md`;
+      const profilePath = `${WORKSPACE}/my-career/${USER_EMAIL}.md`;
       const content = writtenFiles.get(profilePath);
       expect(content).toContain(USER_NAME);
     });
 
     it('user profile contains the user role', () => {
-      const profilePath = `${WORKSPACE}/my-career/${USER_EMAIL}/${USER_EMAIL}.md`;
+      const profilePath = `${WORKSPACE}/my-career/${USER_EMAIL}.md`;
       const content = writtenFiles.get(profilePath);
       expect(content).toContain(USER_ROLE);
+    });
+
+    it('9.35: self profile has current_manager set to leader and leadership: []', () => {
+      const content = writtenFiles.get(`${WORKSPACE}/my-career/${USER_EMAIL}.md`);
+      const { data } = matter(content as string);
+      expect(data['current_manager']).toContain(LEADER_EMAIL);
+      expect(data['leadership']).toEqual([]);
+    });
+
+    it('9.35: self profile has the five task-graph scalars', () => {
+      const content = writtenFiles.get(`${WORKSPACE}/my-career/${USER_EMAIL}.md`);
+      const { data } = matter(content as string);
+      for (const key of ['tasks', 'today', 'this_week', 'this_month', 'this_quarter']) {
+        expect(typeof data[key]).toBe('string');
+        expect(data[key] as string).toContain('my-tasks');
+      }
     });
   });
 
@@ -370,8 +415,8 @@ describe('InitCommand integration (Story 2.3 — member collection loop)', () =>
   });
 
   describe('prompt call count', () => {
-    it('uses exactly 10 prompt calls — workspace + onboarding + leader + count + 2 names + member loop', () => {
-      expect(mockPrompt).toHaveBeenCalledTimes(10);
+    it('uses exactly 12 prompt calls — workspace + nameEmail + additionalDomains + roleCompany + leader + count + 2 names + member loop', () => {
+      expect(mockPrompt).toHaveBeenCalledTimes(12);
     });
   });
 
@@ -415,10 +460,13 @@ describe('InitCommand integration (Story 2.3 — member collection loop)', () =>
     });
 
     it('appends wiki-link to team 1 members file (AC: 5 — INIT-INT-013)', () => {
+      // The roster wiki-link is now persisted via `addRelation -> writeFile`
+      // (frontmatter `members` array), not via `appendFile`, so assert against the
+      // written-files capture. Path substring normalized to POSIX for OS-agnostic match.
       const membersFilePath = `${WORKSPACE}/my-teams/teams/${TEAM_1_SLUG}/${TEAM_1_SLUG}-members.md`;
-      const appended = appendedContent.get(membersFilePath);
-      expect(appended).toBeDefined();
-      expect(appended?.join('')).toContain(
+      const written = writtenFiles.get(membersFilePath);
+      expect(written).toBeDefined();
+      expect(toPosix(written ?? '')).toContain(
         `[[../../members/${MEMBER_1_EMAIL}/${MEMBER_1_EMAIL}.md|${MEMBER_1_EMAIL}]]`,
       );
     });
@@ -511,7 +559,7 @@ describe('InitCommand integration (Story 2.3 — member collection loop)', () =>
     });
 
     it('career profile contains leadership wiki-link', () => {
-      const careerPath = `${WORKSPACE}/my-career/${USER_EMAIL}/${USER_EMAIL}.md`;
+      const careerPath = `${WORKSPACE}/my-career/${USER_EMAIL}.md`;
       const content = writtenFiles.get(careerPath);
       expect(content).toBeDefined();
       expect(content).toContain(LEADER_EMAIL);
@@ -533,14 +581,14 @@ describe('InitCommand integration — skill install failure (INIT-INT-010)', () 
 
     mockWriteFile.mockReset();
     mockWriteFile.mockImplementation(async (filePath: string, content: string) => {
-      writtenFiles2.set(filePath, content);
+      writtenFiles2.set(toPosix(filePath), content);
     });
     mockCreateDirectory.mockReset().mockResolvedValue(undefined);
-    mockFsExists.mockReset().mockResolvedValue(false);
+    mockFsExists.mockReset().mockImplementation(membersFileExists);
     mockReadFile.mockReset().mockResolvedValue('# Team Members\n');
     mockAppendFile.mockReset();
     mockListDirectories.mockReset().mockResolvedValue([]);
-    mockInstallPlugins.mockReset().mockResolvedValue(undefined);
+    mockInstallPlugins.mockReset().mockResolvedValue([]);
 
     jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
     applyInitPromptFixture(
@@ -584,25 +632,25 @@ describe('InitCommand integration — multi-member team (INIT-INT-007)', () => {
     mockPrompt
       // 1. workspace
       .mockResolvedValueOnce({ workspacePath: WORKSPACE })
-      // 2. onboarding
-      .mockResolvedValueOnce({
-        name: FIXTURE_DATA.USER_NAME,
-        email: FIXTURE_DATA.USER_EMAIL,
-        role: FIXTURE_DATA.USER_ROLE,
-        company: FIXTURE_DATA.USER_COMPANY,
-      })
-      // 3. leader
+      // 2. promptNameAndEmail
+      .mockResolvedValueOnce({ name: FIXTURE_DATA.USER_NAME, email: FIXTURE_DATA.USER_EMAIL })
+      // 3. promptAdditionalDomains — skip
+      .mockResolvedValueOnce({ raw: '' })
+      // 4. promptRoleAndCompany
+      .mockResolvedValueOnce({ role: FIXTURE_DATA.USER_ROLE, company: FIXTURE_DATA.USER_COMPANY })
+      // 5. leader
       .mockResolvedValueOnce({
         name: FIXTURE_DATA.LEADER_NAME,
         email: FIXTURE_DATA.LEADER_EMAIL,
         role: FIXTURE_DATA.LEADER_ROLE,
+        location: '',
       })
-      // 4. team count = 2
+      // 6. team count = 2
       .mockResolvedValueOnce({ teamCount: '2' })
-      // 5–6. team names
+      // 7–8. team names
       .mockResolvedValueOnce({ teamName: FIXTURE_DATA.TEAM_1 })
       .mockResolvedValueOnce({ teamName: FIXTURE_DATA.TEAM_2 })
-      // 7–8. Team 1 member 1
+      // 9–10. Team 1 member 1
       .mockResolvedValueOnce({ memberEmail: MEMBER_1_EMAIL })
       .mockResolvedValueOnce({
         name: MEMBER_1_NAME,
@@ -610,27 +658,28 @@ describe('InitCommand integration — multi-member team (INIT-INT-007)', () => {
         gender: MEMBER_1_GENDER,
         location: MEMBER_1_LOCATION,
       })
-      // 9–10. Team 1 member 2 (added after member 1 — validates state is preserved)
+      // 11–12. Team 1 member 2 (added after member 1 — validates state is preserved)
       .mockResolvedValueOnce({ memberEmail: 'second-member@example.com' })
       .mockResolvedValueOnce({ name: 'Second Member', role: 'Designer', gender: '', location: '' })
-      // 11. Team 1 end loop
+      // 13. Team 1 end loop
       .mockResolvedValueOnce({ memberEmail: '' })
-      // 12. Team 2 end loop
+      // 14. Team 2 end loop
       .mockResolvedValueOnce({ memberEmail: '' });
 
     mockWriteFile.mockReset().mockImplementation(async (filePath: string, content: string) => {
-      writtenFiles3.set(filePath, content);
+      writtenFiles3.set(toPosix(filePath), content);
     });
     mockCreateDirectory.mockReset().mockResolvedValue(undefined);
-    mockFsExists.mockReset().mockResolvedValue(false);
+    mockFsExists.mockReset().mockImplementation(membersFileExists);
     mockReadFile.mockReset().mockResolvedValue('# Team Members\n');
     mockAppendFile.mockReset().mockImplementation(async (filePath: string, content: string) => {
-      const existing = appendedFiles3.get(filePath) ?? [];
+      const key = toPosix(filePath);
+      const existing = appendedFiles3.get(key) ?? [];
       existing.push(content);
-      appendedFiles3.set(filePath, existing);
+      appendedFiles3.set(key, existing);
     });
     mockListDirectories.mockReset().mockResolvedValue([]);
-    mockInstallPlugins.mockReset().mockResolvedValue(undefined);
+    mockInstallPlugins.mockReset().mockResolvedValue([]);
     mockFetchSkillContent.mockReset().mockResolvedValue({
       success: true,
       data: { content: '# skill', version: '1.0.0' },
@@ -659,10 +708,19 @@ describe('InitCommand integration — multi-member team (INIT-INT-007)', () => {
   });
 
   it('INIT-INT-007: both members appear in team 1 members file', () => {
+    // The roster wiki-link is now persisted via `addRelation -> writeFile`, not
+    // `appendFile`. Each member's `addRelation` performs its own write (the mocked
+    // readFile returns a constant empty roster), so join ALL writes to the roster
+    // path to confirm both members' links were persisted across the member loop.
     const membersFilePath = `${WORKSPACE}/my-teams/teams/${TEAM_1_SLUG}/${TEAM_1_SLUG}-members.md`;
-    const appended = appendedFiles3.get(membersFilePath)?.join('') ?? '';
-    expect(appended).toContain(MEMBER_1_EMAIL);
-    expect(appended).toContain('second-member@example.com');
+    const rosterWrites = toPosix(
+      (mockWriteFile.mock.calls as [string, string][])
+        .filter(([p]) => toPosix(p) === membersFilePath)
+        .map(([, content]) => content)
+        .join(''),
+    );
+    expect(rosterWrites).toContain(MEMBER_1_EMAIL);
+    expect(rosterWrites).toContain('second-member@example.com');
   });
 });
 
@@ -679,16 +737,16 @@ describe('InitCommand integration — copySampleInboxFiles throws (INIT-INT-011)
     );
 
     mockWriteFile.mockReset().mockImplementation(async (filePath: string) => {
-      if (filePath.includes('inbox/2026-04-10-Marlon-Alex.md')) {
+      if (toPosix(filePath).includes('inbox/2026-04-10-Marlon-Alex.md')) {
         throw new Error('disk quota exceeded');
       }
     });
     mockCreateDirectory.mockReset().mockResolvedValue(undefined);
-    mockFsExists.mockReset().mockResolvedValue(false);
+    mockFsExists.mockReset().mockImplementation(membersFileExists);
     mockReadFile.mockReset().mockResolvedValue('# Team Members\n');
     mockAppendFile.mockReset();
     mockListDirectories.mockReset().mockResolvedValue([]);
-    mockInstallPlugins.mockReset().mockResolvedValue(undefined);
+    mockInstallPlugins.mockReset().mockResolvedValue([]);
     mockFetchSkillContent.mockReset().mockResolvedValue({
       success: true,
       data: { content: '# skill', version: '1.0.0' },

@@ -81,12 +81,32 @@ describe('TaskViewService', () => {
     it('returns file content when file exists and has content', async () => {
       mockReadFile.mockResolvedValue('## My Tasks\n\n- [ ] Do something\n');
       const result = await svc.readTaskFile('today', '/workspace');
-      expect(mockReadFile).toHaveBeenCalledWith('/workspace/my-tasks/today.md');
+      expect(mockReadFile.mock.calls[0]![0].replace(/\\/g, '/')).toBe(
+        '/workspace/my-tasks/today.md',
+      );
       expect(result).toBe('## My Tasks\n\n- [ ] Do something\n');
     });
 
     it('returns empty string when file exists but is whitespace-only', async () => {
       mockReadFile.mockResolvedValue('   \n  \n');
+      const result = await svc.readTaskFile('today', '/workspace');
+      expect(result).toBe('');
+    });
+
+    it('9.35: strips YAML frontmatter (type/owner) so it does not leak into the view', async () => {
+      mockReadFile.mockResolvedValue(
+        '---\ntype: today\nowner: "[[../my-career/me@co.com.md|me@co.com]]"\n---\n\n# Tasks — Today\n\n- [ ] Do something\n',
+      );
+      const result = await svc.readTaskFile('today', '/workspace');
+      expect(result).not.toContain('type: today');
+      expect(result).not.toContain('owner:');
+      expect(result).not.toMatch(/^---/);
+      expect(result).toContain('# Tasks — Today');
+      expect(result).toContain('- [ ] Do something');
+    });
+
+    it('9.35: returns empty string when file has only frontmatter and no body', async () => {
+      mockReadFile.mockResolvedValue('---\ntype: today\nowner: "x"\n---\n');
       const result = await svc.readTaskFile('today', '/workspace');
       expect(result).toBe('');
     });
@@ -113,7 +133,7 @@ describe('TaskViewService', () => {
         jest.clearAllMocks();
         mockReadFile.mockResolvedValue('content');
         await svc.readTaskFile(period, '/ws');
-        expect(mockReadFile).toHaveBeenCalledWith(expectedPath);
+        expect(mockReadFile.mock.calls[0]![0].replace(/\\/g, '/')).toBe(expectedPath);
       }
     });
 

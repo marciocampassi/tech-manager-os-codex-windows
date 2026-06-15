@@ -1,6 +1,7 @@
 import { Command, CommanderError } from 'commander';
 import { createRequire } from 'module';
 import { printError } from './utils/display.js';
+import { VaultNotFoundError } from './errors/tmr-error.js';
 // Lightweight commands — imported statically (file-I/O only, no AI SDKs or heavy deps)
 import { createConfigCommand } from './commands/config.command.js';
 import { createDoctorCommand } from './commands/doctor.command.js';
@@ -8,6 +9,7 @@ import { createTeamCommand, runShow } from './commands/team.command.js';
 import { createMemberCommand } from './commands/member.command.js';
 import { createLeadershipCommand } from './commands/leadership.command.js';
 import { createProjectCommand } from './commands/project.command.js';
+import { createMyselfCommand } from './commands/myself.command.js';
 import { createTaskViewCommands } from './commands/task-view.command.js';
 // Heavy commands (AI SDKs, inquirer, googleapis, chokidar) are lazy-loaded via dynamic
 // import() so that `tmr --version`, `tmr --help`, and lightweight commands don't pay
@@ -38,17 +40,23 @@ export function createProgram(): Command {
   // Lazy: init loads inquirer, boxen, googleapis chain — only needed when actually running init
   p.command('init')
     .description('interactive setup wizard — configure your workspace')
-    .action(async (_opts: unknown, command: Command) => {
+    .option(
+      '--scaffold-only',
+      'create files and folders only — skip all network operations (plugin downloads, skill installs)',
+      false,
+    )
+    .action(async (opts: { scaffoldOnly?: boolean }, command: Command) => {
       const globals = command.parent?.opts() as { plain?: boolean } | undefined;
       const plain = globals?.plain ?? false;
       const { InitCommand } = await import('./commands/init.command.js');
-      await new InitCommand(pkg.version, plain).run();
+      await new InitCommand(pkg.version, plain, opts.scaffoldOnly ?? false).run();
     });
 
   p.addCommand(createConfigCommand());
   p.addCommand(createDoctorCommand(pkg.version));
   p.addCommand(createTeamCommand());
   p.addCommand(createMemberCommand());
+  p.addCommand(createMyselfCommand());
   p.addCommand(createLeadershipCommand());
   p.addCommand(createProjectCommand());
 
@@ -164,10 +172,12 @@ export async function run(argv = process.argv): Promise<void> {
     const opts = program.opts<GlobalOptions>();
     const plain = opts.plain ?? false;
     const msg = err instanceof Error ? err.message : String(err);
+    const hint =
+      err instanceof VaultNotFoundError ? err.hint : "Run 'tmr --help' for usage information.";
     if (opts.verbose && err instanceof Error) {
-      printError(`${msg}\n${err.stack ?? ''}`, undefined, plain);
+      printError(`${msg}\n${err.stack ?? ''}`, hint, plain);
     } else {
-      printError(msg, "Run 'tmr --help' for usage information.", plain);
+      printError(msg, hint, plain);
     }
     process.exit(1);
   }
