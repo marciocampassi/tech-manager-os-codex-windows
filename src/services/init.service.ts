@@ -273,11 +273,17 @@ export class InitService {
   }
 
   /**
-   * Installs default skills (tmr-inbox, tmr-project-impact, tmr-myself-config) by reading
-   * their SKILL.md files directly from the bundled `docs/skills/` directory — no network
-   * required. Each skill is installed independently; a failure for one does not prevent
-   * the others from being attempted. Errors are logged via `logger.warn()` and swallowed —
-   * skill install failures MUST NOT abort init.
+   * Installs default skills (tmr-inbox, tmr-project-impact, tmr-myself-config).
+   *
+   * Bundled-first: each skill is read from the bundled `docs/skills/` directory shipped
+   * with the package — no network required when the bundled copy is present and non-empty.
+   * If a bundled file is missing or empty (e.g. a packaging regression), it falls back to
+   * fetching the skill from the remote registry — the same source `tmr install` uses — so
+   * init still installs the skill automatically.
+   *
+   * Each skill is installed independently; a failure for one does not prevent the others
+   * from being attempted. All errors are logged via `logger.warn()` and swallowed — skill
+   * install failures MUST NOT abort init.
    */
   async installDefaultSkill(vaultPath: string): Promise<void> {
     const registry = this._skillRegistryFactory(vaultPath);
@@ -290,15 +296,23 @@ export class InitService {
     for (const { docsFolder, skillName } of BUNDLED_SKILLS) {
       try {
         const content = this._readBundledSkill(docsFolder);
-        if (content === null) {
-          logger.warn(`${skillName} skill install skipped: bundled file not found`);
+        if (content !== null && content.trim()) {
+          registry.installSkill(skillName, content, parseBundledVersion(content));
           continue;
         }
-        if (!content.trim()) {
-          logger.warn(`${skillName} skill install skipped: bundled file is empty`);
-          continue;
+
+        const reason = content === null ? 'bundled file not found' : 'bundled file is empty';
+        logger.info(`${skillName} bundled skill unavailable (${reason}); falling back to registry`);
+
+        const result = await registry.fetchSkillContent(skillName);
+        if (result.success && result.data.content.trim()) {
+          registry.installSkill(skillName, result.data.content, result.data.version);
+        } else {
+          const detail = result.success ? 'empty registry content' : result.error;
+          logger.warn(
+            `${skillName} skill install skipped: bundled unavailable and registry fetch failed (${detail})`,
+          );
         }
-        registry.installSkill(skillName, content, parseBundledVersion(content));
       } catch (err) {
         logger.warn(
           `${skillName} skill install failed: ${err instanceof Error ? err.message : String(err)}`,
