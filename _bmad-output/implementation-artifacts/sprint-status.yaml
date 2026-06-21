@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-27
-last_updated: 2026-06-14 (9-36 done)
+last_updated: 2026-06-20 (9-37 done)
 project: tech-manager-os
 project_key: NOKEY
 tracking_system: file-system
@@ -137,4 +137,6 @@ development_status:
   # Wave 3 (onboarding + migration):
   9-35-init-frontmatter-native-self-and-leader-profiles-plus-tasks-goals: done
   9-36-tmr-doctor-fix-frontmatter-migration: done
+  # ── Added 2026-06-20 via correct-course: tmr init not installing Claude skills (packaging bug) ──
+  9-37-init-installs-default-skills-bundle-packaging-and-registry-fallback: done
   epic-9-retrospective: optional

@@ -522,6 +522,11 @@ describe('InitService', () => {
       );
     });
 
+    it('does NOT contact the registry when every bundled file is present (AC4: bundled-first)', async () => {
+      await svcWithRegistry.installDefaultSkill(WS);
+      expect(mockRegistry.fetchSkillContent).not.toHaveBeenCalled();
+    });
+
     it('parses version comment when present', async () => {
       mockReadSkillFile.mockReturnValue('<!-- version: 2.1.0 -->\n# skill');
       await svcWithRegistry.installDefaultSkill(WS);
@@ -532,31 +537,67 @@ describe('InitService', () => {
       );
     });
 
-    it('installs remaining skills even when one file read throws', async () => {
+    it('installs all skills (via registry fallback) even when one bundled read throws', async () => {
+      // Registry mock resolves success by default → the failing-bundled skill falls back
+      // and still installs, so all three skills end up installed.
       mockReadSkillFile
         .mockImplementationOnce(() => {
           throw new Error('ENOENT');
         })
         .mockReturnValue('# skill content');
       await expect(svcWithRegistry.installDefaultSkill(WS)).resolves.toBeUndefined();
-      expect(mockRegistry.installSkill).toHaveBeenCalledTimes(2);
+      expect(mockRegistry.installSkill).toHaveBeenCalledTimes(3);
+      expect(mockRegistry.fetchSkillContent).toHaveBeenCalledTimes(1);
+      expect(mockRegistry.fetchSkillContent).toHaveBeenCalledWith('tmr-inbox');
     });
 
-    it('calls logger.warn and does NOT throw when a file read throws', async () => {
+    it('calls logger.warn and does NOT throw when bundled read AND registry both fail', async () => {
       const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => logger);
       mockReadSkillFile.mockImplementationOnce(() => {
         throw new Error('ENOENT: no such file');
       });
+      mockRegistry.fetchSkillContent.mockResolvedValueOnce({
+        success: false,
+        error: 'Network error',
+      });
       await expect(svcWithRegistry.installDefaultSkill(WS)).resolves.toBeUndefined();
-      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('bundled file not found'));
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('registry fetch failed'));
       warnSpy.mockRestore();
     });
 
-    it('calls logger.warn and does NOT call installSkill when bundled file is empty', async () => {
-      const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => logger);
+    it('falls back to registry and installs when a bundled file read throws', async () => {
+      mockReadSkillFile
+        .mockImplementationOnce(() => {
+          throw new Error('ENOENT');
+        })
+        .mockReturnValue('# skill content');
+      await svcWithRegistry.installDefaultSkill(WS);
+      // Registry path uses the fetched content + version (not the bundled 0.0.0 default).
+      expect(mockRegistry.installSkill).toHaveBeenCalledWith('tmr-inbox', '# skill', '1.0.0');
+    });
+
+    it('falls back to registry and installs when a bundled file is empty', async () => {
       mockReadSkillFile.mockReturnValueOnce('   ');
+      await svcWithRegistry.installDefaultSkill(WS);
+      expect(mockRegistry.fetchSkillContent).toHaveBeenCalledWith('tmr-inbox');
+      expect(mockRegistry.installSkill).toHaveBeenCalledWith('tmr-inbox', '# skill', '1.0.0');
+    });
+
+    it('warns and skips a skill (without blocking others) when bundled missing AND registry fails', async () => {
+      const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => logger);
+      mockReadSkillFile.mockImplementationOnce(() => {
+        throw new Error('ENOENT');
+      });
+      mockRegistry.fetchSkillContent.mockResolvedValueOnce({ success: false, error: 'not found' });
       await expect(svcWithRegistry.installDefaultSkill(WS)).resolves.toBeUndefined();
-      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('empty'));
+      // The failed skill is skipped; the other two bundled skills still install.
+      expect(mockRegistry.installSkill).toHaveBeenCalledTimes(2);
+      expect(mockRegistry.installSkill).not.toHaveBeenCalledWith(
+        'tmr-inbox',
+        expect.anything(),
+        expect.anything(),
+      );
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('skipped'));
       warnSpy.mockRestore();
     });
   });
