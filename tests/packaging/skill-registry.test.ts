@@ -90,4 +90,14 @@ describe('Skill registry integrity', () => {
       expect(fs.existsSync(skillPath)).toBe(true);
     }
   });
+
+  it('SKILL-PKG-006: package.json files ships docs/skills so bundled skills are in the npm package', () => {
+    const pkg = JSON.parse(fs.readFileSync(path.join(rootDir, 'package.json'), 'utf8')) as {
+      files?: unknown;
+    };
+    expect(Array.isArray(pkg.files)).toBe(true);
+    // `tmr init` reads bundled skills from docs/skills at runtime; without this entry the
+    // published package omits them and init silently installs nothing (regression guard).
+    expect(pkg.files as string[]).toContain('docs/skills');
+  });
 });
