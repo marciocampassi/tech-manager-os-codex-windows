@@ -1,4 +1,4 @@
-# tech-manager-os
+# tech-manager-os-codex-windows
 
 [![npm version](https://img.shields.io/npm/v/@marlonvidal/tech-manager-os.svg)](https://www.npmjs.com/package/@marlonvidal/tech-manager-os)
 [![CI](https://github.com/marlonvidal/tech-manager-os/actions/workflows/ci.yml/badge.svg)](https://github.com/marlonvidal/tech-manager-os/actions/workflows/ci.yml)
